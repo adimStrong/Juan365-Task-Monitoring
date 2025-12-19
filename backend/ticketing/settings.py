@@ -6,7 +6,12 @@ Supports both local development (SQLite) and production (PostgreSQL)
 from pathlib import Path
 from datetime import timedelta
 import os
-import dj_database_url
+
+try:
+    import dj_database_url
+    HAS_DJ_DATABASE_URL = True
+except ImportError:
+    HAS_DJ_DATABASE_URL = False
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,7 +83,7 @@ WSGI_APPLICATION = 'ticketing.wsgi.application'
 # Database - Use PostgreSQL in production, SQLite for local dev
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if DATABASE_URL:
+if DATABASE_URL and HAS_DJ_DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }

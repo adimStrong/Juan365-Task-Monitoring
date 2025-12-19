@@ -25,10 +25,18 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 # Allowed hosts - add your production domains
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS]
+# Add Cloudflare tunnel wildcard
+ALLOWED_HOSTS.append('.trycloudflare.com')
 
 # For Railway/Render deployment
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS]
+# Add Cloudflare tunnel - specific domain
+CSRF_TRUSTED_ORIGINS.append('https://induced-intend-expert-designing.trycloudflare.com')
+
+# Disable CSRF for development with tunnels
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
 
 # Application definition
 INSTALLED_APPS = [

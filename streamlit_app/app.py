@@ -4,6 +4,11 @@ Main Streamlit application - Login page
 """
 import streamlit as st
 import os
+from pathlib import Path
+
+# Get the directory where this script is located
+SCRIPT_DIR = Path(__file__).parent
+LOGO_PATH = SCRIPT_DIR / "assets" / "logo.jpg"
 
 # Get configuration
 def get_config():
@@ -86,7 +91,7 @@ with col2:
     # Logo centered
     logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
     with logo_col2:
-        st.image("assets/logo.jpg", width=200)
+        st.image(str(LOGO_PATH), width=200)
 
     st.markdown("<h2 style='text-align: center;'>Juan365 Ticket Portal</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Task Monitoring & Management System</p>", unsafe_allow_html=True)

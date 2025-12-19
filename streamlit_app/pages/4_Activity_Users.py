@@ -4,8 +4,12 @@ Activity & Users Page - View activity logs and manage users
 import streamlit as st
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Get logo path
+LOGO_PATH = Path(__file__).parent.parent / "assets" / "logo.jpg"
 
 # Get configuration
 def get_config():
@@ -34,7 +38,7 @@ if not st.session_state.get('logged_in', False):
 
 # Sidebar with logo
 with st.sidebar:
-    st.image("assets/logo.jpg", width=150)
+    st.image(str(LOGO_PATH), width=150)
     st.markdown(f"### 👤 {st.session_state.get('user_name', 'User')}")
     st.caption(f"@{st.session_state.get('username', '')} • {(st.session_state.get('user_role') or 'User').title()}")
     st.markdown("---")

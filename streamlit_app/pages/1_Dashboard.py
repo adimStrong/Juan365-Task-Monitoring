@@ -85,13 +85,18 @@ def get_recent_tickets():
         return []
 
 
-# Main content - Header with logo
-col_logo, col_title = st.columns([1, 4])
-with col_logo:
-    st.image(str(LOGO_PATH), width=120)
-with col_title:
-    st.title("📊 Dashboard")
-    st.markdown(f"Welcome back, **{st.session_state.get('user_name', 'User')}**!")
+# Main content - Header with centered logo
+import base64
+with open(LOGO_PATH, "rb") as f:
+    logo_data = base64.b64encode(f.read()).decode()
+
+st.markdown(f"""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="data:image/jpeg;base64,{logo_data}" width="120" style="margin-bottom: 10px;">
+        <h1 style="margin: 0;">📊 Dashboard</h1>
+        <p style="color: gray;">Welcome back, <strong>{st.session_state.get('user_name', 'User')}</strong>!</p>
+    </div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 try:

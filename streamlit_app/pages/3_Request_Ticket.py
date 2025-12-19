@@ -69,13 +69,48 @@ def create_ticket(title, description, priority, deadline):
     return api.create_ticket(title, description, priority, deadline_str)
 
 
+# Initialize form state
+if 'ticket_created' not in st.session_state:
+    st.session_state.ticket_created = None
+if 'form_key' not in st.session_state:
+    st.session_state.form_key = 0
+
 # Main content
 st.title("➕ Request New Ticket")
+
+# Show success message if ticket was just created
+if st.session_state.ticket_created:
+    ticket = st.session_state.ticket_created
+    st.success(f"✅ Ticket #{ticket['id']} created successfully!")
+    st.balloons()
+
+    st.markdown("---")
+    st.markdown("### Your Ticket Details")
+    st.markdown(f"**Ticket ID:** #{ticket['id']}")
+    st.markdown(f"**Title:** {ticket['title']}")
+    st.markdown(f"**Status:** 🔵 Requested (Pending Approval)")
+    st.markdown(f"**Priority:** {ticket['priority'].title()}")
+    if ticket.get('deadline'):
+        st.markdown(f"**Deadline:** {ticket['deadline']}")
+
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📋 View All Tickets", use_container_width=True):
+            st.session_state.ticket_created = None
+            st.switch_page("pages/2_Tickets.py")
+    with col2:
+        if st.button("➕ Create Another Ticket", use_container_width=True, type="primary"):
+            st.session_state.ticket_created = None
+            st.session_state.form_key += 1
+            st.rerun()
+    st.stop()
+
 st.info("📝 After submission, a manager will review and approve your request, then assign it to a team member.")
 st.markdown("---")
 
-# Ticket form
-with st.form("ticket_form"):
+# Ticket form with dynamic key to reset fields
+with st.form(f"ticket_form_{st.session_state.form_key}"):
     col1, col2 = st.columns(2)
 
     with col1:
@@ -140,30 +175,18 @@ with st.form("ticket_form"):
 
                 ticket_id = result.get('id') if isinstance(result, dict) else result.id
 
-                st.success(f"✅ Ticket #{ticket_id} created successfully!")
-                st.balloons()
-
-                st.markdown("---")
-                st.markdown("### Your Ticket Details")
-                st.markdown(f"**Ticket ID:** #{ticket_id}")
-                st.markdown(f"**Title:** {title}")
-                st.markdown(f"**Status:** 🔵 Requested (Pending Approval)")
-                st.markdown(f"**Priority:** {priority.title()}")
-                if deadline:
-                    st.markdown(f"**Deadline:** {deadline}")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("📋 View All Tickets"):
-                        st.switch_page("pages/2_Tickets.py")
-                with col2:
-                    if st.button("➕ Create Another"):
-                        st.rerun()
+                # Store created ticket info and reset form
+                st.session_state.ticket_created = {
+                    'id': ticket_id,
+                    'title': title,
+                    'priority': priority,
+                    'deadline': str(deadline) if deadline else None
+                }
+                st.session_state.form_key += 1
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Error creating ticket: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
 
 # Tips
 with st.expander("💡 Tips for a good ticket request"):

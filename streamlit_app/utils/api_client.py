@@ -48,7 +48,22 @@ class APIClient:
                 headers=self._headers(),
                 timeout=30
             )
-            response.raise_for_status()
+            if not response.ok:
+                # Try to get detailed error message from response
+                try:
+                    error_data = response.json()
+                    if isinstance(error_data, dict):
+                        # Format validation errors nicely
+                        errors = []
+                        for field, messages in error_data.items():
+                            if isinstance(messages, list):
+                                errors.append(f"{field}: {', '.join(messages)}")
+                            else:
+                                errors.append(f"{field}: {messages}")
+                        raise Exception("; ".join(errors) if errors else str(error_data))
+                except ValueError:
+                    pass
+                response.raise_for_status()
             return response.json() if response.text else {}
         except requests.exceptions.RequestException as e:
             raise Exception(f"API Error: {str(e)}")

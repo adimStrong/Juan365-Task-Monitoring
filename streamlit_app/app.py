@@ -88,13 +88,20 @@ if st.session_state.logged_in:
 col1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
-    # Logo centered
-    logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
-    with logo_col2:
-        st.image(str(LOGO_PATH), width=200)
+    # Logo and title centered using HTML
+    import base64
 
-    st.markdown("<h2 style='text-align: center;'>Juan365 Ticket Portal</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Task Monitoring & Management System</p>", unsafe_allow_html=True)
+    # Read and encode logo
+    with open(LOGO_PATH, "rb") as f:
+        logo_data = base64.b64encode(f.read()).decode()
+
+    st.markdown(f"""
+        <div style="text-align: center;">
+            <img src="data:image/jpeg;base64,{logo_data}" width="180" style="margin-bottom: 10px;">
+            <h2 style="margin: 0;">Juan365 Ticket Portal</h2>
+            <p style="color: gray; margin-top: 5px;">Task Monitoring & Management System</p>
+        </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
 
     with st.form("login_form"):

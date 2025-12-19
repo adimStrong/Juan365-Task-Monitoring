@@ -243,6 +243,32 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         user.save()
         return Response(UserSerializer(user).data)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def reset_password(self, request, pk=None):
+        """Reset user password (admin only)"""
+        user = self.get_object()
+        new_password = request.data.get('password')
+
+        if not new_password:
+            return Response(
+                {'error': 'Password is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(new_password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({
+            'message': f'Password reset successfully for {user.username}',
+            'user': UserSerializer(user).data
+        })
+
 
 # =====================
 # TICKET VIEWS

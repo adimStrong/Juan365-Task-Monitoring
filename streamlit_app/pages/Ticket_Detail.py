@@ -90,6 +90,29 @@ def add_comment(ticket_id, comment):
     return api.add_comment(ticket_id, comment)
 
 
+def upload_attachment(ticket_id, file_data, file_name):
+    """Upload attachment to ticket"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    return api.upload_attachment(ticket_id, file_data, file_name)
+
+
+def get_attachments(ticket_id):
+    """Get ticket attachments"""
+    import requests
+    headers = {'Content-Type': 'application/json'}
+    token = st.session_state.get('api_token')
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    try:
+        response = requests.get(f"{API_BASE_URL}/tickets/{ticket_id}/attachments/", headers=headers, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except:
+        return []
+
+
 def get_users_list():
     """Get list of users for assignment"""
     from utils.api_client import get_api_client
@@ -228,6 +251,54 @@ with col1:
                     st.error(f"Error: {e}")
             else:
                 st.warning("Please enter a comment")
+
+    st.markdown("---")
+
+    # Attachments Section
+    st.markdown("### 📎 Attachments")
+
+    try:
+        attachments = get_attachments(ticket_id)
+        if not isinstance(attachments, list):
+            attachments = attachments.get('results', []) if isinstance(attachments, dict) else []
+
+        if attachments:
+            for att in attachments:
+                file_name = att.get('file_name', 'Unknown file')
+                file_url = att.get('file', '')
+                uploaded_by = att.get('user', {})
+                uploader_name = f"{uploaded_by.get('first_name', '')} {uploaded_by.get('last_name', '')}".strip() or uploaded_by.get('username', 'User')
+                uploaded_at = att.get('uploaded_at', '')[:16].replace('T', ' ')
+
+                col_file, col_info = st.columns([3, 1])
+                with col_file:
+                    st.markdown(f"📄 **{file_name}**")
+                    st.caption(f"Uploaded by {uploader_name} • {uploaded_at}")
+                with col_info:
+                    if file_url:
+                        st.markdown(f"[Download]({file_url})")
+        else:
+            st.caption("No attachments yet")
+    except:
+        st.caption("Could not load attachments")
+
+    # Upload attachment
+    st.markdown("**Upload File**")
+    uploaded_file = st.file_uploader(
+        "Choose a file",
+        type=['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'txt', 'csv', 'zip'],
+        key="file_upload",
+        label_visibility="collapsed"
+    )
+
+    if uploaded_file:
+        if st.button("📤 Upload Attachment", use_container_width=True):
+            try:
+                upload_attachment(ticket_id, uploaded_file.getvalue(), uploaded_file.name)
+                st.success(f"File '{uploaded_file.name}' uploaded!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Upload error: {e}")
 
 with col2:
     # Info sidebar

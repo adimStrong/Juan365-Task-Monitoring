@@ -68,7 +68,7 @@ def get_tickets(_token, status=None, search=None):
 def view_ticket(ticket_id):
     """Navigate to ticket detail page"""
     st.session_state.view_ticket_id = ticket_id
-    st.switch_page("pages/6_Ticket_Detail.py")
+    st.switch_page("pages/Ticket_Detail.py")
 
 
 # Main content

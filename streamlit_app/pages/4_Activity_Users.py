@@ -340,48 +340,9 @@ if is_admin:
 
         st.markdown("---")
 
-        # Reset Password Section
+        # Reset Password Section - Link to Django Admin
         st.markdown("#### 🔑 Reset User Password")
-        try:
-            all_users = get_all_users_manage()
-            if not isinstance(all_users, list):
-                all_users = all_users.get('results', []) if isinstance(all_users, dict) else []
-
-            # Filter only active/approved users
-            active_users = [u for u in all_users if u.get('is_approved', True)]
-
-            if active_users:
-                user_options = {
-                    u['id']: f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get('username')
-                    for u in active_users
-                }
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    selected_user_id = st.selectbox(
-                        "Select User",
-                        options=list(user_options.keys()),
-                        format_func=lambda x: user_options.get(x, 'Unknown'),
-                        key="reset_pw_user"
-                    )
-
-                with col2:
-                    new_pw = st.text_input("New Password", type="password", placeholder="Min 6 characters", key="reset_pw_input")
-
-                if st.button("🔑 Reset Password", key="reset_pw_btn"):
-                    if not new_pw:
-                        st.error("Please enter a new password")
-                    elif len(new_pw) < 6:
-                        st.error("Password must be at least 6 characters")
-                    else:
-                        try:
-                            result = reset_user_password(selected_user_id, new_pw)
-                            st.success(f"Password reset successfully for {user_options.get(selected_user_id)}")
-                        except Exception as e:
-                            st.error(f"Error resetting password: {str(e)}")
-            else:
-                st.info("No users available for password reset")
-
-        except Exception as e:
-            st.warning(f"Could not load users: {str(e)}")
+        st.info("To reset a user's password, use Django Admin:")
+        st.markdown("1. Go to **http://localhost:8000/admin/**")
+        st.markdown("2. Click **Users** → Select user")
+        st.markdown("3. Click the password change link → Enter new password → Save")

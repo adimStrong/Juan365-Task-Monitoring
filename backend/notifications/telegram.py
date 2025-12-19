@@ -74,6 +74,7 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         'deadline': '⏰',
         'idle': '⚠️',
         'completed': '🎉',
+        'confirmed': '✔️',
     }
 
     emoji = emojis.get(notification_type, '📌')
@@ -143,7 +144,15 @@ This task has been idle for more than 1 day. Please update progress.
 <b>#{ticket.id}</b> - {ticket.title}
 <b>Status:</b> Completed ✓
 
-The task has been successfully completed!
+The task has been completed. Awaiting requester confirmation.
+''',
+        'confirmed': f'''
+{emoji} <b>Completion Confirmed!</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> Confirmed by Requester ✓
+
+The requester has confirmed that the task was completed satisfactorily. Great job!
 ''',
     }
 

@@ -96,5 +96,164 @@ def get_all_users():
     return User.objects.filter(is_active=True, is_approved=True).values('id', 'username', 'first_name', 'last_name')
 
 def get_all_tickets():
-    """Get all tickets for linking"""
-    return Ticket.objects.all().values('id', 'title')[:50]
+    """Get all tickets for linking with full details"""
+    return Ticket.objects.select_related('requester', 'assigned_to').all()[:50]
+
+def get_ticket_by_id(ticket_id):
+    """Get a single ticket by ID with full details"""
+    try:
+        return Ticket.objects.select_related('requester', 'assigned_to').get(id=ticket_id)
+    except Ticket.DoesNotExist:
+        return None
+
+
+# =====================
+# AUTHENTICATION
+# =====================
+
+def authenticate_user(username, password):
+    """Authenticate user and return user object if valid"""
+    from django.contrib.auth import authenticate
+    user = authenticate(username=username, password=password)
+    if user and user.is_active and user.is_approved:
+        return user
+    return None
+
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    try:
+        return User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return None
+
+
+# =====================
+# TICKET MANAGEMENT
+# =====================
+
+def get_user_tickets(user_id, status=None):
+    """Get tickets for a specific user (requested by or assigned to)"""
+    from django.db.models import Q
+    queryset = Ticket.objects.select_related('requester', 'assigned_to').filter(
+        Q(requester_id=user_id) | Q(assigned_to_id=user_id)
+    )
+    if status and status != 'all':
+        queryset = queryset.filter(status=status)
+    return queryset.order_by('-created_at')
+
+def create_ticket(title, description, priority, deadline, requester_id, assigned_to_id=None):
+    """Create a new ticket"""
+    from api.models import Notification, ActivityLog
+    from notifications.telegram import notify_user
+
+    ticket = Ticket(
+        title=title,
+        description=description,
+        priority=priority,
+        deadline=deadline,
+        requester_id=requester_id,
+        status='requested'
+    )
+
+    if assigned_to_id:
+        ticket.assigned_to_id = assigned_to_id
+
+    ticket.save()
+
+    # Log activity
+    ActivityLog.objects.create(
+        user_id=requester_id,
+        ticket=ticket,
+        action='created',
+        details=f'Created ticket: {title}'
+    )
+
+    # Notify managers about new request
+    managers = User.objects.filter(role__in=['admin', 'manager'], is_active=True, is_approved=True)
+    for manager in managers:
+        Notification.objects.create(
+            user=manager,
+            ticket=ticket,
+            message=f'New ticket request: #{ticket.id} - {title}',
+            notification_type='new_request'
+        )
+        notify_user(manager, 'new_request', ticket)
+
+    return ticket
+
+def add_ticket_comment(ticket_id, user_id, comment_text, parent_id=None):
+    """Add a comment to a ticket"""
+    from api.models import TicketComment, Notification
+    from notifications.telegram import notify_user
+
+    ticket = Ticket.objects.get(id=ticket_id)
+
+    comment = TicketComment(
+        ticket=ticket,
+        user_id=user_id,
+        comment=comment_text,
+        parent_id=parent_id
+    )
+    comment.save()
+
+    # Notify ticket participants
+    participants = set()
+    if ticket.requester_id:
+        participants.add(ticket.requester_id)
+    if ticket.assigned_to_id:
+        participants.add(ticket.assigned_to_id)
+    participants.discard(user_id)
+
+    for pid in participants:
+        user = User.objects.get(id=pid)
+        Notification.objects.create(
+            user=user,
+            ticket=ticket,
+            message=f'New comment on ticket #{ticket.id}',
+            notification_type='comment'
+        )
+        notify_user(user, 'comment', ticket, comment_text[:100])
+
+    return comment
+
+def get_ticket_comments(ticket_id):
+    """Get comments for a ticket (top-level only, replies nested)"""
+    from api.models import TicketComment
+    return TicketComment.objects.filter(ticket_id=ticket_id, parent__isnull=True).select_related('user').order_by('created_at')
+
+def get_ticket_attachments(ticket_id):
+    """Get attachments for a ticket"""
+    from api.models import TicketAttachment
+    return TicketAttachment.objects.filter(ticket_id=ticket_id).select_related('user')
+
+def add_ticket_attachment(ticket_id, user_id, file_path, file_name):
+    """Add attachment to a ticket"""
+    from api.models import TicketAttachment
+    attachment = TicketAttachment(
+        ticket_id=ticket_id,
+        user_id=user_id,
+        file=file_path,
+        file_name=file_name
+    )
+    attachment.save()
+    return attachment
+
+def get_dashboard_stats(user_id=None):
+    """Get dashboard statistics"""
+    from django.db.models import Q, Count
+
+    if user_id:
+        base_query = Ticket.objects.filter(Q(requester_id=user_id) | Q(assigned_to_id=user_id))
+    else:
+        base_query = Ticket.objects.all()
+
+    stats = {
+        'total': base_query.count(),
+        'requested': base_query.filter(status='requested').count(),
+        'approved': base_query.filter(status='approved').count(),
+        'in_progress': base_query.filter(status='in_progress').count(),
+        'completed': base_query.filter(status='completed').count(),
+        'rejected': base_query.filter(status='rejected').count(),
+    }
+
+    return stats

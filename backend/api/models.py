@@ -94,6 +94,10 @@ class Ticket(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Requester confirmation when task is completed
+    confirmed_by_requester = models.BooleanField(default=False, help_text='Requester confirms task completion')
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
 
@@ -114,8 +118,37 @@ class Ticket(models.Model):
         return False
 
 
+class TicketCollaborator(models.Model):
+    """Collaborators on tickets - multiple users can collaborate on a ticket"""
+
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='collaborators'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='collaborated_tickets'
+    )
+    added_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='added_collaborators'
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['ticket', 'user']
+        ordering = ['added_at']
+
+    def __str__(self):
+        return f"{self.user.username} collaborating on #{self.ticket.id}"
+
+
 class TicketComment(models.Model):
-    """Comments on tickets"""
+    """Comments on tickets with reply support"""
 
     ticket = models.ForeignKey(
         Ticket,
@@ -126,6 +159,13 @@ class TicketComment(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='ticket_comments'
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies'
     )
     comment = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -209,6 +249,7 @@ class ActivityLog(models.Model):
         ASSIGNED = 'assigned', 'Assigned'
         STARTED = 'started', 'Started'
         COMPLETED = 'completed', 'Completed'
+        CONFIRMED = 'confirmed', 'Confirmed by Requester'
         COMMENTED = 'commented', 'Commented'
         DELETED = 'deleted', 'Deleted'
 

@@ -105,8 +105,39 @@ export const ticketsAPI = {
   getComments: (id) =>
     api.get(`/tickets/${id}/comments/`),
 
-  addComment: (id, comment) =>
-    api.post(`/tickets/${id}/comments/`, { comment }),
+  addComment: (id, comment, parentId = null) =>
+    api.post(`/tickets/${id}/comments/`, { comment, parent: parentId }),
+
+  // Attachments
+  getAttachments: (id) =>
+    api.get(`/tickets/${id}/attachments/`),
+
+  addAttachment: (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/tickets/${id}/attachments/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  deleteAttachment: (attachmentId) =>
+    api.delete(`/attachments/${attachmentId}/`),
+
+  // Requester confirmation
+  confirmComplete: (id) =>
+    api.post(`/tickets/${id}/confirm/`),
+
+  // Collaborators
+  getCollaborators: (id) =>
+    api.get(`/tickets/${id}/collaborators/`),
+
+  addCollaborator: (id, userId) =>
+    api.post(`/tickets/${id}/collaborators/`, { user_id: userId }),
+
+  removeCollaborator: (id, userId) =>
+    api.delete(`/tickets/${id}/collaborators/`, { data: { user_id: userId } }),
 };
 
 // Users API

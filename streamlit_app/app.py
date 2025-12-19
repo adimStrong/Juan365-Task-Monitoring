@@ -1,13 +1,19 @@
 """
-Juan365 File Upload Portal
-Main Streamlit application entry point
+Juan365 Ticket Portal
+Main Streamlit application with login and dashboard
+Supports both local (Django ORM) and online (REST API) modes
 """
 import streamlit as st
+import os
+
+# Deployment mode - set to 'api' for online, 'local' for local development
+DEPLOYMENT_MODE = os.getenv('DEPLOYMENT_MODE', 'local')
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000/api')
 
 # Page configuration
 st.set_page_config(
-    page_title="Juan365 File Portal",
-    page_icon="\U0001F4C1",
+    page_title="Juan365 Ticket Portal",
+    page_icon="🎫",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -27,127 +33,259 @@ st.markdown("""
         margin-bottom: 2rem;
     }
     .stat-card {
-        background: white;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1.5rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-radius: 1rem;
+        color: white;
         text-align: center;
-    }
-    .stat-number {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #3B82F6;
-    }
-    .stat-label {
-        color: #6B7280;
-        font-size: 0.875rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
-with st.sidebar:
-    st.image("https://via.placeholder.com/150x50/3B82F6/FFFFFF?text=Juan365", width=150)
-    st.markdown("---")
-    st.markdown("### Navigation")
-    st.markdown("""
-    - **Upload** - Upload new files
-    - **Browse** - Search and manage files
-    - **Gallery** - View images and videos
-    - **Documents** - View documents
-    """)
-    st.markdown("---")
-    st.caption("Juan365 File Portal v1.0")
+# Initialize session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'username' not in st.session_state:
+    st.session_state.username = None
+if 'user_role' not in st.session_state:
+    st.session_state.user_role = None
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = None
+if 'api_token' not in st.session_state:
+    st.session_state.api_token = None
 
-# Main content
-st.markdown('<p class="main-header">Juan365 File Portal</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Upload, manage, and browse your files</p>', unsafe_allow_html=True)
 
-# Initialize database connection
-try:
-    from utils.db import get_file_stats
+def login_with_api(username: str, password: str):
+    """Login using REST API"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
 
-    stats = get_file_stats()
+    result = api.login(username, password)
+    if 'access' in result:
+        st.session_state.api_token = result['access']
+        api.set_token(result['access'])
 
-    # Dashboard stats
-    col1, col2, col3, col4, col5 = st.columns(5)
+        # Get user info
+        user_info = api.get_me()
+        st.session_state.logged_in = True
+        st.session_state.user_id = user_info.get('id')
+        st.session_state.username = user_info.get('username')
+        st.session_state.user_role = user_info.get('role', 'member')
+        st.session_state.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or username
+        return True
+    return False
 
-    with col1:
-        st.metric(
-            label="\U0001F4C1 Total Files",
-            value=stats.get('total_files', 0)
-        )
+
+def login_with_db(username: str, password: str):
+    """Login using direct database access"""
+    from utils.db import authenticate_user
+    user = authenticate_user(username, password)
+    if user:
+        st.session_state.logged_in = True
+        st.session_state.user_id = user.id
+        st.session_state.username = user.username
+        st.session_state.user_role = user.role
+        st.session_state.user_name = f"{user.first_name} {user.last_name}".strip() or user.username
+        return True
+    return False
+
+
+def login_page():
+    """Display login page"""
+    col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.metric(
-            label="\U0001F5BC Images",
-            value=stats.get('image_count', 0)
-        )
+        st.markdown("## 🎫 Juan365 Ticket Portal")
+        st.markdown("---")
 
-    with col3:
-        st.metric(
-            label="\U0001F3AC Videos",
-            value=stats.get('video_count', 0)
-        )
+        with st.form("login_form"):
+            st.markdown("### Login")
+            username = st.text_input("Username", placeholder="Enter your username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
 
-    with col4:
-        st.metric(
-            label="\U0001F4C4 Documents",
-            value=stats.get('document_count', 0)
-        )
+            col_a, col_b = st.columns(2)
+            with col_a:
+                submit = st.form_submit_button("🔐 Login", use_container_width=True)
+            with col_b:
+                if st.form_submit_button("📝 Register", use_container_width=True):
+                    st.info("Please register via the main app")
 
-    with col5:
-        total_size = stats.get('total_size', 0) or 0
-        size_mb = total_size / (1024 * 1024)
-        st.metric(
-            label="\U0001F4BE Storage Used",
-            value=f"{size_mb:.1f} MB"
-        )
+            if submit:
+                if username and password:
+                    try:
+                        if DEPLOYMENT_MODE == 'api':
+                            success = login_with_api(username, password)
+                        else:
+                            success = login_with_db(username, password)
 
-    st.markdown("---")
+                        if success:
+                            st.success("Login successful!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid credentials or account not approved")
+                    except Exception as e:
+                        st.error(f"Login error: {str(e)}")
+                else:
+                    st.warning("Please enter username and password")
 
-    # Quick actions
-    st.subheader("Quick Actions")
+        st.markdown("---")
+        st.caption(f"Mode: {DEPLOYMENT_MODE.upper()} | API: {API_BASE_URL if DEPLOYMENT_MODE == 'api' else 'Direct DB'}")
 
-    col1, col2, col3 = st.columns(3)
 
-    with col1:
-        if st.button("\U0001F4E4 Upload Files", use_container_width=True):
+def get_stats():
+    """Get dashboard statistics"""
+    if DEPLOYMENT_MODE == 'api':
+        from utils.api_client import get_api_client
+        api = get_api_client()
+        try:
+            return api.get_dashboard_stats()
+        except:
+            return {'total_tickets': 0, 'pending_approval': 0, 'in_progress': 0, 'completed': 0}
+    else:
+        from utils.db import get_dashboard_stats
+        stats = get_dashboard_stats(st.session_state.user_id)
+        return {
+            'total_tickets': stats['total'],
+            'pending_approval': stats['requested'],
+            'in_progress': stats['in_progress'],
+            'completed': stats['completed']
+        }
+
+
+def get_recent_tickets():
+    """Get recent tickets"""
+    if DEPLOYMENT_MODE == 'api':
+        from utils.api_client import get_api_client
+        api = get_api_client()
+        try:
+            tickets = api.get_tickets()
+            return tickets[:5] if tickets else []
+        except:
+            return []
+    else:
+        from utils.db import get_user_tickets
+        return list(get_user_tickets(st.session_state.user_id))[:5]
+
+
+def dashboard_page():
+    """Display main dashboard for logged-in users"""
+    # Sidebar
+    with st.sidebar:
+        st.markdown(f"### 👤 {st.session_state.user_name}")
+        st.caption(f"@{st.session_state.username} • {st.session_state.user_role.title() if st.session_state.user_role else 'User'}")
+        st.markdown("---")
+
+        st.markdown("### 📌 Quick Actions")
+        if st.button("➕ New Ticket Request", use_container_width=True):
+            st.switch_page("pages/6_Request_Ticket.py")
+        if st.button("📋 My Tickets", use_container_width=True):
+            st.switch_page("pages/7_My_Tickets.py")
+        if st.button("📤 Upload Files", use_container_width=True):
             st.switch_page("pages/1_Upload.py")
 
-    with col2:
-        if st.button("\U0001F50D Browse Files", use_container_width=True):
-            st.switch_page("pages/2_Browse.py")
+        st.markdown("---")
 
-    with col3:
-        if st.button("\U0001F5BC View Gallery", use_container_width=True):
-            st.switch_page("pages/3_Gallery.py")
+        if st.button("🚪 Logout", use_container_width=True):
+            for key in ['logged_in', 'user_id', 'username', 'user_role', 'user_name', 'api_token']:
+                st.session_state[key] = None
+            st.session_state.logged_in = False
+            st.rerun()
 
-    # Recent files
-    st.markdown("---")
-    st.subheader("Recent Uploads")
+        st.markdown("---")
+        st.caption(f"Juan365 v2.0 | {DEPLOYMENT_MODE.upper()}")
 
-    from utils.db import get_all_files
-    recent_files = get_all_files(limit=5)
+    # Main content
+    st.markdown(f'<p class="main-header">Welcome, {st.session_state.user_name}! 👋</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Manage your tickets and requests</p>', unsafe_allow_html=True)
 
-    if recent_files:
-        for file in recent_files:
-            col1, col2, col3 = st.columns([3, 1, 1])
-            with col1:
-                icon = {
-                    'image': '\U0001F5BC',
-                    'video': '\U0001F3AC',
-                    'document': '\U0001F4C4',
-                    'other': '\U0001F4C1'
-                }.get(file.file_type, '\U0001F4C1')
-                st.write(f"{icon} {file.name}")
-            with col2:
-                st.caption(file.file_size_display)
-            with col3:
-                st.caption(file.created_at.strftime('%m/%d/%Y'))
-    else:
-        st.info("No files uploaded yet. Click 'Upload Files' to get started!")
+    try:
+        # Get stats
+        stats = get_stats()
 
-except Exception as e:
-    st.error(f"Database connection error: {str(e)}")
-    st.info("Make sure the Django backend is properly configured.")
+        # Dashboard stats
+        st.markdown("### 📊 Ticket Summary")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(label="📋 Total", value=stats.get('total_tickets', stats.get('total', 0)))
+        with col2:
+            st.metric(label="🔵 Pending", value=stats.get('pending_approval', stats.get('requested', 0)))
+        with col3:
+            st.metric(label="🟡 In Progress", value=stats.get('in_progress', 0))
+        with col4:
+            st.metric(label="✅ Completed", value=stats.get('completed', 0))
+
+        st.markdown("---")
+
+        # Quick actions
+        st.markdown("### ⚡ Quick Actions")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if st.button("➕ Request New Ticket", use_container_width=True, type="primary"):
+                st.switch_page("pages/6_Request_Ticket.py")
+        with col2:
+            if st.button("📋 View My Tickets", use_container_width=True):
+                st.switch_page("pages/7_My_Tickets.py")
+        with col3:
+            if st.button("📤 Upload Files", use_container_width=True):
+                st.switch_page("pages/1_Upload.py")
+        with col4:
+            if st.button("📁 Browse Files", use_container_width=True):
+                st.switch_page("pages/2_Browse.py")
+
+        st.markdown("---")
+
+        # Recent tickets
+        st.markdown("### 🕐 Recent Tickets")
+        recent_tickets = get_recent_tickets()
+
+        if recent_tickets:
+            for ticket in recent_tickets:
+                # Handle both dict (API) and object (ORM) formats
+                if isinstance(ticket, dict):
+                    ticket_id = ticket.get('id')
+                    title = ticket.get('title')
+                    status = ticket.get('status')
+                    created_at = ticket.get('created_at', '')[:10]
+                else:
+                    ticket_id = ticket.id
+                    title = ticket.title
+                    status = ticket.status
+                    created_at = ticket.created_at.strftime('%m/%d/%Y')
+
+                status_emoji = {
+                    'requested': '🔵',
+                    'approved': '🟢',
+                    'in_progress': '🟡',
+                    'completed': '✅',
+                    'rejected': '🔴'
+                }.get(status, '⚪')
+
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+
+                with col1:
+                    st.write(f"{status_emoji} **#{ticket_id}** - {title}")
+                with col2:
+                    st.caption(status.replace('_', ' ').title() if status else '-')
+                with col3:
+                    st.caption(created_at)
+                with col4:
+                    if st.button("View", key=f"view_{ticket_id}"):
+                        st.session_state.selected_ticket_id = ticket_id
+                        st.switch_page("pages/7_My_Tickets.py")
+        else:
+            st.info("No tickets yet. Click 'Request New Ticket' to create one!")
+
+    except Exception as e:
+        st.error(f"Error loading dashboard: {str(e)}")
+
+
+# Main app logic
+if st.session_state.logged_in:
+    dashboard_page()
+else:
+    login_page()

@@ -18,6 +18,13 @@ const TicketDetail = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [assignUserId, setAssignUserId] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [collaboratorUserId, setCollaboratorUserId] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [expandedReplies, setExpandedReplies] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -30,7 +37,9 @@ const TicketDetail = () => {
         usersAPI.list(),
       ]);
       setTicket(ticketRes.data);
-      setUsers(usersRes.data);
+      // Handle both array and paginated responses
+      const usersData = usersRes.data;
+      setUsers(Array.isArray(usersData) ? usersData : (usersData.results || []));
     } catch (error) {
       console.error('Failed to fetch ticket:', error);
       navigate('/tickets');
@@ -85,6 +94,90 @@ const TicketDetail = () => {
     }
   };
 
+  const handleReply = async (parentId) => {
+    if (!replyText.trim()) return;
+
+    try {
+      await ticketsAPI.addComment(id, replyText, parentId);
+      setReplyText('');
+      setReplyingTo(null);
+      // Auto-expand replies after adding one
+      setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
+      fetchData();
+    } catch (error) {
+      alert('Failed to add reply');
+    }
+  };
+
+  const toggleReplies = (commentId) => {
+    setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    try {
+      await ticketsAPI.addAttachment(id, file);
+      fetchData(); // Refresh to show new attachment
+      e.target.value = ''; // Reset file input
+    } catch (error) {
+      alert('Failed to upload file: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return;
+
+    try {
+      await ticketsAPI.deleteAttachment(attachmentId);
+      fetchData();
+    } catch (error) {
+      alert('Failed to delete attachment');
+    }
+  };
+
+  const handleConfirmComplete = async () => {
+    setActionLoading(true);
+    try {
+      const response = await ticketsAPI.confirmComplete(id);
+      setTicket(response.data);
+      setShowConfirmModal(false);
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to confirm completion');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAddCollaborator = async () => {
+    if (!collaboratorUserId) return;
+    setActionLoading(true);
+    try {
+      await ticketsAPI.addCollaborator(id, collaboratorUserId);
+      setShowCollaboratorModal(false);
+      setCollaboratorUserId('');
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to add collaborator');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemoveCollaborator = async (userId) => {
+    if (!window.confirm('Remove this collaborator?')) return;
+    try {
+      await ticketsAPI.removeCollaborator(id, userId);
+      fetchData();
+    } catch (error) {
+      alert('Failed to remove collaborator');
+    }
+  };
+
   const getPriorityColor = (priority) => {
     const colors = {
       urgent: 'bg-red-100 text-red-800',
@@ -98,10 +191,10 @@ const TicketDetail = () => {
   const getStatusColor = (status) => {
     const colors = {
       requested: 'bg-blue-100 text-blue-800',
-      approved: 'bg-green-100 text-green-800',
+      approved: 'bg-cyan-100 text-cyan-800',
       rejected: 'bg-red-100 text-red-800',
       in_progress: 'bg-yellow-100 text-yellow-800',
-      completed: 'bg-gray-100 text-gray-800',
+      completed: 'bg-green-100 text-green-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -128,6 +221,9 @@ const TicketDetail = () => {
                    ['requested', 'approved'].includes(ticket.status);
   const canComplete = (ticket.assigned_to?.id === user?.id || isManager) &&
                       ticket.status === 'in_progress';
+  const canConfirm = ticket.requester?.id === user?.id &&
+                     ticket.status === 'completed' &&
+                     !ticket.confirmed_by_requester;
 
   return (
     <Layout>
@@ -172,7 +268,7 @@ const TicketDetail = () => {
         )}
 
         {/* Actions */}
-        {(canApprove || canStart || canComplete || isManager) && (
+        {(canApprove || canStart || canComplete || canConfirm || isManager) && (
           <div className="bg-white shadow rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
             <div className="flex flex-wrap gap-2">
@@ -194,13 +290,22 @@ const TicketDetail = () => {
                   </button>
                 </>
               )}
-              {isManager && ticket.status !== 'completed' && ticket.status !== 'rejected' && (
+              {isManager && ticket.status !== 'completed' && ticket.status !== 'rejected' && !ticket.assigned_to && (
                 <button
                   onClick={() => setShowAssignModal(true)}
                   disabled={actionLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   Assign
+                </button>
+              )}
+              {ticket.status !== 'completed' && ticket.status !== 'rejected' && (
+                <button
+                  onClick={() => setShowCollaboratorModal(true)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  Add Collaborator
                 </button>
               )}
               {canStart && (
@@ -221,7 +326,37 @@ const TicketDetail = () => {
                   Mark Complete
                 </button>
               )}
+              {canConfirm && (
+                <button
+                  onClick={() => setShowConfirmModal(true)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  Confirm Completion
+                </button>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Confirmation Status */}
+        {ticket.status === 'completed' && (
+          <div className={`p-4 rounded-lg ${ticket.confirmed_by_requester ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+            {ticket.confirmed_by_requester ? (
+              <div className="flex items-center text-green-700">
+                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Completion confirmed by requester</span>
+              </div>
+            ) : (
+              <div className="flex items-center text-yellow-700">
+                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Awaiting confirmation from requester</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -252,6 +387,73 @@ const TicketDetail = () => {
                         <span className="text-sm text-gray-500">{formatDate(c.created_at)}</span>
                       </div>
                       <p className="text-gray-700">{c.comment}</p>
+                      <button
+                        onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                        className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        {replyingTo === c.id ? 'Cancel' : 'Reply'}
+                      </button>
+
+                      {/* Reply Form */}
+                      {replyingTo === c.id && (
+                        <div className="mt-3 ml-4 pl-4 border-l-2 border-gray-200">
+                          <textarea
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            rows={2}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Write a reply..."
+                          />
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              onClick={() => handleReply(c.id)}
+                              disabled={!replyText.trim()}
+                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              Reply
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Replies */}
+                      {c.replies?.length > 0 && (
+                        <div className="mt-3">
+                          {!expandedReplies[c.id] ? (
+                            <button
+                              onClick={() => toggleReplies(c.id)}
+                              className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                              View {c.replies.length} {c.replies.length === 1 ? 'reply' : 'replies'}
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleReplies(c.id)}
+                                className="text-sm text-gray-500 hover:text-gray-700 mb-2"
+                              >
+                                Hide replies
+                              </button>
+                              <div className="ml-4 pl-4 border-l-2 border-gray-200 space-y-3">
+                                {c.replies.map((reply) => (
+                                  <div key={reply.id} className="bg-gray-50 p-3 rounded">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-medium text-sm text-gray-900">
+                                        {reply.user?.first_name || reply.user?.username}
+                                      </span>
+                                      <span className="text-xs text-gray-500">{formatDate(reply.created_at)}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-700">{reply.comment}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -278,6 +480,69 @@ const TicketDetail = () => {
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* Attachments */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Attachments ({ticket.attachments?.length || 0})
+              </h3>
+
+              {ticket.attachments?.length > 0 ? (
+                <div className="space-y-3 mb-6">
+                  {ticket.attachments.map((att) => (
+                    <div key={att.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{att.file_name}</p>
+                          <p className="text-xs text-gray-500">
+                            Uploaded by {att.user?.first_name || att.user?.username} on {formatDate(att.uploaded_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={`http://localhost:8000${att.file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          Download
+                        </a>
+                        {(att.user?.id === user?.id || isManager) && (
+                          <button
+                            onClick={() => handleDeleteAttachment(att.id)}
+                            className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 mb-6">No attachments yet.</p>
+              )}
+
+              {/* Upload Attachment */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload New File
+                </label>
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  disabled={uploadingFile}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+                />
+                {uploadingFile && (
+                  <p className="mt-2 text-sm text-blue-600">Uploading file...</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -319,6 +584,37 @@ const TicketDetail = () => {
                 </div>
               </dl>
             </div>
+
+            {/* Collaborators */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Collaborators ({ticket.collaborators?.length || 0})
+              </h3>
+              {ticket.collaborators?.length > 0 ? (
+                <div className="space-y-2">
+                  {ticket.collaborators.map((collab) => (
+                    <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {collab.user?.first_name || collab.user?.username}
+                        </p>
+                        <p className="text-xs text-gray-500">@{collab.user?.username}</p>
+                      </div>
+                      {(isManager || user?.id === collab.added_by?.id) && ticket.status !== 'completed' && (
+                        <button
+                          onClick={() => handleRemoveCollaborator(collab.user?.id)}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No collaborators added yet.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -359,18 +655,22 @@ const TicketDetail = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
-            <select
-              value={assignUserId}
-              onChange={(e) => setAssignUserId(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select user...</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.first_name || u.username} ({u.username})
-                </option>
-              ))}
-            </select>
+            {users && users.length > 0 ? (
+              <select
+                value={assignUserId}
+                onChange={(e) => setAssignUserId(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select user...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name || u.username} ({u.username})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-gray-500 text-sm">No users available for assignment.</p>
+            )}
             <div className="mt-4 flex justify-end space-x-2">
               <button
                 onClick={() => setShowAssignModal(false)}
@@ -380,10 +680,89 @@ const TicketDetail = () => {
               </button>
               <button
                 onClick={() => handleAction('assign')}
-                disabled={actionLoading || !assignUserId}
+                disabled={actionLoading || !assignUserId || !users || users.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Completion Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Task Completion</h3>
+            <p className="text-gray-600 mb-4">
+              Are you satisfied with the completed work on this ticket? By confirming, you acknowledge that the task has been completed to your satisfaction.
+            </p>
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Not Yet
+              </button>
+              <button
+                onClick={handleConfirmComplete}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Confirming...' : 'Yes, Confirm Completion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Collaborator Modal */}
+      {showCollaboratorModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Collaborator</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Add a team member to collaborate on this ticket. They will be notified and can work on this task.
+            </p>
+            {users && users.length > 0 ? (
+              <select
+                value={collaboratorUserId}
+                onChange={(e) => setCollaboratorUserId(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">Select a collaborator...</option>
+                {users
+                  .filter(u =>
+                    u.id !== ticket?.assigned_to?.id &&
+                    u.id !== ticket?.requester?.id &&
+                    !ticket?.collaborators?.some(c => c.user?.id === u.id)
+                  )
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.first_name || u.username} (@{u.username})
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <p className="text-gray-500 text-sm">No users available.</p>
+            )}
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowCollaboratorModal(false);
+                  setCollaboratorUserId('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCollaborator}
+                disabled={actionLoading || !collaboratorUserId}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Adding...' : 'Add Collaborator'}
               </button>
             </div>
           </div>

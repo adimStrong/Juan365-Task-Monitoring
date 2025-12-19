@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.utils import timezone
 import logging
 
-from .models import Ticket, TicketComment, TicketAttachment, Notification, ActivityLog
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog
 from notifications.telegram import notify_user
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ from .serializers import (
     UserSerializer, UserCreateSerializer, UserMinimalSerializer, UserManagementSerializer,
     TicketListSerializer, TicketDetailSerializer, TicketCreateSerializer,
     TicketUpdateSerializer, TicketAssignSerializer, TicketRejectSerializer,
-    TicketCommentSerializer, TicketAttachmentSerializer,
+    TicketCommentSerializer, TicketAttachmentSerializer, TicketCollaboratorSerializer,
     NotificationSerializer, DashboardStatsSerializer, ActivityLogSerializer
 )
 
@@ -485,11 +485,54 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Ticket "#{ticket.id} - {ticket.title}" has been completed',
+                message=f'Ticket "#{ticket.id} - {ticket.title}" has been completed. Please confirm completion.',
                 notification_type=Notification.NotificationType.APPROVED
             )
             # Send Telegram notification
             notify_user(ticket.requester, 'completed', ticket)
+
+        return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """Requester confirms task completion"""
+        ticket = self.get_object()
+
+        if ticket.requester != request.user:
+            return Response(
+                {'error': 'Only the requester can confirm completion'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if ticket.status != Ticket.Status.COMPLETED:
+            return Response(
+                {'error': 'Only completed tickets can be confirmed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if ticket.confirmed_by_requester:
+            return Response(
+                {'error': 'This ticket has already been confirmed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        ticket.confirmed_by_requester = True
+        ticket.confirmed_at = timezone.now()
+        ticket.save()
+
+        # Log activity
+        log_activity(request.user, ticket, ActivityLog.ActionType.CONFIRMED)
+
+        # Notify assigned user
+        if ticket.assigned_to and ticket.assigned_to != request.user:
+            Notification.objects.create(
+                user=ticket.assigned_to,
+                ticket=ticket,
+                message=f'Requester has confirmed completion of ticket "#{ticket.id} - {ticket.title}"',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+            # Send Telegram notification
+            notify_user(ticket.assigned_to, 'confirmed', ticket)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -503,14 +546,28 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = self.get_object()
 
         if request.method == 'GET':
-            comments = ticket.comments.all()
+            # Only return top-level comments (replies are nested)
+            comments = ticket.comments.filter(parent__isnull=True)
             serializer = TicketCommentSerializer(comments, many=True)
             return Response(serializer.data)
 
         elif request.method == 'POST':
             serializer = TicketCommentSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            comment = serializer.save(ticket=ticket, user=request.user)
+
+            # Handle reply to existing comment
+            parent_id = request.data.get('parent')
+            parent_comment = None
+            if parent_id:
+                try:
+                    parent_comment = TicketComment.objects.get(id=parent_id, ticket=ticket)
+                except TicketComment.DoesNotExist:
+                    return Response(
+                        {'error': 'Parent comment not found'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            comment = serializer.save(ticket=ticket, user=request.user, parent=parent_comment)
 
             # Notify ticket participants
             participants = set()
@@ -518,13 +575,17 @@ class TicketViewSet(viewsets.ModelViewSet):
                 participants.add(ticket.requester)
             if ticket.assigned_to:
                 participants.add(ticket.assigned_to)
+            # Also notify the parent comment author if this is a reply
+            if parent_comment and parent_comment.user:
+                participants.add(parent_comment.user)
             participants.discard(request.user)  # Don't notify commenter
 
             for user in participants:
+                message = f'New reply on ticket "#{ticket.id} - {ticket.title}"' if parent_comment else f'New comment on ticket "#{ticket.id} - {ticket.title}"'
                 Notification.objects.create(
                     user=user,
                     ticket=ticket,
-                    message=f'New comment on ticket "#{ticket.id} - {ticket.title}"',
+                    message=message,
                     notification_type=Notification.NotificationType.COMMENT
                 )
                 # Send Telegram notification
@@ -561,6 +622,81 @@ class TicketViewSet(viewsets.ModelViewSet):
                 TicketAttachmentSerializer(attachment).data,
                 status=status.HTTP_201_CREATED
             )
+
+    # =====================
+    # COLLABORATORS
+    # =====================
+
+    @action(detail=True, methods=['get', 'post', 'delete'])
+    def collaborators(self, request, pk=None):
+        """Get, add, or remove collaborators from a ticket"""
+        ticket = self.get_object()
+
+        if request.method == 'GET':
+            collaborators = ticket.collaborators.all()
+            serializer = TicketCollaboratorSerializer(collaborators, many=True)
+            return Response(serializer.data)
+
+        elif request.method == 'POST':
+            user_id = request.data.get('user_id')
+            if not user_id:
+                return Response(
+                    {'error': 'user_id is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                collaborator_user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response(
+                    {'error': 'User not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Check if already a collaborator
+            if TicketCollaborator.objects.filter(ticket=ticket, user=collaborator_user).exists():
+                return Response(
+                    {'error': 'User is already a collaborator'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            collaborator = TicketCollaborator.objects.create(
+                ticket=ticket,
+                user=collaborator_user,
+                added_by=request.user
+            )
+
+            # Notify the new collaborator
+            Notification.objects.create(
+                user=collaborator_user,
+                ticket=ticket,
+                message=f'You have been added as a collaborator on ticket "#{ticket.id} - {ticket.title}"',
+                notification_type=Notification.NotificationType.ASSIGNED
+            )
+            notify_user(collaborator_user, 'assigned', ticket)
+
+            return Response(
+                TicketCollaboratorSerializer(collaborator).data,
+                status=status.HTTP_201_CREATED
+            )
+
+        elif request.method == 'DELETE':
+            user_id = request.data.get('user_id')
+            if not user_id:
+                return Response(
+                    {'error': 'user_id is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                collaborator = TicketCollaborator.objects.get(ticket=ticket, user_id=user_id)
+                collaborator.delete()
+                return Response({'status': 'Collaborator removed'})
+            except TicketCollaborator.DoesNotExist:
+                return Response(
+                    {'error': 'Collaborator not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
 
 class AttachmentDeleteView(generics.DestroyAPIView):

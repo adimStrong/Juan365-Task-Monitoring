@@ -82,16 +82,68 @@ if uploaded_files:
         # Link to ticket (optional)
         try:
             tickets = list(get_all_tickets())
-            ticket_options = {f"#{t['id']} - {t['title'][:50]}": t['id'] for t in tickets}
-            ticket_options = {"None": None, **ticket_options}
-            selected_ticket = st.selectbox(
-                "Link to Ticket (optional)",
-                options=list(ticket_options.keys())
-            )
-            ticket_id = ticket_options.get(selected_ticket)
-        except Exception:
+            if tickets:
+                st.markdown("**Link to Ticket (optional)**")
+
+                # Create ticket options with more details
+                ticket_options = {"None - No ticket link": None}
+                for t in tickets:
+                    status_icon = {
+                        'requested': '\U0001F7E1',  # yellow
+                        'approved': '\U0001F7E2',   # green
+                        'in_progress': '\U0001F535', # blue
+                        'completed': '\U00002705',   # check
+                        'rejected': '\U0001F534'     # red
+                    }.get(t.status, '\U000026AA')
+
+                    priority_icon = {
+                        'urgent': '\U0001F525',  # fire
+                        'high': '\U0001F7E0',    # orange
+                        'medium': '\U0001F7E1',  # yellow
+                        'low': '\U0001F7E2'      # green
+                    }.get(t.priority, '')
+
+                    ticket_label = f"#{t.id} {status_icon} {priority_icon} {t.title[:40]}"
+                    ticket_options[ticket_label] = t.id
+
+                selected_ticket = st.selectbox(
+                    "Select Ticket",
+                    options=list(ticket_options.keys()),
+                    label_visibility="collapsed"
+                )
+                ticket_id = ticket_options.get(selected_ticket)
+
+                # Show selected ticket details
+                if ticket_id:
+                    selected = next((t for t in tickets if t.id == ticket_id), None)
+                    if selected:
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown(f"**Ticket #{selected.id}: {selected.title}**")
+
+                            col_a, col_b, col_c = st.columns(3)
+                            with col_a:
+                                st.caption(f"Status: **{selected.get_status_display()}**")
+                            with col_b:
+                                st.caption(f"Priority: **{selected.get_priority_display()}**")
+                            with col_c:
+                                if selected.assigned_to:
+                                    st.caption(f"Assigned: **{selected.assigned_to.username}**")
+                                else:
+                                    st.caption("Assigned: **Unassigned**")
+
+                            if selected.description:
+                                st.markdown("**Description:**")
+                                st.text(selected.description[:300] + "..." if len(selected.description) > 300 else selected.description)
+
+                            if selected.deadline:
+                                st.caption(f"Deadline: {selected.deadline.strftime('%Y-%m-%d %H:%M')}")
+            else:
+                ticket_id = None
+                st.caption("No tickets available")
+        except Exception as e:
             ticket_id = None
-            st.caption("Could not load tickets")
+            st.caption(f"Could not load tickets: {e}")
 
     # Preview uploaded files
     st.markdown("### Preview")
@@ -121,11 +173,11 @@ if uploaded_files:
 
         with col4:
             if is_valid:
-                st.success("\U00002705", help="Ready to upload")
+                st.write("\U00002705 Ready")
                 valid_files.append(file)
             else:
                 max_size = get_max_size_mb(file_type)
-                st.error(f"\U0000274C Too large (max {max_size}MB)")
+                st.write(f"\U0000274C Max {max_size}MB")
 
         # Image preview
         if file_type == 'image' and is_valid:

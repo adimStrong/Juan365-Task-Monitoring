@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Ticket, TicketComment, TicketAttachment, Notification
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification
 
 User = get_user_model()
 
@@ -61,13 +61,21 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 
 
 class TicketCommentSerializer(serializers.ModelSerializer):
-    """Serializer for ticket comments"""
+    """Serializer for ticket comments with replies"""
     user = UserMinimalSerializer(read_only=True)
+    replies = serializers.SerializerMethodField()
 
     class Meta:
         model = TicketComment
-        fields = ['id', 'ticket', 'user', 'comment', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at']
+        fields = ['id', 'ticket', 'user', 'parent', 'comment', 'created_at', 'replies']
+        read_only_fields = ['id', 'ticket', 'user', 'created_at']
+
+    def get_replies(self, obj):
+        # Only get replies for top-level comments (no parent)
+        if obj.parent is None:
+            replies = obj.replies.all()
+            return TicketCommentSerializer(replies, many=True).data
+        return []
 
 
 class TicketAttachmentSerializer(serializers.ModelSerializer):
@@ -78,6 +86,17 @@ class TicketAttachmentSerializer(serializers.ModelSerializer):
         model = TicketAttachment
         fields = ['id', 'ticket', 'user', 'file', 'file_name', 'uploaded_at']
         read_only_fields = ['id', 'user', 'uploaded_at']
+
+
+class TicketCollaboratorSerializer(serializers.ModelSerializer):
+    """Serializer for ticket collaborators"""
+    user = UserMinimalSerializer(read_only=True)
+    added_by = UserMinimalSerializer(read_only=True)
+
+    class Meta:
+        model = TicketCollaborator
+        fields = ['id', 'ticket', 'user', 'added_by', 'added_at']
+        read_only_fields = ['id', 'added_by', 'added_at']
 
 
 class TicketListSerializer(serializers.ModelSerializer):
@@ -101,8 +120,9 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     requester = UserMinimalSerializer(read_only=True)
     assigned_to = UserMinimalSerializer(read_only=True)
     approver = UserMinimalSerializer(read_only=True)
-    comments = TicketCommentSerializer(many=True, read_only=True)
+    comments = serializers.SerializerMethodField()
     attachments = TicketAttachmentSerializer(many=True, read_only=True)
+    collaborators = TicketCollaboratorSerializer(many=True, read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     is_idle = serializers.BooleanField(read_only=True)
 
@@ -110,7 +130,13 @@ class TicketDetailSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = ['id', 'title', 'description', 'requester', 'assigned_to',
                   'approver', 'status', 'priority', 'deadline', 'created_at',
-                  'updated_at', 'is_overdue', 'is_idle', 'comments', 'attachments']
+                  'updated_at', 'is_overdue', 'is_idle', 'comments', 'attachments',
+                  'collaborators', 'confirmed_by_requester', 'confirmed_at']
+
+    def get_comments(self, obj):
+        # Only return top-level comments (replies are nested within them)
+        top_level_comments = obj.comments.filter(parent__isnull=True)
+        return TicketCommentSerializer(top_level_comments, many=True).data
 
 
 class TicketCreateSerializer(serializers.ModelSerializer):

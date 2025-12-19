@@ -131,6 +131,33 @@ class APIClient:
         response = self._request('GET', '/users/')
         return response if isinstance(response, list) else response.get('results', [])
 
+    def get_all_users_manage(self) -> List[Dict]:
+        """Get all users for management (admin only)"""
+        response = self._request('GET', '/users/manage/')
+        return response if isinstance(response, list) else response.get('results', [])
+
+    def create_user(self, username: str, email: str, password: str,
+                    first_name: str = '', last_name: str = '', role: str = 'member') -> Dict:
+        """Create a new user (admin only)"""
+        data = {
+            'username': username,
+            'email': email,
+            'password': password,
+            'password_confirm': password,  # API requires this field
+            'first_name': first_name,
+            'last_name': last_name,
+            'role': role
+        }
+        return self._request('POST', '/users/manage/', data)
+
+    def approve_user(self, user_id: int) -> Dict:
+        """Approve a user (admin only)"""
+        return self._request('POST', f'/users/manage/{user_id}/approve/')
+
+    def change_user_role(self, user_id: int, role: str) -> Dict:
+        """Change user role (admin only)"""
+        return self._request('POST', f'/users/manage/{user_id}/change_role/', {'role': role})
+
     # =====================
     # DASHBOARD
     # =====================

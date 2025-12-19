@@ -36,9 +36,8 @@ if not st.session_state.get('logged_in', False):
         st.switch_page("app.py")
     st.stop()
 
-# Sidebar with logo
+# Sidebar navigation
 with st.sidebar:
-    st.image(str(LOGO_PATH), width=150)
     st.markdown(f"### 👤 {st.session_state.get('user_name', 'User')}")
     st.caption(f"@{st.session_state.get('username', '')} • {(st.session_state.get('user_role') or 'User').title()}")
     st.markdown("---")
@@ -51,6 +50,8 @@ with st.sidebar:
         st.switch_page("pages/3_Request_Ticket.py")
     if st.button("👥 Activity & Users", use_container_width=True):
         st.switch_page("pages/4_Activity_Users.py")
+    if st.button("📝 My Tasks", use_container_width=True):
+        st.switch_page("pages/5_My_Tasks.py")
 
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True):
@@ -70,20 +71,27 @@ def get_dashboard_stats():
         return {}
 
 
-def get_my_tasks():
-    """Get user's assigned tasks"""
+def get_recent_tickets():
+    """Get recent tickets (Top 10)"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
     try:
-        return api.get_my_tasks()
+        tickets = api.get_tickets()
+        if isinstance(tickets, dict):
+            tickets = tickets.get('results', [])
+        return tickets[:10]  # Top 10
     except:
         return []
 
 
-# Main content
-st.title("📊 Dashboard")
-st.markdown(f"Welcome back, **{st.session_state.get('user_name', 'User')}**!")
+# Main content - Header with logo
+col_logo, col_title = st.columns([1, 4])
+with col_logo:
+    st.image(str(LOGO_PATH), width=120)
+with col_title:
+    st.title("📊 Dashboard")
+    st.markdown(f"Welcome back, **{st.session_state.get('user_name', 'User')}**!")
 st.markdown("---")
 
 try:
@@ -182,35 +190,31 @@ try:
                 st.switch_page("pages/2_Tickets.py")
 
     with col2:
-        st.markdown("### 📝 My Tasks")
-        tasks = get_my_tasks()
+        st.markdown("### 📋 Recent Tickets (Top 10)")
+        tickets = get_recent_tickets()
 
-        if not tasks:
-            st.info("No tasks assigned to you.")
+        if not tickets:
+            st.info("No tickets yet. Create your first ticket!")
         else:
-            if isinstance(tasks, dict):
-                tasks = tasks.get('results', [])
-
-            for task in tasks[:5]:
+            for ticket in tickets:
                 status_emoji = {
                     'requested': '🔵', 'approved': '🟢', 'in_progress': '🟡',
                     'completed': '✅', 'rejected': '🔴'
-                }.get(task.get('status'), '⚪')
+                }.get(ticket.get('status'), '⚪')
 
-                priority_color = {
+                priority_emoji = {
                     'urgent': '🔥', 'high': '🟠', 'medium': '🟡', 'low': '🟢'
-                }.get(task.get('priority'), '')
+                }.get(ticket.get('priority'), '')
 
                 with st.container():
-                    col_a, col_b = st.columns([3, 1])
+                    col_a, col_b, col_c = st.columns([3, 1, 1])
                     with col_a:
-                        st.write(f"{status_emoji} **#{task.get('id')}** - {task.get('title')}")
-                        requester = task.get('requester', {})
-                        st.caption(f"From: {requester.get('first_name', '')} {requester.get('last_name', '')}")
+                        st.write(f"{status_emoji} **#{ticket.get('id')}** - {ticket.get('title')}")
                     with col_b:
-                        st.caption(f"{priority_color} {task.get('priority', '').title()}")
-                        if task.get('is_overdue'):
-                            st.error("Overdue!")
+                        st.caption(f"{priority_emoji} {ticket.get('priority', '').title()}")
+                    with col_c:
+                        created = ticket.get('created_at', '')[:10]
+                        st.caption(f"📅 {created}")
 
 except Exception as e:
     st.error(f"Error loading dashboard: {str(e)}")

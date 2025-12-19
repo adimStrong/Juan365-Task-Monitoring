@@ -37,9 +37,8 @@ if not st.session_state.get('logged_in', False):
         st.switch_page("app.py")
     st.stop()
 
-# Sidebar with logo
+# Sidebar navigation
 with st.sidebar:
-    st.image(str(LOGO_PATH), width=150)
     st.markdown(f"### 👤 {st.session_state.get('user_name', 'User')}")
     st.caption(f"@{st.session_state.get('username', '')} • {(st.session_state.get('user_role') or 'User').title()}")
     st.markdown("---")
@@ -52,6 +51,8 @@ with st.sidebar:
         st.switch_page("pages/3_Request_Ticket.py")
     if st.button("👥 Activity & Users", use_container_width=True):
         st.switch_page("pages/4_Activity_Users.py")
+    if st.button("📝 My Tasks", use_container_width=True):
+        st.switch_page("pages/5_My_Tasks.py")
 
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True):
@@ -102,7 +103,8 @@ with st.form("ticket_form"):
             min_value=datetime.now().date(),
             format="YYYY-MM-DD"
         )
-        st.caption("💡 Assignment will be done by manager after approval")
+        st.caption("💡 Same-day deadline only for Urgent priority")
+        st.caption("📋 Assignment done by manager after approval")
 
     description = st.text_area(
         "Description *",
@@ -125,6 +127,8 @@ with st.form("ticket_form"):
             st.error("Please enter a title")
         elif not description:
             st.error("Please enter a description")
+        elif deadline and deadline == datetime.now().date() and priority != 'urgent':
+            st.error("⚠️ Same-day deadline is only allowed for Urgent priority tickets. Please select a future date or change priority to Urgent.")
         else:
             try:
                 result = create_ticket(

@@ -36,9 +36,8 @@ if not st.session_state.get('logged_in', False):
         st.switch_page("app.py")
     st.stop()
 
-# Sidebar with logo
+# Sidebar navigation
 with st.sidebar:
-    st.image(str(LOGO_PATH), width=150)
     st.markdown(f"### 👤 {st.session_state.get('user_name', 'User')}")
     st.caption(f"@{st.session_state.get('username', '')} • {(st.session_state.get('user_role') or 'User').title()}")
     st.markdown("---")
@@ -51,6 +50,8 @@ with st.sidebar:
         st.switch_page("pages/3_Request_Ticket.py")
     if st.button("👥 Activity & Users", use_container_width=True, type="primary"):
         st.switch_page("pages/4_Activity_Users.py")
+    if st.button("📝 My Tasks", use_container_width=True):
+        st.switch_page("pages/5_My_Tasks.py")
 
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True):
@@ -64,6 +65,30 @@ def get_users():
     api = get_api_client()
     api.base_url = API_BASE_URL
     return api.get_users()
+
+
+def get_all_users_manage():
+    """Get all users for management (admin only)"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    return api.get_all_users_manage()
+
+
+def create_user(username, email, password, first_name, last_name, role):
+    """Create a new user (admin only)"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    return api.create_user(username, email, password, first_name, last_name, role)
+
+
+def approve_user(user_id):
+    """Approve a user (admin only)"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    return api.approve_user(user_id)
 
 
 def get_activity_logs():
@@ -83,8 +108,14 @@ def get_activity_logs():
 # Main content
 st.title("👥 Activity & Users")
 
-# Tabs
-tab1, tab2 = st.tabs(["📋 Activity Log", "👥 Users"])
+# Check if user is admin/manager
+is_admin = st.session_state.get('user_role') in ['admin', 'manager']
+
+# Tabs - show manage tab only for admins
+if is_admin:
+    tab1, tab2, tab3 = st.tabs(["📋 Activity Log", "👥 Users", "➕ Manage Users"])
+else:
+    tab1, tab2 = st.tabs(["📋 Activity Log", "👥 Users"])
 
 with tab1:
     st.markdown("### Recent Activity")
@@ -207,3 +238,94 @@ with tab2:
         st.error(f"Error loading users: {str(e)}")
         import traceback
         st.code(traceback.format_exc())
+
+# Admin-only: Manage Users tab
+if is_admin:
+    with tab3:
+        st.markdown("### User Management")
+        st.info("Create new users or approve pending registrations")
+        st.markdown("---")
+
+        # Create User Form
+        st.markdown("#### ➕ Create New User")
+        with st.form("create_user_form"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                new_username = st.text_input("Username *", placeholder="e.g. jdoe")
+                new_email = st.text_input("Email *", placeholder="e.g. john@company.com")
+                new_password = st.text_input("Password *", type="password", placeholder="Min 8 characters")
+
+            with col2:
+                new_first_name = st.text_input("First Name", placeholder="John")
+                new_last_name = st.text_input("Last Name", placeholder="Doe")
+                new_role = st.selectbox(
+                    "Role",
+                    options=["member", "manager", "admin"],
+                    format_func=lambda x: {
+                        'member': '👤 Member',
+                        'manager': '👔 Manager',
+                        'admin': '👑 Admin'
+                    }.get(x, x)
+                )
+
+            if st.form_submit_button("👤 Create User", type="primary"):
+                if not new_username:
+                    st.error("Username is required")
+                elif not new_email:
+                    st.error("Email is required")
+                elif not new_password or len(new_password) < 8:
+                    st.error("Password must be at least 8 characters")
+                else:
+                    try:
+                        result = create_user(
+                            username=new_username,
+                            email=new_email,
+                            password=new_password,
+                            first_name=new_first_name,
+                            last_name=new_last_name,
+                            role=new_role
+                        )
+                        st.success(f"User '{new_username}' created successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error creating user: {str(e)}")
+
+        st.markdown("---")
+
+        # Pending Users Section
+        st.markdown("#### ⏳ Pending Approvals")
+        try:
+            all_users = get_all_users_manage()
+            if not isinstance(all_users, list):
+                all_users = all_users.get('results', []) if isinstance(all_users, dict) else []
+
+            pending_users = [u for u in all_users if not u.get('is_approved', True)]
+
+            if pending_users:
+                for user in pending_users:
+                    user_id = user.get('id')
+                    username = user.get('username', 'unknown')
+                    email = user.get('email', '')
+                    first_name = user.get('first_name', '')
+                    last_name = user.get('last_name', '')
+                    full_name = f"{first_name} {last_name}".strip() or username
+
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        st.write(f"🔴 **{full_name}** (@{username})")
+                    with col2:
+                        st.caption(email)
+                    with col3:
+                        if st.button("✅ Approve", key=f"approve_{user_id}"):
+                            try:
+                                approve_user(user_id)
+                                st.success(f"User '{username}' approved!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+            else:
+                st.success("No pending approvals. All users are approved!")
+
+        except Exception as e:
+            st.warning(f"Could not load pending users: {str(e)}")

@@ -1,5 +1,5 @@
 """
-Tickets Page - View and manage all tickets
+My Tasks Page - View tasks assigned to current user
 """
 import streamlit as st
 import os
@@ -24,8 +24,8 @@ def get_config():
 DEPLOYMENT_MODE, API_BASE_URL = get_config()
 
 st.set_page_config(
-    page_title="Tickets - Juan365",
-    page_icon="📋",
+    page_title="My Tasks - Juan365",
+    page_icon="📝",
     layout="wide"
 )
 
@@ -44,13 +44,13 @@ with st.sidebar:
 
     if st.button("📊 Dashboard", use_container_width=True):
         st.switch_page("pages/1_Dashboard.py")
-    if st.button("📋 Tickets", use_container_width=True, type="primary"):
+    if st.button("📋 Tickets", use_container_width=True):
         st.switch_page("pages/2_Tickets.py")
     if st.button("➕ New Request", use_container_width=True):
         st.switch_page("pages/3_Request_Ticket.py")
     if st.button("👥 Activity & Users", use_container_width=True):
         st.switch_page("pages/4_Activity_Users.py")
-    if st.button("📝 My Tasks", use_container_width=True):
+    if st.button("📝 My Tasks", use_container_width=True, type="primary"):
         st.switch_page("pages/5_My_Tasks.py")
 
     st.markdown("---")
@@ -59,12 +59,12 @@ with st.sidebar:
         st.switch_page("app.py")
 
 
-def get_tickets(status=None, search=None):
-    """Get tickets from API"""
+def get_my_tasks():
+    """Get tasks assigned to current user"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
-    return api.get_tickets(status=status, search=search)
+    return api.get_my_tasks()
 
 
 def get_ticket_comments(ticket_id):
@@ -84,47 +84,34 @@ def add_comment(ticket_id, comment):
 
 
 # Main content
-st.title("📋 All Tickets")
-
-# Filters
-col1, col2, col3 = st.columns([2, 1, 1])
-
-with col1:
-    search = st.text_input("🔍 Search", placeholder="Search tickets by title...")
-with col2:
-    status_filter = st.selectbox(
-        "Status",
-        options=["all", "requested", "approved", "in_progress", "completed", "rejected"],
-        format_func=lambda x: x.replace("_", " ").title() if x != "all" else "All Status"
-    )
-with col3:
-    if st.button("➕ New Ticket", type="primary", use_container_width=True):
-        st.switch_page("pages/3_Request_Ticket.py")
-
+st.title("📝 My Tasks")
+st.markdown("Tasks assigned to you that need attention")
 st.markdown("---")
 
 try:
-    status = status_filter if status_filter != 'all' else None
-    tickets = get_tickets(status=status, search=search if search else None)
+    tasks = get_my_tasks()
 
-    if not isinstance(tickets, list):
-        tickets = tickets.get('results', []) if isinstance(tickets, dict) else []
+    if isinstance(tasks, dict):
+        tasks = tasks.get('results', [])
 
-    st.caption(f"Found {len(tickets)} ticket(s)")
+    if not tasks:
+        st.info("🎉 No tasks assigned to you! You're all caught up.")
+        if st.button("📋 View All Tickets"):
+            st.switch_page("pages/2_Tickets.py")
+    else:
+        st.caption(f"You have **{len(tasks)}** active task(s)")
 
-    if tickets:
-        for ticket in tickets:
-            ticket_id = ticket.get('id')
-            title = ticket.get('title')
-            status = ticket.get('status')
-            priority = ticket.get('priority')
-            description = ticket.get('description', '')
-            requester = ticket.get('requester', {})
+        for task in tasks:
+            ticket_id = task.get('id')
+            title = task.get('title')
+            status = task.get('status')
+            priority = task.get('priority')
+            description = task.get('description', '')
+            requester = task.get('requester', {})
             requester_name = f"{requester.get('first_name', '')} {requester.get('last_name', '')}".strip() or requester.get('username', 'Unknown')
-            assigned = ticket.get('assigned_to', {})
-            assigned_name = f"{assigned.get('first_name', '')} {assigned.get('last_name', '')}".strip() if assigned else None
-            created_at = ticket.get('created_at', '')[:16].replace('T', ' ')
-            deadline = ticket.get('deadline', '')[:10] if ticket.get('deadline') else None
+            created_at = task.get('created_at', '')[:16].replace('T', ' ')
+            deadline = task.get('deadline', '')[:10] if task.get('deadline') else None
+            is_overdue = task.get('is_overdue', False)
 
             status_emoji = {
                 'requested': '🔵', 'approved': '🟢', 'in_progress': '🟡',
@@ -135,9 +122,22 @@ try:
                 'urgent': '🔥', 'high': '🟠', 'medium': '🟡', 'low': '🟢'
             }.get(priority, '')
 
-            with st.expander(f"{status_emoji} {priority_emoji} **#{ticket_id} - {title}**"):
-                # Info columns
-                col1, col2, col3, col4 = st.columns(4)
+            # Card style
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+
+                with col1:
+                    expander_label = f"{status_emoji} {priority_emoji} **#{ticket_id} - {title}**"
+                    if is_overdue:
+                        expander_label += " ⚠️ OVERDUE"
+
+                with col2:
+                    if deadline:
+                        st.caption(f"📆 {deadline}")
+
+            with st.expander(expander_label, expanded=False):
+                # Info
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     st.markdown("**Status**")
                     st.write(f"{status_emoji} {status.replace('_', ' ').title() if status else '-'}")
@@ -145,11 +145,11 @@ try:
                     st.markdown("**Priority**")
                     st.write(f"{priority_emoji} {priority.title() if priority else '-'}")
                 with col3:
-                    st.markdown("**Requester**")
+                    st.markdown("**From**")
                     st.write(f"👤 {requester_name}")
-                with col4:
-                    st.markdown("**Assigned To**")
-                    st.write(f"👤 {assigned_name}" if assigned_name else "⚠️ Unassigned")
+
+                if is_overdue:
+                    st.error("⚠️ This task is overdue!")
 
                 st.markdown("---")
 
@@ -157,13 +157,7 @@ try:
                 st.markdown("**Description**")
                 st.text_area("", value=description, height=80, disabled=True, key=f"desc_{ticket_id}", label_visibility="collapsed")
 
-                # Dates
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.caption(f"📅 Created: {created_at}")
-                with col2:
-                    if deadline:
-                        st.caption(f"📆 Deadline: {deadline}")
+                st.caption(f"📅 Created: {created_at}")
 
                 st.markdown("---")
 
@@ -175,7 +169,7 @@ try:
                         comments = comments.get('results', []) if isinstance(comments, dict) else []
 
                     if comments:
-                        for comment in comments:
+                        for comment in comments[-5:]:  # Show last 5 comments
                             user_info = comment.get('user', {})
                             user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or user_info.get('username', 'User')
                             comment_time = comment.get('created_at', '')[:16].replace('T', ' ')
@@ -187,8 +181,8 @@ try:
                     st.caption("Could not load comments")
 
                 # Add comment
-                with st.form(f"comment_{ticket_id}"):
-                    new_comment = st.text_input("Add comment", placeholder="Type your comment...", key=f"input_{ticket_id}")
+                with st.form(f"task_comment_{ticket_id}"):
+                    new_comment = st.text_input("Add comment", placeholder="Update on this task...", key=f"task_input_{ticket_id}")
                     if st.form_submit_button("💬 Send"):
                         if new_comment:
                             try:
@@ -198,12 +192,7 @@ try:
                             except Exception as e:
                                 st.error(f"Error: {e}")
 
-    else:
-        st.info("No tickets found.")
-        if st.button("➕ Create First Ticket"):
-            st.switch_page("pages/3_Request_Ticket.py")
-
 except Exception as e:
-    st.error(f"Error loading tickets: {str(e)}")
+    st.error(f"Error loading tasks: {str(e)}")
     import traceback
     st.code(traceback.format_exc())

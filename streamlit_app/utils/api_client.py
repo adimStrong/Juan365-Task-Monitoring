@@ -7,8 +7,15 @@ import streamlit as st
 from typing import Optional, Dict, Any, List
 import os
 
-# API Configuration - can be overridden by environment variable
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000/api')
+# API Configuration - can be overridden by environment variable or Streamlit secrets
+def get_api_base_url():
+    # Try Streamlit secrets first (for Streamlit Cloud)
+    try:
+        return st.secrets.get('API_BASE_URL', os.getenv('API_BASE_URL', 'http://localhost:8000/api'))
+    except:
+        return os.getenv('API_BASE_URL', 'http://localhost:8000/api')
+
+API_BASE_URL = get_api_base_url()
 
 
 class APIClient:

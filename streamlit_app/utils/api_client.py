@@ -138,6 +138,31 @@ class APIClient:
         return response.json()
 
     # =====================
+    # TICKET ACTIONS
+    # =====================
+
+    def approve_ticket(self, ticket_id: int) -> Dict:
+        """Approve a ticket (manager only)"""
+        return self._request('POST', f'/tickets/{ticket_id}/approve/')
+
+    def reject_ticket(self, ticket_id: int, reason: str = '') -> Dict:
+        """Reject a ticket (manager only)"""
+        data = {'reason': reason} if reason else {}
+        return self._request('POST', f'/tickets/{ticket_id}/reject/', data)
+
+    def assign_ticket(self, ticket_id: int, user_id: int) -> Dict:
+        """Assign ticket to a user (manager only)"""
+        return self._request('POST', f'/tickets/{ticket_id}/assign/', {'assigned_to': user_id})
+
+    def start_ticket(self, ticket_id: int) -> Dict:
+        """Start working on a ticket"""
+        return self._request('POST', f'/tickets/{ticket_id}/start/')
+
+    def complete_ticket(self, ticket_id: int) -> Dict:
+        """Mark ticket as completed"""
+        return self._request('POST', f'/tickets/{ticket_id}/complete/')
+
+    # =====================
     # USERS
     # =====================
 

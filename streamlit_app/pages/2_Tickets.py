@@ -59,16 +59,18 @@ with st.sidebar:
         st.switch_page("app.py")
 
 
-def get_tickets(status=None, search=None):
-    """Get tickets from API"""
+@st.cache_data(ttl=30)  # Cache for 30 seconds
+def get_tickets(_token, status=None, search=None):
+    """Get tickets from API (cached)"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
     return api.get_tickets(status=status, search=search)
 
 
-def get_ticket_comments(ticket_id):
-    """Get ticket comments"""
+@st.cache_data(ttl=60)  # Cache comments for 60 seconds
+def get_ticket_comments(_token, ticket_id):
+    """Get ticket comments (cached)"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
@@ -80,7 +82,42 @@ def add_comment(ticket_id, comment):
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
-    return api.add_comment(ticket_id, comment)
+    result = api.add_comment(ticket_id, comment)
+    # Clear cache after adding comment
+    get_ticket_comments.clear()
+    return result
+
+
+def get_users_list():
+    """Get list of users for assignment"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    return api.get_users()
+
+
+def ticket_action(action, ticket_id, **kwargs):
+    """Perform ticket action"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+
+    if action == 'approve':
+        result = api.approve_ticket(ticket_id)
+    elif action == 'reject':
+        result = api.reject_ticket(ticket_id, kwargs.get('reason', ''))
+    elif action == 'assign':
+        result = api.assign_ticket(ticket_id, kwargs.get('user_id'))
+    elif action == 'start':
+        result = api.start_ticket(ticket_id)
+    elif action == 'complete':
+        result = api.complete_ticket(ticket_id)
+    else:
+        raise Exception(f"Unknown action: {action}")
+
+    # Clear tickets cache
+    get_tickets.clear()
+    return result
 
 
 # Main content
@@ -105,7 +142,8 @@ st.markdown("---")
 
 try:
     status = status_filter if status_filter != 'all' else None
-    tickets = get_tickets(status=status, search=search if search else None)
+    token = st.session_state.get('api_token', '')
+    tickets = get_tickets(token, status=status, search=search if search else None)
 
     if not isinstance(tickets, list):
         tickets = tickets.get('results', []) if isinstance(tickets, dict) else []
@@ -165,26 +203,127 @@ try:
                     if deadline:
                         st.caption(f"📆 Deadline: {deadline}")
 
+                # Action Buttons based on status and role
+                user_role = st.session_state.get('user_role', 'member')
+                user_id = st.session_state.get('user_id')
+                is_manager = user_role in ['admin', 'manager']
+                is_assigned = assigned and assigned.get('id') == user_id
+
+                st.markdown("---")
+                st.markdown("**⚡ Actions**")
+
+                action_cols = st.columns(4)
+
+                # REQUESTED → Manager can Approve or Reject
+                if status == 'requested' and is_manager:
+                    with action_cols[0]:
+                        if st.button("✅ Approve", key=f"approve_{ticket_id}", use_container_width=True):
+                            try:
+                                ticket_action('approve', ticket_id)
+                                st.success("Ticket approved!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(str(e))
+                    with action_cols[1]:
+                        if st.button("❌ Reject", key=f"reject_{ticket_id}", use_container_width=True):
+                            st.session_state[f"show_reject_{ticket_id}"] = True
+
+                    if st.session_state.get(f"show_reject_{ticket_id}"):
+                        reason = st.text_input("Rejection reason", key=f"reject_reason_{ticket_id}")
+                        if st.button("Confirm Reject", key=f"confirm_reject_{ticket_id}"):
+                            try:
+                                ticket_action('reject', ticket_id, reason=reason)
+                                st.session_state[f"show_reject_{ticket_id}"] = False
+                                st.success("Ticket rejected!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(str(e))
+
+                # APPROVED → Manager can Assign
+                elif status == 'approved' and is_manager:
+                    with action_cols[0]:
+                        users = get_users_list()
+                        if not isinstance(users, list):
+                            users = users.get('results', []) if isinstance(users, dict) else []
+                        user_options = {u['id']: f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u['username'] for u in users}
+
+                        selected_user = st.selectbox(
+                            "Assign to",
+                            options=list(user_options.keys()),
+                            format_func=lambda x: user_options.get(x, 'Unknown'),
+                            key=f"assign_select_{ticket_id}"
+                        )
+                    with action_cols[1]:
+                        if st.button("👤 Assign", key=f"assign_{ticket_id}", use_container_width=True):
+                            try:
+                                ticket_action('assign', ticket_id, user_id=selected_user)
+                                st.success("Ticket assigned!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(str(e))
+
+                # IN_PROGRESS → Assigned user or Manager can Complete
+                elif status == 'in_progress' and (is_assigned or is_manager):
+                    with action_cols[0]:
+                        if st.button("✅ Complete", key=f"complete_{ticket_id}", use_container_width=True, type="primary"):
+                            try:
+                                ticket_action('complete', ticket_id)
+                                st.success("Ticket completed!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(str(e))
+
+                # APPROVED with assignment → Assigned user can Start
+                elif status == 'approved' and is_assigned:
+                    with action_cols[0]:
+                        if st.button("🚀 Start Work", key=f"start_{ticket_id}", use_container_width=True, type="primary"):
+                            try:
+                                ticket_action('start', ticket_id)
+                                st.success("Work started!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(str(e))
+
+                # Show status message for completed/rejected
+                elif status == 'completed':
+                    st.success("✅ This ticket has been completed")
+                elif status == 'rejected':
+                    st.error("❌ This ticket was rejected")
+                else:
+                    st.caption("No actions available for your role")
+
                 st.markdown("---")
 
-                # Comments
+                # Comments - Load on demand
                 st.markdown("**💬 Comments**")
-                try:
-                    comments = get_ticket_comments(ticket_id)
-                    if not isinstance(comments, list):
-                        comments = comments.get('results', []) if isinstance(comments, dict) else []
 
-                    if comments:
-                        for comment in comments:
-                            user_info = comment.get('user', {})
-                            user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or user_info.get('username', 'User')
-                            comment_time = comment.get('created_at', '')[:16].replace('T', ' ')
-                            st.markdown(f"**{user_name}** - {comment_time}")
-                            st.caption(comment.get('comment', ''))
-                    else:
-                        st.caption("No comments yet")
-                except:
-                    st.caption("Could not load comments")
+                # Initialize session state for this ticket's comments
+                comments_key = f"show_comments_{ticket_id}"
+                if comments_key not in st.session_state:
+                    st.session_state[comments_key] = False
+
+                col_btn, col_space = st.columns([1, 3])
+                with col_btn:
+                    if st.button("📥 Load Comments", key=f"load_{ticket_id}", use_container_width=True):
+                        st.session_state[comments_key] = True
+
+                if st.session_state[comments_key]:
+                    try:
+                        comments = get_ticket_comments(token, ticket_id)
+                        if not isinstance(comments, list):
+                            comments = comments.get('results', []) if isinstance(comments, dict) else []
+
+                        if comments:
+                            for comment in comments:
+                                user_info = comment.get('user', {})
+                                user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or user_info.get('username', 'User')
+                                comment_time = comment.get('created_at', '')[:16].replace('T', ' ')
+                                st.markdown(f"**{user_name}** - {comment_time}")
+                                st.caption(comment.get('comment', ''))
+                        else:
+                            st.caption("No comments yet")
+                    except:
+                        st.caption("Could not load comments")
 
                 # Add comment
                 with st.form(f"comment_{ticket_id}"):
@@ -193,6 +332,7 @@ try:
                         if new_comment:
                             try:
                                 add_comment(ticket_id, new_comment)
+                                st.session_state[comments_key] = True
                                 st.success("Comment added!")
                                 st.rerun()
                             except Exception as e:

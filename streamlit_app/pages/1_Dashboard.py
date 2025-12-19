@@ -59,8 +59,9 @@ with st.sidebar:
         st.switch_page("app.py")
 
 
-def get_dashboard_stats():
-    """Get dashboard statistics from API"""
+@st.cache_data(ttl=30)  # Cache for 30 seconds
+def get_dashboard_stats(_token):
+    """Get dashboard statistics from API (cached)"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
@@ -71,8 +72,9 @@ def get_dashboard_stats():
         return {}
 
 
-def get_recent_tickets():
-    """Get recent tickets (Top 10)"""
+@st.cache_data(ttl=30)  # Cache for 30 seconds
+def get_recent_tickets(_token):
+    """Get recent tickets (Top 10) - cached"""
     from utils.api_client import get_api_client
     api = get_api_client()
     api.base_url = API_BASE_URL
@@ -100,7 +102,8 @@ st.markdown(f"""
 st.markdown("---")
 
 try:
-    stats = get_dashboard_stats()
+    token = st.session_state.get('api_token', '')
+    stats = get_dashboard_stats(token)
 
     # Stats Cards
     col1, col2, col3, col4 = st.columns(4)
@@ -196,7 +199,7 @@ try:
 
     with col2:
         st.markdown("### 📋 Recent Tickets (Top 10)")
-        tickets = get_recent_tickets()
+        tickets = get_recent_tickets(token)
 
         if not tickets:
             st.info("No tickets yet. Create your first ticket!")

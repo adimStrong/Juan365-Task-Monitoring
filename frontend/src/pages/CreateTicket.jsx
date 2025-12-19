@@ -22,9 +22,12 @@ const CreateTicket = () => {
     const fetchUsers = async () => {
       try {
         const response = await usersAPI.list();
-        setUsers(response.data);
+        // Handle paginated response
+        const userData = response.data.results || response.data;
+        setUsers(Array.isArray(userData) ? userData : []);
       } catch (err) {
         console.error('Failed to fetch users:', err);
+        setUsers([]);
       }
     };
     fetchUsers();

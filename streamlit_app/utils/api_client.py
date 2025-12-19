@@ -196,7 +196,7 @@ class APIClient:
 
     def reset_user_password(self, user_id: int, new_password: str) -> Dict:
         """Reset user password (admin only)"""
-        return self._request('POST', f'/users/manage/{user_id}/reset_password/', {'password': new_password})
+        return self._request('POST', f'/users/manage/{user_id}/reset-password/', {'password': new_password})
 
     def change_user_role(self, user_id: int, role: str) -> Dict:
         """Change user role (admin only)"""

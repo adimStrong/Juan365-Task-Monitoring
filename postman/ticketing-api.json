@@ -1,0 +1,579 @@
+{
+	"info": {
+		"_postman_id": "ticketing-system-api",
+		"name": "Ticketing System API",
+		"description": "API collection for the Ticketing System\n\n## How to use:\n1. Run 'Login' request first\n2. Token auto-saves to collection\n3. All other requests will work automatically",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api"
+		},
+		{
+			"key": "access_token",
+			"value": ""
+		},
+		{
+			"key": "refresh_token",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "1. Login First",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData.access) {",
+							"    pm.collectionVariables.set('access_token', jsonData.access);",
+							"    pm.collectionVariables.set('refresh_token', jsonData.refresh);",
+							"    console.log('Token saved successfully!');",
+							"}",
+							"",
+							"pm.test('Login successful', function() {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(jsonData.access).to.exist;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/auth/login/",
+					"host": ["{{base_url}}"],
+					"path": ["auth", "login", ""]
+				}
+			}
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register (No Auth Required)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"testuser\",\n    \"email\": \"test@example.com\",\n    \"password\": \"TestPass123!\",\n    \"password_confirm\": \"TestPass123!\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"department\": \"Engineering\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register", ""]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access) {",
+									"    pm.collectionVariables.set('access_token', jsonData.access);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh", ""]
+						}
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Current User",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"telegram_id\": \"123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/",
+							"host": ["{{base_url}}"],
+							"path": ["users", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Tickets",
+			"item": [
+				{
+					"name": "List Tickets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ""]
+						}
+					}
+				},
+				{
+					"name": "List Tickets (with filters)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/?status=requested&priority=high",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ""],
+							"query": [
+								{
+									"key": "status",
+									"value": "requested"
+								},
+								{
+									"key": "priority",
+									"value": "high"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"New Feature Request\",\n    \"description\": \"Please implement the new dashboard feature\",\n    \"priority\": \"high\",\n    \"deadline\": \"2025-12-31T23:59:59Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ""]
+						}
+					}
+				},
+				{
+					"name": "Get Ticket",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Ticket",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated Title\",\n    \"priority\": \"urgent\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/1/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", ""]
+						}
+					}
+				},
+				{
+					"name": "Delete Ticket",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Ticket Actions",
+			"item": [
+				{
+					"name": "Approve Ticket",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/approve/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "approve", ""]
+						}
+					}
+				},
+				{
+					"name": "Reject Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Not in scope for this quarter\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/1/reject/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "reject", ""]
+						}
+					}
+				},
+				{
+					"name": "Assign Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assigned_to\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/1/assign/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "assign", ""]
+						}
+					}
+				},
+				{
+					"name": "Start Ticket",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/start/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "start", ""]
+						}
+					}
+				},
+				{
+					"name": "Complete Ticket",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/complete/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "complete", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Comments",
+			"item": [
+				{
+					"name": "List Comments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/comments/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "comments", ""]
+						}
+					}
+				},
+				{
+					"name": "Add Comment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"comment\": \"This is a test comment on the ticket.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/1/comments/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "comments", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Attachments",
+			"item": [
+				{
+					"name": "List Attachments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/1/attachments/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "attachments", ""]
+						}
+					}
+				},
+				{
+					"name": "Upload Attachment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/1/attachments/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", "1", "attachments", ""]
+						}
+					}
+				},
+				{
+					"name": "Delete Attachment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/attachments/1/",
+							"host": ["{{base_url}}"],
+							"path": ["attachments", "1", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "List Notifications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", ""]
+						}
+					}
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/unread_count/",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "unread_count", ""]
+						}
+					}
+				},
+				{
+					"name": "Mark as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/1/read/",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "1", "read", ""]
+						}
+					}
+				},
+				{
+					"name": "Mark All as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/read_all/",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "read_all", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/stats/",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "stats", ""]
+						}
+					}
+				},
+				{
+					"name": "My Tasks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/my-tasks/",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "my-tasks", ""]
+						}
+					}
+				},
+				{
+					"name": "Team Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/team-overview/",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "team-overview", ""]
+						}
+					}
+				},
+				{
+					"name": "Overdue Tickets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/overdue/",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "overdue", ""]
+						}
+					}
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,8 @@
+# Streamlit File Upload Portal
+streamlit>=1.29
+python-magic-bin>=0.4.14  # Windows compatible file type detection
+Pillow>=10.0
+python-dotenv>=1.0
+
+# Django ORM (shared with backend)
+Django>=5.0

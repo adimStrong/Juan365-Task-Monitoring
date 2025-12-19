@@ -189,6 +189,72 @@
 							"path": ["users", ""]
 						}
 					}
+				},
+				{
+					"name": "List All Users (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/manage/",
+							"host": ["{{base_url}}"],
+							"path": ["users", "manage", ""]
+						}
+					}
+				},
+				{
+					"name": "Create User (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"newuser\",\n    \"email\": \"newuser@example.com\",\n    \"password\": \"SecurePass123\",\n    \"password_confirm\": \"SecurePass123\",\n    \"first_name\": \"New\",\n    \"last_name\": \"User\",\n    \"role\": \"member\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/manage/",
+							"host": ["{{base_url}}"],
+							"path": ["users", "manage", ""]
+						}
+					}
+				},
+				{
+					"name": "Approve User (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/manage/1/approve/",
+							"host": ["{{base_url}}"],
+							"path": ["users", "manage", "1", "approve", ""]
+						}
+					}
+				},
+				{
+					"name": "Change User Role (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": \"manager\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/manage/1/change_role/",
+							"host": ["{{base_url}}"],
+							"path": ["users", "manage", "1", "change_role", ""]
+						}
+					}
 				}
 			]
 		},

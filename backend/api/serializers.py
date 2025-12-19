@@ -144,7 +144,8 @@ class TicketCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'priority', 'deadline', 'assigned_to']
+        fields = ['id', 'title', 'description', 'priority', 'deadline', 'assigned_to']
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         validated_data['requester'] = self.context['request'].user

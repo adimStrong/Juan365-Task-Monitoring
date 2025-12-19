@@ -1,6 +1,5 @@
 """
-Request Ticket Page
-Create new ticket requests - supports both local and API modes
+Request Ticket Page - Create new ticket requests
 """
 import streamlit as st
 from datetime import datetime
@@ -9,9 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Get configuration from secrets or environment
+# Get configuration
 def get_config():
-    """Get configuration from Streamlit secrets or environment"""
     try:
         api_url = st.secrets.get('API_BASE_URL', os.getenv('API_BASE_URL', 'http://localhost:8000/api'))
         mode = st.secrets.get('DEPLOYMENT_MODE', os.getenv('DEPLOYMENT_MODE', 'api'))
@@ -23,7 +21,7 @@ def get_config():
 DEPLOYMENT_MODE, API_BASE_URL = get_config()
 
 st.set_page_config(
-    page_title="Request Ticket - Juan365",
+    page_title="New Request - Juan365",
     page_icon="➕",
     layout="wide"
 )
@@ -35,47 +33,41 @@ if not st.session_state.get('logged_in', False):
         st.switch_page("app.py")
     st.stop()
 
-# Sidebar
+# Sidebar with logo
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.user_name}")
-    st.caption(f"@{st.session_state.username}")
+    st.image("assets/logo.jpg", width=150)
+    st.markdown(f"### 👤 {st.session_state.get('user_name', 'User')}")
+    st.caption(f"@{st.session_state.get('username', '')} • {(st.session_state.get('user_role') or 'User').title()}")
     st.markdown("---")
-    if st.button("🏠 Dashboard", use_container_width=True):
-        st.switch_page("app.py")
-    if st.button("📋 My Tickets", use_container_width=True):
-        st.switch_page("pages/2_My_Tickets.py")
+
+    if st.button("📊 Dashboard", use_container_width=True):
+        st.switch_page("pages/1_Dashboard.py")
+    if st.button("📋 Tickets", use_container_width=True):
+        st.switch_page("pages/2_Tickets.py")
+    if st.button("➕ New Request", use_container_width=True, type="primary"):
+        st.switch_page("pages/3_Request_Ticket.py")
+    if st.button("👥 Activity & Users", use_container_width=True):
+        st.switch_page("pages/4_Activity_Users.py")
+
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.switch_page("app.py")
 
+
+def create_ticket(title, description, priority, deadline):
+    """Create ticket via API"""
+    from utils.api_client import get_api_client
+    api = get_api_client()
+    api.base_url = API_BASE_URL
+    deadline_str = deadline.isoformat() if deadline else None
+    return api.create_ticket(title, description, priority, deadline_str)
+
+
 # Main content
 st.title("➕ Request New Ticket")
-st.markdown("Submit a new task request to the team.")
 st.info("📝 After submission, a manager will review and approve your request, then assign it to a team member.")
 st.markdown("---")
-
-
-def create_ticket_request(title, description, priority, deadline):
-    """Create a ticket"""
-    if DEPLOYMENT_MODE == 'api':
-        from utils.api_client import get_api_client
-        api = get_api_client()
-        api.base_url = API_BASE_URL
-        deadline_str = deadline.isoformat() if deadline else None
-        return api.create_ticket(title, description, priority, deadline_str)
-    else:
-        from utils.db import create_ticket
-        deadline_dt = datetime.combine(deadline, datetime.max.time()) if deadline else None
-        ticket = create_ticket(
-            title=title,
-            description=description,
-            priority=priority,
-            deadline=deadline_dt,
-            requester_id=st.session_state.user_id
-        )
-        return {'id': ticket.id, 'title': ticket.title, 'status': ticket.status}
-
 
 # Ticket form
 with st.form("ticket_form"):
@@ -106,7 +98,6 @@ with st.form("ticket_form"):
             min_value=datetime.now().date(),
             format="YYYY-MM-DD"
         )
-
         st.caption("💡 Assignment will be done by manager after approval")
 
     description = st.text_area(
@@ -123,7 +114,7 @@ with st.form("ticket_form"):
         submit = st.form_submit_button("📤 Submit Request", type="primary", use_container_width=True)
     with col2:
         if st.form_submit_button("❌ Cancel", use_container_width=True):
-            st.switch_page("app.py")
+            st.switch_page("pages/1_Dashboard.py")
 
     if submit:
         if not title:
@@ -132,7 +123,7 @@ with st.form("ticket_form"):
             st.error("Please enter a description")
         else:
             try:
-                result = create_ticket_request(
+                result = create_ticket(
                     title=title,
                     description=description,
                     priority=priority,
@@ -155,8 +146,8 @@ with st.form("ticket_form"):
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("📋 View My Tickets"):
-                        st.switch_page("pages/2_My_Tickets.py")
+                    if st.button("📋 View All Tickets"):
+                        st.switch_page("pages/2_Tickets.py")
                 with col2:
                     if st.button("➕ Create Another"):
                         st.rerun()

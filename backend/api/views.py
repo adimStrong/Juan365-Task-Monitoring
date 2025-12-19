@@ -268,10 +268,10 @@ class TicketViewSet(viewsets.ModelViewSet):
         if user.is_manager:
             pass
         else:
-            # Regular users see their own requests and assigned tickets
+            # Regular users see their own requests, assigned tickets, and tickets they collaborate on
             queryset = queryset.filter(
-                Q(requester=user) | Q(assigned_to=user)
-            )
+                Q(requester=user) | Q(assigned_to=user) | Q(collaborators__user=user)
+            ).distinct()
 
         # Apply filters
         status_filter = self.request.query_params.get('status')

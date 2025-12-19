@@ -7,8 +7,17 @@ import streamlit as st
 import os
 
 # Deployment mode - set to 'api' for online, 'local' for local development
-DEPLOYMENT_MODE = os.getenv('DEPLOYMENT_MODE', 'local')
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000/api')
+def get_config():
+    """Get configuration from Streamlit secrets or environment"""
+    try:
+        api_url = st.secrets.get('API_BASE_URL', os.getenv('API_BASE_URL', 'http://localhost:8000/api'))
+        mode = st.secrets.get('DEPLOYMENT_MODE', os.getenv('DEPLOYMENT_MODE', 'api'))
+    except:
+        api_url = os.getenv('API_BASE_URL', 'http://localhost:8000/api')
+        mode = os.getenv('DEPLOYMENT_MODE', 'api')
+    return mode, api_url
+
+DEPLOYMENT_MODE, API_BASE_URL = get_config()
 
 # Page configuration
 st.set_page_config(

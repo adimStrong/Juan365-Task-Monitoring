@@ -290,7 +290,7 @@ const TicketDetail = () => {
                   </button>
                 </>
               )}
-              {isManager && ticket.status !== 'completed' && ticket.status !== 'rejected' && !ticket.assigned_to && (
+              {isManager && ticket.status === 'approved' && !ticket.assigned_to && (
                 <button
                   onClick={() => setShowAssignModal(true)}
                   disabled={actionLoading}

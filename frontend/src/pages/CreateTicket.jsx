@@ -1,37 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI, usersAPI } from '../services/api';
+import { ticketsAPI } from '../services/api';
 import Layout from '../components/Layout';
 
 const CreateTicket = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [users, setUsers] = useState([]);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium',
     deadline: '',
-    assigned_to: '',
   });
-
-  useEffect(() => {
-    // Fetch users for assignment dropdown
-    const fetchUsers = async () => {
-      try {
-        const response = await usersAPI.list();
-        // Handle paginated response
-        const userData = response.data.results || response.data;
-        setUsers(Array.isArray(userData) ? userData : []);
-      } catch (err) {
-        console.error('Failed to fetch users:', err);
-        setUsers([]);
-      }
-    };
-    fetchUsers();
-  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -46,10 +28,9 @@ const CreateTicket = () => {
     try {
       const data = { ...formData };
       if (!data.deadline) delete data.deadline;
-      if (!data.assigned_to) delete data.assigned_to;
 
       const response = await ticketsAPI.create(data);
-      navigate(`/tickets/${response.data.id || response.data.id}`);
+      navigate(`/tickets/${response.data.id}`);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create ticket');
     } finally {
@@ -141,29 +122,6 @@ const CreateTicket = () => {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-          </div>
-
-          <div>
-            <label htmlFor="assigned_to" className="block text-sm font-medium text-gray-700 mb-1">
-              Assign To (optional)
-            </label>
-            <select
-              id="assigned_to"
-              name="assigned_to"
-              value={formData.assigned_to}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select a person to assign...</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.first_name ? `${u.first_name} ${u.last_name}` : u.username} (@{u.username})
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Select a manager, admin, or team member to handle this task
-            </p>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

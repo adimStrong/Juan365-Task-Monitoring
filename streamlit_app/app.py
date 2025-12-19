@@ -107,7 +107,11 @@ def login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.markdown("## 🎫 Juan365 Ticket Portal")
+        # Logo
+        logo_col1, logo_col2, logo_col3 = st.columns([1, 2, 1])
+        with logo_col2:
+            st.image("assets/logo.jpg", width=200)
+        st.markdown("## Juan365 Ticket Portal")
         st.markdown("---")
 
         with st.form("login_form"):
@@ -183,17 +187,16 @@ def dashboard_page():
     """Display main dashboard for logged-in users"""
     # Sidebar
     with st.sidebar:
+        st.image("assets/logo.jpg", width=120)
         st.markdown(f"### 👤 {st.session_state.user_name}")
         st.caption(f"@{st.session_state.username} • {st.session_state.user_role.title() if st.session_state.user_role else 'User'}")
         st.markdown("---")
 
         st.markdown("### 📌 Quick Actions")
         if st.button("➕ New Ticket Request", use_container_width=True):
-            st.switch_page("pages/6_Request_Ticket.py")
+            st.switch_page("pages/1_Request_Ticket.py")
         if st.button("📋 My Tickets", use_container_width=True):
-            st.switch_page("pages/7_My_Tickets.py")
-        if st.button("📤 Upload Files", use_container_width=True):
-            st.switch_page("pages/1_Upload.py")
+            st.switch_page("pages/2_My_Tickets.py")
 
         st.markdown("---")
 
@@ -231,20 +234,14 @@ def dashboard_page():
 
         # Quick actions
         st.markdown("### ⚡ Quick Actions")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
 
         with col1:
             if st.button("➕ Request New Ticket", use_container_width=True, type="primary"):
-                st.switch_page("pages/6_Request_Ticket.py")
+                st.switch_page("pages/1_Request_Ticket.py")
         with col2:
             if st.button("📋 View My Tickets", use_container_width=True):
-                st.switch_page("pages/7_My_Tickets.py")
-        with col3:
-            if st.button("📤 Upload Files", use_container_width=True):
-                st.switch_page("pages/1_Upload.py")
-        with col4:
-            if st.button("📁 Browse Files", use_container_width=True):
-                st.switch_page("pages/2_Browse.py")
+                st.switch_page("pages/2_My_Tickets.py")
 
         st.markdown("---")
 
@@ -285,7 +282,7 @@ def dashboard_page():
                 with col4:
                     if st.button("View", key=f"view_{ticket_id}"):
                         st.session_state.selected_ticket_id = ticket_id
-                        st.switch_page("pages/7_My_Tickets.py")
+                        st.switch_page("pages/2_My_Tickets.py")
         else:
             st.info("No tickets yet. Click 'Request New Ticket' to create one!")
 

@@ -44,7 +44,7 @@ with st.sidebar:
     if st.button("🏠 Dashboard", use_container_width=True):
         st.switch_page("app.py")
     if st.button("➕ New Request", use_container_width=True):
-        st.switch_page("pages/6_Request_Ticket.py")
+        st.switch_page("pages/1_Request_Ticket.py")
 
     st.markdown("---")
 
@@ -265,7 +265,7 @@ try:
     else:
         st.info("No tickets found. Create a new request to get started!")
         if st.button("➕ Create New Request"):
-            st.switch_page("pages/6_Request_Ticket.py")
+            st.switch_page("pages/1_Request_Ticket.py")
 
 except Exception as e:
     st.error(f"Error loading tickets: {str(e)}")

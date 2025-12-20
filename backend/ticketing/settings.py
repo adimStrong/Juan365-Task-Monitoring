@@ -170,4 +170,7 @@ CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL', 'False').lower() == 't
 
 # Telegram Bot Settings
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_GROUP_CHAT_ID = os.environ.get('TELEGRAM_GROUP_CHAT_ID', '')
+TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', '')
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://juan365-ticketing-frontend.vercel.app')

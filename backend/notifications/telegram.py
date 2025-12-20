@@ -1,18 +1,25 @@
 """
 Telegram notification service for the Ticketing System
+Sends notifications to both group chat and individual users
 """
 import requests
 import logging
+import json
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Bot token
-TELEGRAM_BOT_TOKEN = '8481475169:AAGjcIX9_AwtWQt9PjkHByKGLr2wvq_Dqsk'
-TELEGRAM_API_URL = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}'
+
+def get_api_url():
+    """Get Telegram API URL using token from settings"""
+    token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not token:
+        return None
+    return f'https://api.telegram.org/bot{token}'
 
 
-def send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
+def send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML',
+                          reply_markup: dict = None) -> bool:
     """
     Send a message via Telegram bot
 
@@ -20,6 +27,7 @@ def send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML') 
         chat_id: Telegram chat ID of the recipient
         message: Message text to send
         parse_mode: 'HTML' or 'Markdown'
+        reply_markup: Optional inline keyboard markup
 
     Returns:
         True if sent successfully, False otherwise
@@ -28,13 +36,21 @@ def send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML') 
         logger.warning('No chat_id provided for Telegram notification')
         return False
 
+    api_url = get_api_url()
+    if not api_url:
+        logger.warning('Telegram bot token not configured')
+        return False
+
     try:
-        url = f'{TELEGRAM_API_URL}/sendMessage'
+        url = f'{api_url}/sendMessage'
         payload = {
             'chat_id': chat_id,
             'text': message,
             'parse_mode': parse_mode
         }
+
+        if reply_markup:
+            payload['reply_markup'] = json.dumps(reply_markup)
 
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
@@ -50,6 +66,55 @@ def send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML') 
     except requests.exceptions.RequestException as e:
         logger.error(f'Failed to send Telegram message: {e}')
         return False
+
+
+def create_ticket_keyboard(ticket_id: int, show_actions: bool = False) -> dict:
+    """
+    Create inline keyboard for ticket notifications
+
+    Args:
+        ticket_id: The ticket ID
+        show_actions: Whether to show approve/reject buttons (for managers)
+
+    Returns:
+        Inline keyboard markup dict
+    """
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://juan365-ticketing-frontend.vercel.app')
+    ticket_url = f'{frontend_url}/tickets/{ticket_id}'
+
+    buttons = [[{'text': 'View Ticket', 'url': ticket_url}]]
+
+    if show_actions:
+        buttons.append([
+            {'text': 'Approve', 'callback_data': f'approve_{ticket_id}'},
+            {'text': 'Reject', 'callback_data': f'reject_{ticket_id}'}
+        ])
+
+    return {'inline_keyboard': buttons}
+
+
+def send_group_notification(notification_type: str, ticket, extra_info: str = '') -> bool:
+    """
+    Send notification to the configured Telegram group
+
+    Args:
+        notification_type: Type of notification
+        ticket: Ticket instance
+        extra_info: Additional information
+
+    Returns:
+        True if sent successfully
+    """
+    group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
+    if not group_chat_id:
+        logger.info('Telegram group chat ID not configured')
+        return False
+
+    message = format_ticket_notification(notification_type, ticket, extra_info)
+    show_actions = notification_type == 'new_request'
+    keyboard = create_ticket_keyboard(ticket.id, show_actions=show_actions)
+
+    return send_telegram_message(group_chat_id, message, reply_markup=keyboard)
 
 
 def format_ticket_notification(notification_type: str, ticket, extra_info: str = '') -> str:
@@ -159,25 +224,71 @@ The requester has confirmed that the task was completed satisfactorily. Great jo
     return messages.get(notification_type, f'{emoji} Notification for ticket #{ticket.id}')
 
 
-def notify_user(user, notification_type: str, ticket, extra_info: str = '') -> bool:
+def notify_user(user, notification_type: str, ticket, extra_info: str = '',
+                send_to_group: bool = True) -> dict:
     """
-    Send notification to a user via Telegram
+    Send notification to a user via Telegram AND to the group
 
     Args:
-        user: User instance
+        user: User instance (can be None for group-only notifications)
+        notification_type: Type of notification
+        ticket: Ticket instance
+        extra_info: Additional information
+        send_to_group: Whether to also send to the group chat
+
+    Returns:
+        dict with 'individual' and 'group' success status
+    """
+    results = {'individual': False, 'group': False}
+
+    message = format_ticket_notification(notification_type, ticket, extra_info)
+    keyboard = create_ticket_keyboard(ticket.id, show_actions=(notification_type == 'new_request'))
+
+    # Send to group if enabled
+    if send_to_group:
+        group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
+        if group_chat_id:
+            results['group'] = send_telegram_message(group_chat_id, message, reply_markup=keyboard)
+
+    # Send to individual user if they have telegram_id
+    if user and user.telegram_id:
+        results['individual'] = send_telegram_message(user.telegram_id, message, reply_markup=keyboard)
+    elif user:
+        logger.info(f'User {user.username} has no telegram_id configured')
+
+    return results
+
+
+def notify_managers(notification_type: str, ticket, extra_info: str = '') -> list:
+    """
+    Send notification to all managers (for new ticket requests)
+
+    Args:
         notification_type: Type of notification
         ticket: Ticket instance
         extra_info: Additional information
 
     Returns:
-        True if sent successfully
+        List of results for each manager
     """
-    if not user.telegram_id:
-        logger.info(f'User {user.username} has no telegram_id configured')
-        return False
+    from api.models import User
 
+    results = []
+    managers = User.objects.filter(role__in=['manager', 'admin'], is_active=True, is_approved=True)
+
+    # Send to group once
+    send_group_notification(notification_type, ticket, extra_info)
+
+    # Send to each manager with telegram_id
     message = format_ticket_notification(notification_type, ticket, extra_info)
-    return send_telegram_message(user.telegram_id, message)
+    keyboard = create_ticket_keyboard(ticket.id, show_actions=True)
+
+    for manager in managers:
+        if manager.telegram_id:
+            success = send_telegram_message(manager.telegram_id, message, reply_markup=keyboard)
+            results.append({'user': manager.username, 'success': success})
+
+    return results
 
 
 def send_test_notification(chat_id: str) -> bool:

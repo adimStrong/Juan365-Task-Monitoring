@@ -63,6 +63,13 @@ htmlcov/
 
 # Pytest
 .pytest_cache/
+coverage.xml
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+playwright-report/
+test-results/
 
 # Temporary files
 *.tmp

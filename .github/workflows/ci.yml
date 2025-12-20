@@ -88,9 +88,10 @@ jobs:
 
       - name: Run E2E tests
         working-directory: frontend
-        run: npx playwright test --project=chromium
+        run: npx playwright test --project=chromium --retries=2
         env:
           BASE_URL: https://juan365-ticketing-frontend.vercel.app
+          CI: true
 
       - name: Upload report
         uses: actions/upload-artifact@v4

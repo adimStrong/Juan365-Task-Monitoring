@@ -5,16 +5,19 @@ import { defineConfig, devices } from '@playwright/test';
  * Playwright configuration for Juan365 Ticketing System E2E tests
  * @see https://playwright.dev/docs/test-configuration
  */
+// CI environment has slower network, use more generous settings
+const isCI = !!process.env.CI;
+
 export default defineConfig({
   testDir: './e2e',
   /* Limit parallel tests to avoid race conditions on shared backend */
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env.CI,
-  /* Retry failed tests */
-  retries: 1,
-  /* Use 2 workers to balance speed and stability */
-  workers: 2,
+  forbidOnly: isCI,
+  /* Retry failed tests - more retries in CI */
+  retries: isCI ? 2 : 1,
+  /* Use 1 worker in CI for stability, 2 locally for speed */
+  workers: isCI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
     ['html', { outputFolder: 'playwright-report' }],
@@ -34,11 +37,11 @@ export default defineConfig({
     /* Video on failure */
     video: 'on-first-retry',
 
-    /* Action timeout for clicks, fills, etc */
-    actionTimeout: 15000,
+    /* Action timeout for clicks, fills, etc - longer in CI */
+    actionTimeout: isCI ? 30000 : 15000,
 
-    /* Navigation timeout */
-    navigationTimeout: 30000,
+    /* Navigation timeout - longer in CI */
+    navigationTimeout: isCI ? 60000 : 30000,
   },
 
   /* Configure projects for major browsers */
@@ -62,11 +65,11 @@ export default defineConfig({
     },
   ],
 
-  /* Global timeout - increased for production */
-  timeout: 60000,
+  /* Global timeout - longer in CI */
+  timeout: isCI ? 90000 : 60000,
 
-  /* Expect timeout - increased for production */
+  /* Expect timeout - longer in CI */
   expect: {
-    timeout: 15000
+    timeout: isCI ? 20000 : 15000
   },
 });

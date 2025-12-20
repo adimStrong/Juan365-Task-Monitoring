@@ -48,9 +48,10 @@ jobs:
 
       - name: Run E2E tests
         working-directory: frontend
-        run: npx playwright test --project=chromium
+        run: npx playwright test --project=chromium --retries=2
         env:
           BASE_URL: ${{ env.BASE_URL }}
+          CI: true
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

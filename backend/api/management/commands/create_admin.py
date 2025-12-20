@@ -19,12 +19,14 @@ class Command(BaseCommand):
             )
             return
 
-        User.objects.create_superuser(
+        user = User.objects.create_superuser(
             username=username,
             email=email,
-            password=password,
-            is_approved=True
+            password=password
         )
+        user.is_approved = True
+        user.role = 'admin'
+        user.save()
         self.stdout.write(
             self.style.SUCCESS(f'Admin user "{username}" created successfully')
         )

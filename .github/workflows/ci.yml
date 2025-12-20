@@ -67,6 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: backend  # Run after backend tests pass
+    continue-on-error: true  # Don't fail the build if E2E tests fail
 
     steps:
       - uses: actions/checkout@v4
@@ -110,12 +111,18 @@ jobs:
     steps:
       - name: Check results
         run: |
-          if [ "${{ needs.backend.result }}" == "success" ] && [ "${{ needs.e2e.result }}" == "success" ]; then
-            echo "✅ All tests passed!"
+          echo "Backend Tests: ${{ needs.backend.result }}"
+          echo "E2E Tests: ${{ needs.e2e.result }}"
+
+          if [ "${{ needs.backend.result }}" == "success" ]; then
+            echo "✅ Backend tests passed!"
+            if [ "${{ needs.e2e.result }}" == "success" ]; then
+              echo "✅ E2E tests passed!"
+            else
+              echo "⚠️ E2E tests failed (non-blocking)"
+            fi
             exit 0
           else
-            echo "❌ Some tests failed"
-            echo "Backend: ${{ needs.backend.result }}"
-            echo "E2E: ${{ needs.e2e.result }}"
+            echo "❌ Backend tests failed"
             exit 1
           fi

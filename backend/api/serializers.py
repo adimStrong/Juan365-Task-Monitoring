@@ -97,6 +97,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     """Serializer for user registration"""
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -115,6 +116,24 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for password change"""
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({'confirm_password': 'Passwords do not match'})
+        return attrs
+
+
+class UpdateUserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile (name, email, telegram)"""
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email', 'telegram_id', 'department']
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):

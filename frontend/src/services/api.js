@@ -167,6 +167,15 @@ export const usersAPI = {
 
   create: (data) =>
     api.post('/users/manage/', data),
+
+  updateProfile: (id, data) =>
+    api.patch(`/users/manage/${id}/update_profile/`, data),
+
+  resetPassword: (id, password) =>
+    api.post(`/users/manage/${id}/reset_password/`, { password }),
+
+  deleteUser: (id) =>
+    api.delete(`/users/manage/${id}/delete_user/`),
 };
 
 // Dashboard API

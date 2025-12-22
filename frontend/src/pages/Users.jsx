@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
 const Users = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, approved
@@ -22,6 +22,20 @@ const Users = () => {
     password: '',
     role: 'member',
   });
+
+  // Edit profile state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Password reset state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -128,6 +142,99 @@ const Users = () => {
   const handleNewUserChange = (e) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Edit profile handlers
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setEditFormData({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      department: user.department || '',
+      telegram_id: user.telegram_id || '',
+    });
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    setEditLoading(true);
+
+    try {
+      await usersAPI.updateProfile(editingUser.id, editFormData);
+      setShowEditModal(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error) {
+      const errors = error.response?.data;
+      if (errors) {
+        const firstError = Object.values(errors)[0];
+        setEditError(Array.isArray(firstError) ? firstError[0] : firstError);
+      } else {
+        setEditError('Failed to update profile');
+      }
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Password reset handlers
+  const openPasswordModal = (user) => {
+    setPasswordUser(user);
+    setNewPassword('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      return;
+    }
+    setPasswordError('');
+    setPasswordLoading(true);
+
+    try {
+      await usersAPI.resetPassword(passwordUser.id, newPassword);
+      setShowPasswordModal(false);
+      setPasswordUser(null);
+      setNewPassword('');
+      alert('Password updated successfully');
+    } catch (error) {
+      const errors = error.response?.data;
+      if (errors) {
+        const firstError = Object.values(errors)[0];
+        setPasswordError(Array.isArray(firstError) ? firstError[0] : firstError);
+      } else {
+        setPasswordError('Failed to reset password');
+      }
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  // Delete user handler
+  const handleDeleteUser = async (user) => {
+    if (user.id === currentUser?.id) {
+      alert('You cannot delete your own account');
+      return;
+    }
+    if (!confirm('Are you sure you want to permanently delete "' + user.username + '"? This action cannot be undone.')) {
+      return;
+    }
+    setActionLoading(user.id);
+    try {
+      await usersAPI.deleteUser(user.id);
+      fetchUsers();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to delete user');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const getRoleColor = (role) => {
@@ -278,7 +385,7 @@ const Users = () => {
                               {user.first_name} {user.last_name}
                             </div>
                             <div className="text-sm text-gray-500">
-                              @{user.username} · {user.email}
+                              @{user.username} {user.email && ('· ' + user.email)}
                             </div>
                             {user.department && (
                               <div className="text-xs text-gray-400">{user.department}</div>
@@ -313,6 +420,28 @@ const Users = () => {
                       {isAdmin && (
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <div className="flex justify-end space-x-2">
+                            {/* Edit Profile Button */}
+                            <button
+                              onClick={() => openEditModal(user)}
+                              disabled={actionLoading === user.id}
+                              className="px-2 py-1 text-gray-600 hover:text-blue-600 disabled:opacity-50"
+                              title="Edit Profile"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            {/* Reset Password Button */}
+                            <button
+                              onClick={() => openPasswordModal(user)}
+                              disabled={actionLoading === user.id}
+                              className="px-2 py-1 text-gray-600 hover:text-yellow-600 disabled:opacity-50"
+                              title="Reset Password"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                              </svg>
+                            </button>
                             {!user.is_approved && user.is_active && (
                               <button
                                 onClick={() => handleApprove(user.id)}
@@ -337,6 +466,19 @@ const Users = () => {
                                 className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
                               >
                                 Reactivate
+                              </button>
+                            )}
+                            {/* Delete Button */}
+                            {user.id !== currentUser?.id && (
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                disabled={actionLoading === user.id}
+                                className="px-2 py-1 text-gray-600 hover:text-red-600 disabled:opacity-50"
+                                title="Delete User"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             )}
                           </div>
@@ -421,12 +563,11 @@ const Users = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
+                    Email (optional)
                   </label>
                   <input
                     type="email"
                     name="email"
-                    required
                     value={newUser.email}
                     onChange={handleNewUserChange}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -513,6 +654,180 @@ const Users = () => {
                     className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
                   >
                     {addUserLoading ? 'Creating...' : 'Create User'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Profile Modal */}
+        {showEditModal && editingUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-900">Edit Profile: {editingUser.username}</h3>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingUser(null);
+                    setEditError('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+                {editError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                    {editError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                    <input
+                      type="text"
+                      value={editFormData.first_name}
+                      onChange={(e) => setEditFormData({ ...editFormData, first_name: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      value={editFormData.last_name}
+                      onChange={(e) => setEditFormData({ ...editFormData, last_name: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={editFormData.department}
+                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Chat ID</label>
+                  <input
+                    type="text"
+                    value={editFormData.telegram_id}
+                    onChange={(e) => setEditFormData({ ...editFormData, telegram_id: e.target.value })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingUser(null);
+                      setEditError('');
+                    }}
+                    className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {editLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Reset Password Modal */}
+        {showPasswordModal && passwordUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-900">Reset Password</h3>
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordUser(null);
+                    setNewPassword('');
+                    setPasswordError('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+                <p className="text-sm text-gray-600">
+                  Set a new password for <strong>{passwordUser.username}</strong>
+                </p>
+
+                {passwordError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                    {passwordError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Min 8 characters"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPasswordUser(null);
+                      setNewPassword('');
+                      setPasswordError('');
+                    }}
+                    className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={passwordLoading}
+                    className="px-4 py-2 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    {passwordLoading ? 'Resetting...' : 'Reset Password'}
                   </button>
                 </div>
               </form>

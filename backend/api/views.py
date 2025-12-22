@@ -19,7 +19,7 @@ from .serializers import (
     TicketUpdateSerializer, TicketAssignSerializer, TicketRejectSerializer,
     TicketCommentSerializer, TicketAttachmentSerializer, TicketCollaboratorSerializer,
     NotificationSerializer, DashboardStatsSerializer, ActivityLogSerializer,
-    DepartmentSerializer, ProductSerializer
+    DepartmentSerializer, ProductSerializer, ChangePasswordSerializer, UpdateUserProfileSerializer
 )
 
 
@@ -270,6 +270,39 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'Password reset successfully for {user.username}',
             'user': UserSerializer(user).data
+        })
+
+    @action(detail=True, methods=['patch'], permission_classes=[IsManagerUser])
+    def update_profile(self, request, pk=None):
+        """Update user profile (name, email, telegram, department)"""
+        user = self.get_object()
+        serializer = UpdateUserProfileSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Profile updated successfully',
+                'user': UserSerializer(user).data
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAdminUser])
+    def delete_user(self, request, pk=None):
+        """Permanently delete a user (admin only)"""
+        user = self.get_object()
+        
+        # Prevent deleting yourself
+        if user == request.user:
+            return Response(
+                {'error': 'Cannot delete your own account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        username = user.username
+        user.delete()
+        
+        return Response({
+            'message': f'User {username} deleted successfully'
         })
 
 

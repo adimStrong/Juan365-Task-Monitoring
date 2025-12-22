@@ -3,6 +3,42 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
 
+class Department(models.Model):
+    """Department model with manager for approval workflow"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    manager = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_departments'
+    )
+    is_creative = models.BooleanField(default=False, help_text='Flag for Creative department')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Product(models.Model):
+    """Product model for ticket categorization"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class User(AbstractUser):
     """Custom user model with role and department"""
 
@@ -16,7 +52,15 @@ class User(AbstractUser):
         choices=Role.choices,
         default=Role.MEMBER
     )
-    department = models.CharField(max_length=100, blank=True)
+    user_department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='members',
+        help_text='Department this user belongs to'
+    )
+    department = models.CharField(max_length=100, blank=True, help_text='Legacy field - use user_department instead')
     telegram_id = models.CharField(max_length=50, blank=True, help_text='Telegram chat ID for notifications')
     is_approved = models.BooleanField(default=False, help_text='User must be approved by admin to access system')
     approved_by = models.ForeignKey(
@@ -38,6 +82,15 @@ class User(AbstractUser):
     @property
     def is_manager(self):
         return self.role in [self.Role.ADMIN, self.Role.MANAGER]
+
+    @property
+    def is_creative_manager(self):
+        """Check if user is the Creative department manager"""
+        try:
+            creative_dept = Department.objects.get(is_creative=True)
+            return creative_dept.manager == self
+        except Department.DoesNotExist:
+            return False
 
 
 class Ticket(models.Model):
@@ -96,13 +149,56 @@ class Ticket(models.Model):
 
     # Status timestamps for analytics
     approved_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
     assigned_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
-    # Tagging for categorization
-    product = models.CharField(max_length=100, blank=True, help_text='Product this ticket relates to')
-    department = models.CharField(max_length=100, blank=True, help_text='Department handling this ticket')
+    # Categorization with ForeignKeys
+    ticket_product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets',
+        help_text='Product this ticket relates to'
+    )
+    target_department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets',
+        help_text='Department handling this ticket'
+    )
+
+    # Legacy char fields (kept for backwards compatibility)
+    product = models.CharField(max_length=100, blank=True, help_text='Legacy field')
+    department = models.CharField(max_length=100, blank=True, help_text='Legacy field')
+
+    # Approval routing
+    pending_approver = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pending_approvals',
+        help_text='User who needs to approve this ticket'
+    )
+
+    # Analytics fields
+    class Complexity(models.TextChoices):
+        LOW = 'low', 'Low'
+        MEDIUM = 'medium', 'Medium'
+        HIGH = 'high', 'High'
+
+    complexity = models.CharField(
+        max_length=20,
+        choices=Complexity.choices,
+        default=Complexity.MEDIUM
+    )
+    estimated_hours = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    actual_hours = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
 
     # Requester confirmation when task is completed
     confirmed_by_requester = models.BooleanField(default=False, help_text='Requester confirms task completion')

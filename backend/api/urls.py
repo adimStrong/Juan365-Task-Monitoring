@@ -7,13 +7,16 @@ from .views import (
     TicketViewSet, AttachmentDeleteView,
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
-    ActivityLogListView, AnalyticsView
+    ActivityLogListView, AnalyticsView,
+    DepartmentViewSet, ProductViewSet
 )
 
 router = DefaultRouter()
 router.register(r'tickets', TicketViewSet, basename='ticket')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'users/manage', UserManagementViewSet, basename='user-management')
+router.register(r'departments', DepartmentViewSet, basename='department')
+router.register(r'products', ProductViewSet, basename='product')
 
 urlpatterns = [
     # Router URLs

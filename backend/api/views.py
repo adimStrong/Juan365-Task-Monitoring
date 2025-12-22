@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.utils import timezone
 import logging
 
-from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product
 from notifications.telegram import notify_user
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,8 @@ from .serializers import (
     TicketListSerializer, TicketDetailSerializer, TicketCreateSerializer,
     TicketUpdateSerializer, TicketAssignSerializer, TicketRejectSerializer,
     TicketCommentSerializer, TicketAttachmentSerializer, TicketCollaboratorSerializer,
-    NotificationSerializer, DashboardStatsSerializer, ActivityLogSerializer
+    NotificationSerializer, DashboardStatsSerializer, ActivityLogSerializer,
+    DepartmentSerializer, ProductSerializer
 )
 
 
@@ -271,6 +272,96 @@ class UserManagementViewSet(viewsets.ModelViewSet):
 
 
 # =====================
+# DEPARTMENT & PRODUCT VIEWS
+# =====================
+
+class DepartmentViewSet(viewsets.ModelViewSet):
+    """
+    Department CRUD operations
+
+    - list: Get all departments (any authenticated user)
+    - create: Create department (admin only)
+    - update: Update department (admin only)
+    - destroy: Delete department (admin only)
+    """
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Department.objects.all()
+
+        # Filter by active status
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+        # Filter by is_creative flag
+        is_creative = self.request.query_params.get('is_creative')
+        if is_creative is not None:
+            queryset = queryset.filter(is_creative=is_creative.lower() == 'true')
+
+        return queryset.order_by('name')
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def set_manager(self, request, pk=None):
+        """Set the department manager"""
+        department = self.get_object()
+        user_id = request.data.get('user_id')
+
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            manager = User.objects.get(id=user_id, is_active=True, is_approved=True)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found or not active'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        department.manager = manager
+        department.save()
+
+        return Response(DepartmentSerializer(department).data)
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    """
+    Product CRUD operations
+
+    - list: Get all products (any authenticated user)
+    - create: Create product (admin only)
+    - update: Update product (admin only)
+    - destroy: Delete product (admin only)
+    """
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Product.objects.all()
+
+        # Filter by active status
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+        return queryset.order_by('name')
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+
+# =====================
 # TICKET VIEWS
 # =====================
 
@@ -350,6 +441,63 @@ class TicketViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsTicketOwnerOrManager()]
         return super().get_permissions()
 
+    def perform_create(self, serializer):
+        """Create ticket with smart approval routing"""
+        from .models import Department
+
+        requester = self.request.user
+        ticket = serializer.save(requester=requester)
+
+        # Determine the approver based on requester's role
+        pending_approver = None
+
+        # Check if requester is the Creative Manager
+        try:
+            creative_dept = Department.objects.get(is_creative=True)
+            is_creative_manager = (creative_dept.manager == requester)
+        except Department.DoesNotExist:
+            creative_dept = None
+            is_creative_manager = False
+
+        if is_creative_manager:
+            # Creative Manager creates ticket → Auto-approve
+            ticket.status = Ticket.Status.APPROVED
+            ticket.approver = requester
+            ticket.approved_at = timezone.now()
+            ticket.pending_approver = None
+            log_activity(requester, ticket, ActivityLog.ActionType.APPROVED, 'Auto-approved (Creative Manager)')
+        elif requester.is_manager:
+            # Department Manager creates ticket → Creative Manager approves
+            if creative_dept and creative_dept.manager:
+                pending_approver = creative_dept.manager
+                ticket.pending_approver = pending_approver
+                # Notify Creative Manager
+                Notification.objects.create(
+                    user=pending_approver,
+                    ticket=ticket,
+                    message=f'New ticket from manager {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
+                    notification_type=Notification.NotificationType.NEW_REQUEST
+                )
+                notify_user(pending_approver, 'new_request', ticket)
+        else:
+            # Regular user → Their department manager approves
+            if requester.user_department and requester.user_department.manager:
+                pending_approver = requester.user_department.manager
+                ticket.pending_approver = pending_approver
+                # Notify Department Manager
+                Notification.objects.create(
+                    user=pending_approver,
+                    ticket=ticket,
+                    message=f'New ticket from {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
+                    notification_type=Notification.NotificationType.NEW_REQUEST
+                )
+                notify_user(pending_approver, 'new_request', ticket)
+
+        ticket.save()
+
+        # Log creation
+        log_activity(requester, ticket, ActivityLog.ActionType.CREATED)
+
     # =====================
     # TICKET ACTIONS
     # =====================
@@ -411,6 +559,7 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.status = Ticket.Status.REJECTED
         ticket.approver = request.user
+        ticket.rejected_at = timezone.now()
         ticket.save()
 
         reason = serializer.validated_data.get('reason', '')
@@ -642,13 +791,23 @@ class TicketViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         elif request.method == 'POST':
-            serializer = TicketAttachmentSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            attachment = serializer.save(
+            # Check if file is in request
+            if 'file' not in request.FILES:
+                return Response(
+                    {'error': 'No file provided. Please upload a file.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            uploaded_file = request.FILES['file']
+
+            # Create attachment directly
+            attachment = TicketAttachment.objects.create(
                 ticket=ticket,
                 user=request.user,
-                file_name=request.FILES['file'].name if 'file' in request.FILES else ''
+                file=uploaded_file,
+                file_name=uploaded_file.name
             )
+
             return Response(
                 TicketAttachmentSerializer(attachment).data,
                 status=status.HTTP_201_CREATED

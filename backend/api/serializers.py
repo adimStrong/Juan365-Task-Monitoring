@@ -1,20 +1,67 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, Department, Product
 
 User = get_user_model()
+
+
+# =====================
+# DEPARTMENT & PRODUCT SERIALIZERS
+# =====================
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    """Serializer for departments"""
+    manager_name = serializers.CharField(source='manager.username', read_only=True, allow_null=True)
+    member_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'description', 'manager', 'manager_name', 'is_creative', 'is_active', 'member_count', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_member_count(self, obj):
+        return obj.members.count()
+
+
+class DepartmentMinimalSerializer(serializers.ModelSerializer):
+    """Minimal department info for nested serialization"""
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'is_creative']
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    """Serializer for products"""
+    ticket_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'description', 'is_active', 'ticket_count', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_ticket_count(self, obj):
+        return obj.tickets.count()
+
+
+class ProductMinimalSerializer(serializers.ModelSerializer):
+    """Minimal product info for nested serialization"""
+    class Meta:
+        model = Product
+        fields = ['id', 'name']
 
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for user details"""
     approved_by_name = serializers.CharField(source='approved_by.username', read_only=True, allow_null=True)
+    user_department_info = DepartmentMinimalSerializer(source='user_department', read_only=True)
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
-                  'role', 'department', 'telegram_id', 'is_approved',
-                  'approved_by', 'approved_by_name', 'approved_at', 'date_joined', 'is_active']
+                  'role', 'user_department', 'user_department_info', 'department',
+                  'telegram_id', 'is_approved', 'approved_by', 'approved_by_name',
+                  'approved_at', 'date_joined', 'is_active']
         read_only_fields = ['id', 'date_joined', 'approved_by', 'approved_by_name', 'approved_at']
 
 
@@ -24,7 +71,7 @@ class UserManagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
-                  'role', 'department', 'is_approved', 'is_active']
+                  'role', 'user_department', 'department', 'is_approved', 'is_active']
         read_only_fields = ['id', 'username', 'email']
 
 
@@ -85,7 +132,7 @@ class TicketAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketAttachment
         fields = ['id', 'ticket', 'user', 'file', 'file_name', 'uploaded_at']
-        read_only_fields = ['id', 'user', 'uploaded_at']
+        read_only_fields = ['id', 'ticket', 'user', 'file_name', 'uploaded_at']
 
 
 class TicketCollaboratorSerializer(serializers.ModelSerializer):
@@ -103,13 +150,17 @@ class TicketListSerializer(serializers.ModelSerializer):
     """Serializer for ticket list view"""
     requester = UserMinimalSerializer(read_only=True)
     assigned_to = UserMinimalSerializer(read_only=True)
+    pending_approver = UserMinimalSerializer(read_only=True)
+    ticket_product = ProductMinimalSerializer(read_only=True)
+    target_department = DepartmentMinimalSerializer(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     comment_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
-        fields = ['id', 'title', 'requester', 'assigned_to', 'status',
-                  'priority', 'deadline', 'created_at', 'is_overdue', 'comment_count',
+        fields = ['id', 'title', 'requester', 'assigned_to', 'pending_approver',
+                  'status', 'priority', 'deadline', 'created_at', 'is_overdue',
+                  'comment_count', 'ticket_product', 'target_department',
                   'product', 'department']
 
     def get_comment_count(self, obj):
@@ -121,6 +172,9 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     requester = UserMinimalSerializer(read_only=True)
     assigned_to = UserMinimalSerializer(read_only=True)
     approver = UserMinimalSerializer(read_only=True)
+    pending_approver = UserMinimalSerializer(read_only=True)
+    ticket_product = ProductMinimalSerializer(read_only=True)
+    target_department = DepartmentMinimalSerializer(read_only=True)
     comments = serializers.SerializerMethodField()
     attachments = TicketAttachmentSerializer(many=True, read_only=True)
     collaborators = TicketCollaboratorSerializer(many=True, read_only=True)
@@ -130,11 +184,12 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ['id', 'title', 'description', 'requester', 'assigned_to',
-                  'approver', 'status', 'priority', 'deadline', 'created_at',
-                  'updated_at', 'is_overdue', 'is_idle', 'comments', 'attachments',
-                  'collaborators', 'confirmed_by_requester', 'confirmed_at',
-                  'approved_at', 'assigned_at', 'started_at', 'completed_at',
-                  'product', 'department']
+                  'approver', 'pending_approver', 'status', 'priority', 'deadline',
+                  'created_at', 'updated_at', 'is_overdue', 'is_idle', 'comments',
+                  'attachments', 'collaborators', 'confirmed_by_requester', 'confirmed_at',
+                  'approved_at', 'rejected_at', 'assigned_at', 'started_at', 'completed_at',
+                  'ticket_product', 'target_department', 'product', 'department',
+                  'complexity', 'estimated_hours', 'actual_hours']
 
     def get_comments(self, obj):
         # Only return top-level comments (replies are nested within them)
@@ -148,7 +203,8 @@ class TicketCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ['id', 'title', 'description', 'priority', 'deadline', 'assigned_to',
-                  'product', 'department']
+                  'ticket_product', 'target_department', 'product', 'department',
+                  'complexity', 'estimated_hours']
         read_only_fields = ['id']
 
     def create(self, validated_data):
@@ -162,7 +218,8 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ['title', 'description', 'priority', 'deadline', 'assigned_to',
-                  'product', 'department']
+                  'ticket_product', 'target_department', 'product', 'department',
+                  'complexity', 'estimated_hours', 'actual_hours']
 
 
 class TicketAssignSerializer(serializers.Serializer):

@@ -12,13 +12,31 @@ User = get_user_model()
 
 class DepartmentSerializer(serializers.ModelSerializer):
     """Serializer for departments"""
-    manager_name = serializers.CharField(source='manager.username', read_only=True, allow_null=True)
+    manager = serializers.SerializerMethodField()
+    manager_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='manager',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
     member_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Department
-        fields = ['id', 'name', 'description', 'manager', 'manager_name', 'is_creative', 'is_active', 'member_count', 'created_at']
+        fields = ['id', 'name', 'description', 'manager', 'manager_id', 'is_creative', 'is_active', 'member_count', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+    def get_manager(self, obj):
+        if obj.manager:
+            return {
+                'id': obj.manager.id,
+                'username': obj.manager.username,
+                'first_name': obj.manager.first_name,
+                'last_name': obj.manager.last_name,
+                'role': obj.manager.role
+            }
+        return None
 
     def get_member_count(self, obj):
         return obj.members.count()

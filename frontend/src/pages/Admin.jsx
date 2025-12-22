@@ -75,7 +75,7 @@ const Admin = () => {
     try {
       if (activeTab === 'departments') {
         const data = { ...formData };
-        if (!data.manager) delete data.manager;
+        if (data.manager) { data.manager_id = data.manager; } delete data.manager;
 
         if (editingItem) {
           await departmentsAPI.update(editingItem.id, data);

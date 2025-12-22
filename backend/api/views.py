@@ -172,7 +172,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def approve(self, request, pk=None):
         """Approve a user registration"""
         user = self.get_object()
@@ -198,7 +198,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
 
         return Response(UserSerializer(user).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def reject_user(self, request, pk=None):
         """Reject/deactivate a user"""
         user = self.get_object()
@@ -215,7 +215,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
 
         return Response(UserSerializer(user).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def change_role(self, request, pk=None):
         """Change user role"""
         user = self.get_object()
@@ -238,7 +238,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
 
         return Response(UserSerializer(user).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def reactivate(self, request, pk=None):
         """Reactivate a deactivated user"""
         user = self.get_object()
@@ -246,7 +246,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         user.save()
         return Response(UserSerializer(user).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def reset_password(self, request, pk=None):
         """Reset user password (admin only)"""
         user = self.get_object()
@@ -286,7 +286,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['delete'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['delete'], permission_classes=[IsManagerUser])
     def delete_user(self, request, pk=None):
         """Permanently delete a user (admin only)"""
         user = self.get_object()
@@ -343,7 +343,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             return [IsAdminUser()]
         return super().get_permissions()
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
     def set_manager(self, request, pk=None):
         """Set the department manager"""
         department = self.get_object()

@@ -9,6 +9,7 @@ import CreateTicket from './pages/CreateTicket';
 import Notifications from './pages/Notifications';
 import ActivityLog from './pages/ActivityLog';
 import Users from './pages/Users';
+import Admin from './pages/Admin';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -120,6 +121,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Users />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
           </ProtectedRoute>
         }
       />

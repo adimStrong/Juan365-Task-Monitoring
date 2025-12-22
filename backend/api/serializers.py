@@ -109,7 +109,8 @@ class TicketListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ['id', 'title', 'requester', 'assigned_to', 'status',
-                  'priority', 'deadline', 'created_at', 'is_overdue', 'comment_count']
+                  'priority', 'deadline', 'created_at', 'is_overdue', 'comment_count',
+                  'product', 'department']
 
     def get_comment_count(self, obj):
         return obj.comments.count()
@@ -131,7 +132,9 @@ class TicketDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'requester', 'assigned_to',
                   'approver', 'status', 'priority', 'deadline', 'created_at',
                   'updated_at', 'is_overdue', 'is_idle', 'comments', 'attachments',
-                  'collaborators', 'confirmed_by_requester', 'confirmed_at']
+                  'collaborators', 'confirmed_by_requester', 'confirmed_at',
+                  'approved_at', 'assigned_at', 'started_at', 'completed_at',
+                  'product', 'department']
 
     def get_comments(self, obj):
         # Only return top-level comments (replies are nested within them)
@@ -144,7 +147,8 @@ class TicketCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ['id', 'title', 'description', 'priority', 'deadline', 'assigned_to']
+        fields = ['id', 'title', 'description', 'priority', 'deadline', 'assigned_to',
+                  'product', 'department']
         read_only_fields = ['id']
 
     def create(self, validated_data):
@@ -157,7 +161,8 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'priority', 'deadline', 'assigned_to']
+        fields = ['title', 'description', 'priority', 'deadline', 'assigned_to',
+                  'product', 'department']
 
 
 class TicketAssignSerializer(serializers.Serializer):

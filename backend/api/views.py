@@ -367,6 +367,7 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.status = Ticket.Status.APPROVED
         ticket.approver = request.user
+        ticket.approved_at = timezone.now()
         ticket.save()
 
         # Log activity
@@ -439,6 +440,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         ticket.assigned_to = serializer.validated_data['assigned_to']
+        ticket.assigned_at = timezone.now()
         ticket.save()
 
         # Log activity
@@ -474,8 +476,10 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
 
         ticket.status = Ticket.Status.IN_PROGRESS
+        ticket.started_at = timezone.now()
         if not ticket.assigned_to:
             ticket.assigned_to = request.user
+            ticket.assigned_at = timezone.now()
         ticket.save()
 
         # Log activity
@@ -501,6 +505,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
 
         ticket.status = Ticket.Status.COMPLETED
+        ticket.completed_at = timezone.now()
         ticket.save()
 
         # Log activity
@@ -932,3 +937,115 @@ class ActivityLogListView(generics.ListAPIView):
             queryset = queryset.filter(ticket_id=ticket_id)
 
         return queryset[:100]  # Limit to last 100 activities
+
+
+# =====================
+# ANALYTICS VIEWS
+# =====================
+
+class AnalyticsView(APIView):
+    """Analytics endpoint for ticket processing metrics"""
+    permission_classes = [IsManagerUser]
+
+    def get(self, request):
+        from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField
+        from django.db.models.functions import Coalesce
+
+        # Get date range filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+
+        tickets = Ticket.objects.all()
+        if date_from:
+            tickets = tickets.filter(created_at__date__gte=date_from)
+        if date_to:
+            tickets = tickets.filter(created_at__date__lte=date_to)
+
+        # User performance metrics
+        user_stats = []
+        users_with_tickets = User.objects.filter(
+            Q(assigned_tickets__isnull=False) | Q(requested_tickets__isnull=False)
+        ).distinct()
+
+        for user in users_with_tickets:
+            user_tickets = tickets.filter(assigned_to=user)
+            completed_tickets = user_tickets.filter(status=Ticket.Status.COMPLETED)
+
+            # Calculate average processing time (started_at to completed_at)
+            processing_times = []
+            for t in completed_tickets.filter(started_at__isnull=False, completed_at__isnull=False):
+                if t.started_at and t.completed_at:
+                    delta = (t.completed_at - t.started_at).total_seconds()
+                    processing_times.append(delta)
+
+            avg_processing_seconds = sum(processing_times) / len(processing_times) if processing_times else 0
+            avg_processing_hours = round(avg_processing_seconds / 3600, 1)
+
+            # Calculate average approval to completion time
+            approval_times = []
+            for t in completed_tickets.filter(approved_at__isnull=False, completed_at__isnull=False):
+                if t.approved_at and t.completed_at:
+                    delta = (t.completed_at - t.approved_at).total_seconds()
+                    approval_times.append(delta)
+
+            avg_approval_to_complete_seconds = sum(approval_times) / len(approval_times) if approval_times else 0
+            avg_approval_to_complete_hours = round(avg_approval_to_complete_seconds / 3600, 1)
+
+            user_stats.append({
+                'user_id': user.id,
+                'username': user.username,
+                'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
+                'role': user.role,
+                'department': user.department,
+                'total_assigned': user_tickets.count(),
+                'completed': completed_tickets.count(),
+                'in_progress': user_tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
+                'pending': user_tickets.filter(status__in=[Ticket.Status.REQUESTED, Ticket.Status.APPROVED]).count(),
+                'avg_processing_hours': avg_processing_hours,
+                'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
+                'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0
+            })
+
+        # Sort by total assigned descending
+        user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
+
+        # Product breakdown
+        product_stats = tickets.exclude(product='').values('product').annotate(
+            count=Count('id'),
+            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+        ).order_by('-count')
+
+        # Department breakdown
+        department_stats = tickets.exclude(department='').values('department').annotate(
+            count=Count('id'),
+            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+        ).order_by('-count')
+
+        # Overall stats
+        total_completed = tickets.filter(status=Ticket.Status.COMPLETED).count()
+        total_tickets = tickets.count()
+
+        # Overall average processing time
+        all_processing_times = []
+        for t in tickets.filter(started_at__isnull=False, completed_at__isnull=False, status=Ticket.Status.COMPLETED):
+            if t.started_at and t.completed_at:
+                delta = (t.completed_at - t.started_at).total_seconds()
+                all_processing_times.append(delta)
+
+        overall_avg_processing_hours = round(
+            (sum(all_processing_times) / len(all_processing_times) / 3600), 1
+        ) if all_processing_times else 0
+
+        return Response({
+            'summary': {
+                'total_tickets': total_tickets,
+                'completed_tickets': total_completed,
+                'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
+                'avg_processing_hours': overall_avg_processing_hours
+            },
+            'user_performance': user_stats,
+            'by_product': list(product_stats),
+            'by_department': list(department_stats)
+        })

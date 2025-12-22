@@ -94,6 +94,16 @@ class Ticket(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Status timestamps for analytics
+    approved_at = models.DateTimeField(null=True, blank=True)
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Tagging for categorization
+    product = models.CharField(max_length=100, blank=True, help_text='Product this ticket relates to')
+    department = models.CharField(max_length=100, blank=True, help_text='Department handling this ticket')
+
     # Requester confirmation when task is completed
     confirmed_by_requester = models.BooleanField(default=False, help_text='Requester confirms task completion')
     confirmed_at = models.DateTimeField(null=True, blank=True)

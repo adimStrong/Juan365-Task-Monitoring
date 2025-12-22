@@ -7,7 +7,7 @@ from .views import (
     TicketViewSet, AttachmentDeleteView,
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
-    ActivityLogListView
+    ActivityLogListView, AnalyticsView
 )
 
 router = DefaultRouter()
@@ -39,4 +39,7 @@ urlpatterns = [
 
     # Activity logs
     path('activities/', ActivityLogListView.as_view(), name='activity-list'),
+
+    # Analytics
+    path('analytics/', AnalyticsView.as_view(), name='analytics'),
 ]

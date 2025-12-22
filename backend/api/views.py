@@ -542,56 +542,147 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
     def approve(self, request, pk=None):
-        """Approve a ticket request"""
+        """
+        Two-step approval workflow:
+        1. Department Manager approves → PENDING_CREATIVE (goes to Creative Manager)
+        2. Creative Manager approves → APPROVED (can assign)
+        """
         ticket = self.get_object()
+        user = request.user
 
+        # Check if user is Creative Manager or Admin
+        try:
+            creative_dept = Department.objects.get(is_creative=True)
+            is_creative_manager = (creative_dept.manager == user) or user.is_admin
+        except Department.DoesNotExist:
+            is_creative_manager = user.is_admin
+
+        # Handle PENDING_CREATIVE status - only Creative Manager/Admin can approve
+        if ticket.status == Ticket.Status.PENDING_CREATIVE:
+            if not is_creative_manager:
+                return Response(
+                    {'error': 'Only Creative Manager or Admin can give final approval'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Final approval by Creative Manager
+            ticket.status = Ticket.Status.APPROVED
+            ticket.approver = user
+            ticket.approved_at = timezone.now()
+            ticket.pending_approver = None
+            ticket.save()
+
+            # Log activity
+            log_activity(user, ticket, ActivityLog.ActionType.APPROVED, 'Final approval by Creative Manager')
+
+            # Notify requester
+            Notification.objects.create(
+                user=ticket.requester,
+                ticket=ticket,
+                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been fully approved by Creative',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+            notify_user(ticket.requester, 'approved', ticket)
+
+            # Notify department approver if exists
+            if ticket.dept_approver and ticket.dept_approver != user:
+                Notification.objects.create(
+                    user=ticket.dept_approver,
+                    ticket=ticket,
+                    message=f'Ticket "#{ticket.id} - {ticket.title}" has been approved by Creative',
+                    notification_type=Notification.NotificationType.APPROVED
+                )
+
+            return Response(TicketDetailSerializer(ticket).data)
+
+        # Handle REQUESTED status
         if ticket.status != Ticket.Status.REQUESTED:
             return Response(
-                {'error': 'Only requested tickets can be approved'},
+                {'error': 'Only requested or pending creative tickets can be approved'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        ticket.status = Ticket.Status.APPROVED
-        ticket.approver = request.user
-        ticket.approved_at = timezone.now()
+        # If Creative Manager or Admin approves directly → APPROVED
+        if is_creative_manager:
+            ticket.status = Ticket.Status.APPROVED
+            ticket.approver = user
+            ticket.approved_at = timezone.now()
+            ticket.pending_approver = None
+            ticket.save()
+
+            # Log activity
+            log_activity(user, ticket, ActivityLog.ActionType.APPROVED)
+
+            # Notify requester
+            Notification.objects.create(
+                user=ticket.requester,
+                ticket=ticket,
+                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+            notify_user(ticket.requester, 'approved', ticket)
+
+            # Notify assigned user if exists
+            if ticket.assigned_to and ticket.assigned_to != ticket.requester:
+                Notification.objects.create(
+                    user=ticket.assigned_to,
+                    ticket=ticket,
+                    message=f'Ticket "#{ticket.id} - {ticket.title}" has been approved and assigned to you',
+                    notification_type=Notification.NotificationType.ASSIGNED
+                )
+                notify_user(ticket.assigned_to, 'assigned', ticket)
+
+            return Response(TicketDetailSerializer(ticket).data)
+
+        # Department Manager approves → PENDING_CREATIVE (first approval)
+        ticket.status = Ticket.Status.PENDING_CREATIVE
+        ticket.dept_approver = user
+        ticket.dept_approved_at = timezone.now()
+
+        # Set pending approver to Creative Manager
+        try:
+            creative_dept = Department.objects.get(is_creative=True)
+            if creative_dept.manager:
+                ticket.pending_approver = creative_dept.manager
+        except Department.DoesNotExist:
+            pass
+
         ticket.save()
 
         # Log activity
-        log_activity(request.user, ticket, ActivityLog.ActionType.APPROVED)
+        log_activity(user, ticket, ActivityLog.ActionType.DEPT_APPROVED, 'Department manager first approval')
 
-        # Create notification for requester
+        # Notify requester of first approval
         Notification.objects.create(
             user=ticket.requester,
             ticket=ticket,
-            message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved',
-            notification_type=Notification.NotificationType.APPROVED
+            message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved by department, pending Creative approval',
+            notification_type=Notification.NotificationType.PENDING_CREATIVE
         )
-        # Send Telegram notification
-        notify_user(ticket.requester, 'approved', ticket)
+        notify_user(ticket.requester, 'pending_creative', ticket)
 
-        # Notify assigned user if exists
-        if ticket.assigned_to and ticket.assigned_to != ticket.requester:
+        # Notify Creative Manager for second approval
+        if ticket.pending_approver:
             Notification.objects.create(
-                user=ticket.assigned_to,
+                user=ticket.pending_approver,
                 ticket=ticket,
-                message=f'Ticket "#{ticket.id} - {ticket.title}" has been approved and assigned to you',
-                notification_type=Notification.NotificationType.ASSIGNED
+                message=f'Ticket "#{ticket.id} - {ticket.title}" needs your approval (approved by {user.username})',
+                notification_type=Notification.NotificationType.PENDING_CREATIVE
             )
-            # Send Telegram notification
-            notify_user(ticket.assigned_to, 'assigned', ticket)
+            notify_user(ticket.pending_approver, 'pending_creative', ticket)
 
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
     def reject(self, request, pk=None):
-        """Reject a ticket request"""
+        """Reject a ticket request (can reject REQUESTED or PENDING_CREATIVE)"""
         ticket = self.get_object()
         serializer = TicketRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        if ticket.status != Ticket.Status.REQUESTED:
+        if ticket.status not in [Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE]:
             return Response(
-                {'error': 'Only requested tickets can be rejected'},
+                {'error': 'Only requested or pending creative tickets can be rejected'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1005,6 +1096,7 @@ class DashboardView(APIView):
         stats = {
             'total_tickets': tickets.count(),
             'pending_approval': tickets.filter(status=Ticket.Status.REQUESTED).count(),
+            'pending_creative': tickets.filter(status=Ticket.Status.PENDING_CREATIVE).count(),
             'in_progress': tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
             'completed': tickets.filter(status=Ticket.Status.COMPLETED).count(),
             'approved': tickets.filter(status=Ticket.Status.APPROVED).count(),
@@ -1022,6 +1114,7 @@ class DashboardView(APIView):
         # Status breakdown for pie chart
         status_data = [
             {'name': 'Requested', 'value': stats['pending_approval'], 'color': '#3B82F6'},
+            {'name': 'Pending Creative', 'value': stats['pending_creative'], 'color': '#8B5CF6'},
             {'name': 'Approved', 'value': stats['approved'], 'color': '#10B981'},
             {'name': 'In Progress', 'value': stats['in_progress'], 'color': '#F59E0B'},
             {'name': 'Completed', 'value': stats['completed'], 'color': '#6B7280'},

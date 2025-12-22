@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { usersAPI } from '../services/api';
+import { usersAPI, departmentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
 const Users = () => {
   const { isAdmin, user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, approved
   const [actionLoading, setActionLoading] = useState(null);
@@ -17,7 +18,7 @@ const Users = () => {
     email: '',
     first_name: '',
     last_name: '',
-    department: '',
+    user_department: '',
     telegram_id: '',
     password: '',
     role: 'member',
@@ -39,7 +40,17 @@ const Users = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchDepartments();
   }, [filter]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await departmentsAPI.list({ is_active: true });
+      setDepartments(response.data);
+    } catch (error) {
+      console.error('Failed to fetch departments:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -120,7 +131,7 @@ const Users = () => {
         email: '',
         first_name: '',
         last_name: '',
-        department: '',
+        user_department: '',
         telegram_id: '',
         password: '',
         role: 'member',
@@ -151,7 +162,7 @@ const Users = () => {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
-      department: user.department || '',
+      user_department: user.user_department?.id || '',
       telegram_id: user.telegram_id || '',
     });
     setEditError('');
@@ -387,8 +398,8 @@ const Users = () => {
                             <div className="text-sm text-gray-500">
                               @{user.username} {user.email && ('· ' + user.email)}
                             </div>
-                            {user.department && (
-                              <div className="text-xs text-gray-400">{user.department}</div>
+                            {user.user_department_info && (
+                              <div className="text-xs text-gray-400">{user.user_department_info.name}</div>
                             )}
                           </div>
                         </div>
@@ -578,14 +589,19 @@ const Users = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Department
                   </label>
-                  <input
-                    type="text"
-                    name="department"
-                    value={newUser.department}
+                  <select
+                    name="user_department"
+                    value={newUser.user_department || ''}
                     onChange={handleNewUserChange}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., Marketing, Engineering"
-                  />
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -721,12 +737,18 @@ const Users = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                  <select
+                    value={editFormData.user_department || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, user_department: e.target.value })}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

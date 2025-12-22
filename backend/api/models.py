@@ -98,6 +98,7 @@ class Ticket(models.Model):
 
     class Status(models.TextChoices):
         REQUESTED = 'requested', 'Requested'
+        PENDING_CREATIVE = 'pending_creative', 'Pending Creative Approval'
         APPROVED = 'approved', 'Approved'
         REJECTED = 'rejected', 'Rejected'
         IN_PROGRESS = 'in_progress', 'In Progress'
@@ -150,6 +151,17 @@ class Ticket(models.Model):
     # Status timestamps for analytics
     approved_at = models.DateTimeField(null=True, blank=True)
     rejected_at = models.DateTimeField(null=True, blank=True)
+
+    # Two-step approval tracking
+    dept_approver = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dept_approved_tickets',
+        help_text='Department manager who gave first approval'
+    )
+    dept_approved_at = models.DateTimeField(null=True, blank=True, help_text='When department manager approved')
     assigned_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -309,6 +321,7 @@ class Notification(models.Model):
 
     class NotificationType(models.TextChoices):
         NEW_REQUEST = 'new_request', 'New Request'
+        PENDING_CREATIVE = 'pending_creative', 'Pending Creative Approval'
         APPROVED = 'approved', 'Approved'
         REJECTED = 'rejected', 'Rejected'
         ASSIGNED = 'assigned', 'Assigned'
@@ -350,6 +363,7 @@ class ActivityLog(models.Model):
     class ActionType(models.TextChoices):
         CREATED = 'created', 'Created'
         UPDATED = 'updated', 'Updated'
+        DEPT_APPROVED = 'dept_approved', 'Department Approved'
         APPROVED = 'approved', 'Approved'
         REJECTED = 'rejected', 'Rejected'
         ASSIGNED = 'assigned', 'Assigned'

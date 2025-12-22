@@ -69,12 +69,25 @@ const TicketList = () => {
   const getStatusColor = (status) => {
     const colors = {
       requested: 'bg-blue-100 text-blue-800',
+      pending_creative: 'bg-purple-100 text-purple-800',
       approved: 'bg-cyan-100 text-cyan-800',
       rejected: 'bg-red-100 text-red-800',
       in_progress: 'bg-yellow-100 text-yellow-800',
       completed: 'bg-green-100 text-green-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getStatusText = (status) => {
+    const texts = {
+      requested: 'For Dept Approval',
+      pending_creative: 'For Creative Approval',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      in_progress: 'In Progress',
+      completed: 'Completed',
+    };
+    return texts[status] || status?.replace('_', ' ');
   };
 
   const formatDate = (dateString) => {
@@ -140,7 +153,8 @@ const TicketList = () => {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">All Status</option>
-                    <option value="requested">Requested</option>
+                    <option value="requested">For Dept Approval</option>
+                    <option value="pending_creative">For Creative Approval</option>
                     <option value="approved">Approved</option>
                     <option value="rejected">Rejected</option>
                     <option value="in_progress">In Progress</option>
@@ -286,7 +300,7 @@ const TicketList = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(ticket.status)}`}>
-                        {ticket.status.replace('_', ' ')}
+                        {getStatusText(ticket.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

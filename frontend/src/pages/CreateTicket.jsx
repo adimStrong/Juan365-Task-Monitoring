@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 const CreateTicket = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(true);
   const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
   const [products, setProducts] = useState([]);
@@ -48,6 +49,7 @@ const CreateTicket = () => {
   }, [formData.priority]);
 
   const fetchDepartmentsAndProducts = async () => {
+    setDropdownLoading(true);
     try {
       const [deptRes, prodRes] = await Promise.all([
         departmentsAPI.list({ is_active: true }),
@@ -57,6 +59,8 @@ const CreateTicket = () => {
       setProducts(prodRes.data);
     } catch (err) {
       console.error('Failed to fetch departments/products', err);
+    } finally {
+      setDropdownLoading(false);
     }
   };
 
@@ -173,9 +177,10 @@ const handleSubmit = async (e) => {
                 name="target_department"
                 value={formData.target_department}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={dropdownLoading}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
               >
-                <option value="">Select Department</option>
+                <option value="">{dropdownLoading ? 'Loading...' : 'Select Department'}</option>
                 {departments.map((dept) => (
                   <option key={dept.id} value={dept.id}>
                     {dept.name}
@@ -193,9 +198,10 @@ const handleSubmit = async (e) => {
                 name="ticket_product"
                 value={formData.ticket_product}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={dropdownLoading}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
               >
-                <option value="">Select Product</option>
+                <option value="">{dropdownLoading ? 'Loading...' : 'Select Product'}</option>
                 {products.map((prod) => (
                   <option key={prod.id} value={prod.id}>
                     {prod.name}

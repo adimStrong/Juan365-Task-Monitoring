@@ -191,12 +191,25 @@ const TicketDetail = () => {
   const getStatusColor = (status) => {
     const colors = {
       requested: 'bg-blue-100 text-blue-800',
+      pending_creative: 'bg-purple-100 text-purple-800',
       approved: 'bg-cyan-100 text-cyan-800',
       rejected: 'bg-red-100 text-red-800',
       in_progress: 'bg-yellow-100 text-yellow-800',
       completed: 'bg-green-100 text-green-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getStatusText = (status) => {
+    const texts = {
+      requested: 'For Dept Approval',
+      pending_creative: 'For Creative Approval',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      in_progress: 'In Progress',
+      completed: 'Completed',
+    };
+    return texts[status] || status?.replace('_', ' ');
   };
 
   const formatDate = (dateString) => {
@@ -216,7 +229,7 @@ const TicketDetail = () => {
 
   if (!ticket) return null;
 
-  const canApprove = isManager && ticket.status === 'requested';
+  const canApprove = isManager && ['requested', 'pending_creative'].includes(ticket.status);
   const canStart = (ticket.assigned_to?.id === user?.id || isManager) &&
                    ['requested', 'approved'].includes(ticket.status);
   const canComplete = (ticket.assigned_to?.id === user?.id || isManager) &&
@@ -243,7 +256,7 @@ const TicketDetail = () => {
           </div>
           <div className="flex items-center space-x-2">
             <span className={`px-3 py-1 text-sm rounded-full ${getStatusColor(ticket.status)}`}>
-              {ticket.status.replace('_', ' ')}
+              {getStatusText(ticket.status)}
             </span>
             <span className={`px-3 py-1 text-sm rounded-full ${getPriorityColor(ticket.priority)}`}>
               {ticket.priority}

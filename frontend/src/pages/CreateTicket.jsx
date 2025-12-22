@@ -1,19 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI } from '../services/api';
+import { ticketsAPI, departmentsAPI, productsAPI } from '../services/api';
 import Layout from '../components/Layout';
 
 const CreateTicket = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [departments, setDepartments] = useState([]);
+  const [products, setProducts] = useState([]);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium',
     deadline: '',
+    ticket_product: '',
+    target_department: '',
   });
+
+  useEffect(() => {
+    fetchDepartmentsAndProducts();
+  }, []);
+
+  const fetchDepartmentsAndProducts = async () => {
+    try {
+      const [deptRes, prodRes] = await Promise.all([
+        departmentsAPI.list({ is_active: true }),
+        productsAPI.list({ is_active: true }),
+      ]);
+      setDepartments(deptRes.data);
+      setProducts(prodRes.data);
+    } catch (err) {
+      console.error('Failed to fetch departments/products', err);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,6 +49,8 @@ const CreateTicket = () => {
     try {
       const data = { ...formData };
       if (!data.deadline) delete data.deadline;
+      if (!data.ticket_product) delete data.ticket_product;
+      if (!data.target_department) delete data.target_department;
 
       const response = await ticketsAPI.create(data);
       navigate(`/tickets/${response.data.id}`);
@@ -46,7 +69,7 @@ const CreateTicket = () => {
             onClick={() => navigate('/tickets')}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
-            ← Back to Tickets
+            &larr; Back to Tickets
           </button>
           <h1 className="text-2xl font-bold text-gray-900 mt-2">Create New Ticket</h1>
         </div>
@@ -88,6 +111,48 @@ const CreateTicket = () => {
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               placeholder="Detailed description of what needs to be done..."
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="target_department" className="block text-sm font-medium text-gray-700 mb-1">
+                Department
+              </label>
+              <select
+                id="target_department"
+                name="target_department"
+                value={formData.target_department}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="ticket_product" className="block text-sm font-medium text-gray-700 mb-1">
+                Product
+              </label>
+              <select
+                id="ticket_product"
+                name="ticket_product"
+                value={formData.ticket_product}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select Product</option>
+                {products.map((prod) => (
+                  <option key={prod.id} value={prod.id}>
+                    {prod.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

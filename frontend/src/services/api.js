@@ -205,4 +205,44 @@ export const activitiesAPI = {
     api.get('/activities/', { params }),
 };
 
+
+// Departments API
+export const departmentsAPI = {
+  list: (params = {}) =>
+    api.get('/departments/', { params }),
+
+  get: (id) =>
+    api.get(`/departments/${id}/`),
+
+  create: (data) =>
+    api.post('/departments/', data),
+
+  update: (id, data) =>
+    api.patch(`/departments/${id}/`, data),
+
+  delete: (id) =>
+    api.delete(`/departments/${id}/`),
+
+  setManager: (id, userId) =>
+    api.post(`/departments/${id}/set_manager/`, { user_id: userId }),
+};
+
+// Products API
+export const productsAPI = {
+  list: (params = {}) =>
+    api.get('/products/', { params }),
+
+  get: (id) =>
+    api.get(`/products/${id}/`),
+
+  create: (data) =>
+    api.post('/products/', data),
+
+  update: (id, data) =>
+    api.patch(`/products/${id}/`, data),
+
+  delete: (id) =>
+    api.delete(`/products/${id}/`),
+};
+
 export default api;

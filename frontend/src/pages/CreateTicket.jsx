@@ -19,9 +19,33 @@ const CreateTicket = () => {
     target_department: '',
   });
 
+  // Get today's date in YYYY-MM-DDTHH:MM format for min attribute
+  const getMinDateTime = () => {
+    const now = new Date();
+    return now.toISOString().slice(0, 16);
+  };
+
+  // Get end of today for urgent priority max date
+  const getMaxDateTimeForUrgent = () => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return today.toISOString().slice(0, 16);
+  };
+
   useEffect(() => {
     fetchDepartmentsAndProducts();
   }, []);
+
+  // Reset deadline when priority changes to urgent if deadline is not same day
+  useEffect(() => {
+    if (formData.priority === 'urgent' && formData.deadline) {
+      const deadlineDate = new Date(formData.deadline);
+      const today = new Date();
+      if (deadlineDate.toDateString() !== today.toDateString()) {
+        setFormData((prev) => ({ ...prev, deadline: '' }));
+      }
+    }
+  }, [formData.priority]);
 
   const fetchDepartmentsAndProducts = async () => {
     try {
@@ -41,14 +65,40 @@ const CreateTicket = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e) => {
+  
+  const validateDeadline = () => {
+    if (!formData.deadline) {
+      return 'Deadline is required';
+    }
+    const deadlineDate = new Date(formData.deadline);
+    const now = new Date();
+    if (deadlineDate < now) {
+      return 'Deadline cannot be in the past';
+    }
+    if (formData.priority === 'urgent') {
+      const today = new Date();
+      if (deadlineDate.toDateString() !== today.toDateString()) {
+        return 'Urgent tickets must have a same-day deadline';
+      }
+    }
+    return null;
+  };
+
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Validate deadline
+    const deadlineError = validateDeadline();
+    if (deadlineError) {
+      setError(deadlineError);
+      return;
+    }
+
     setLoading(true);
 
     try {
       const data = { ...formData };
-      if (!data.deadline) delete data.deadline;
       if (!data.ticket_product) delete data.ticket_product;
       if (!data.target_department) delete data.target_department;
 
@@ -172,20 +222,33 @@ const CreateTicket = () => {
                 <option value="high">High</option>
                 <option value="urgent">Urgent</option>
               </select>
+              {formData.priority === 'urgent' && (
+                <p className="mt-1 text-xs text-orange-600">
+                  Urgent tickets require same-day deadline
+                </p>
+              )}
             </div>
 
             <div>
               <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
-                Deadline (optional)
+                Deadline *
               </label>
               <input
                 type="datetime-local"
                 id="deadline"
                 name="deadline"
+                required
                 value={formData.deadline}
                 onChange={handleChange}
+                min={getMinDateTime()}
+                max={formData.priority === 'urgent' ? getMaxDateTimeForUrgent() : undefined}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
+              {formData.priority === 'urgent' && (
+                <p className="mt-1 text-xs text-orange-600">
+                  Must be today
+                </p>
+              )}
             </div>
           </div>
 

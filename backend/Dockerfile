@@ -2,12 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python dependencies (paths relative to repo root since Railway builds from there)
-COPY backend/requirements.txt .
+# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend project files
-COPY backend/ .
+COPY . .
 
 # Collect static files
 RUN python manage.py collectstatic --noinput

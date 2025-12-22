@@ -101,6 +101,7 @@ class MeView(generics.RetrieveUpdateAPIView):
     """Get/update current user profile"""
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_object(self):
         return self.request.user
@@ -110,6 +111,7 @@ class UserListView(generics.ListAPIView):
     """List all users (for assignment dropdown)"""
     serializer_class = UserMinimalSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         # Only return approved and active users for assignment
@@ -286,6 +288,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     """
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         queryset = Department.objects.all()
@@ -344,6 +347,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         queryset = Product.objects.all()
@@ -376,6 +380,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     destroy: Delete ticket (owner or manager only)
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         user = self.request.user
@@ -893,6 +898,7 @@ class AttachmentDeleteView(generics.DestroyAPIView):
     """Delete an attachment"""
     queryset = TicketAttachment.objects.all()
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         user = self.request.user
@@ -914,6 +920,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
@@ -946,6 +953,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 class DashboardView(APIView):
     """Dashboard statistics and overview"""
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get(self, request):
         user = request.user
@@ -1027,6 +1035,7 @@ class MyTasksView(generics.ListAPIView):
     """Get tickets assigned to current user"""
     serializer_class = TicketListSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         return Ticket.objects.filter(
@@ -1054,6 +1063,7 @@ class OverdueTicketsView(generics.ListAPIView):
     """Get overdue tickets"""
     serializer_class = TicketListSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         user = self.request.user
@@ -1079,6 +1089,7 @@ class ActivityLogListView(generics.ListAPIView):
     """Get activity logs for tickets"""
     serializer_class = ActivityLogSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
         user = self.request.user

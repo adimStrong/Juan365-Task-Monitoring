@@ -11,6 +11,7 @@ urlpatterns = [
     path('disconnect/', views.disconnect_telegram, name='telegram-disconnect'),
     path('test/', views.test_notification, name='telegram-test'),
     path('preferences/', views.notification_preferences, name='telegram-preferences'),
+    path('admin-link/', views.admin_link_telegram, name='telegram-admin-link'),
 
     # Telegram webhook (unauthenticated - called by Telegram)
     path('webhook/', views.telegram_webhook, name='telegram-webhook'),

@@ -256,6 +256,45 @@ def telegram_webhook(request):
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_link_telegram(request):
+    """
+    Admin endpoint to manually link a user's Telegram account.
+    Only admins can use this endpoint.
+    """
+    user = request.user
+
+    if user.role != 'admin':
+        return Response({
+            'error': 'Only admins can use this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    user_id = request.data.get('user_id')
+    telegram_id = request.data.get('telegram_id')
+
+    if not user_id or not telegram_id:
+        return Response({
+            'error': 'user_id and telegram_id are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    from api.models import User
+    try:
+        target_user = User.objects.get(id=user_id)
+        target_user.telegram_id = str(telegram_id)
+        target_user.save(update_fields=['telegram_id'])
+
+        return Response({
+            'status': 'linked',
+            'user': target_user.username,
+            'telegram_id': telegram_id
+        })
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def notification_preferences(request):

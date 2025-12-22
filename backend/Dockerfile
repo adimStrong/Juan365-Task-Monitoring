@@ -3,11 +3,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend project files
-COPY . .
+COPY backend/ .
 
 # Collect static files
 RUN python manage.py collectstatic --noinput

@@ -141,6 +141,14 @@ export const ticketsAPI = {
     api.delete(`/tickets/${id}/collaborators/`, { data: { user_id: userId } }),
 };
 
+
+  // History & Rollback
+  getHistory: (id) =>
+    api.get(`/tickets/${id}/history/`),
+
+  rollback: (id, activityId) =>
+    api.post(`/tickets/${id}/rollback/`, { activity_id: activityId }),
+};
 // Users API
 export const usersAPI = {
   list: () =>

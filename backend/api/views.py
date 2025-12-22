@@ -24,12 +24,28 @@ from .serializers import (
 
 
 def log_activity(user, ticket, action, details=''):
-    """Helper function to log activity"""
+    """Helper function to log activity with ticket state snapshot for rollback"""
+    # Capture ticket state snapshot
+    snapshot = {
+        'status': ticket.status,
+        'assigned_to_id': ticket.assigned_to_id,
+        'approver_id': ticket.approver_id,
+        'pending_approver_id': ticket.pending_approver_id,
+        'dept_approver_id': ticket.dept_approver_id,
+        'priority': ticket.priority,
+        'deadline': ticket.deadline.isoformat() if ticket.deadline else None,
+        'target_department_id': ticket.target_department_id,
+        'ticket_product_id': ticket.ticket_product_id,
+        'complexity': ticket.complexity,
+        'estimated_hours': str(ticket.estimated_hours) if ticket.estimated_hours else None,
+        'actual_hours': str(ticket.actual_hours) if ticket.actual_hours else None,
+    }
     ActivityLog.objects.create(
         user=user,
         ticket=ticket,
         action=action,
-        details=details
+        details=details,
+        snapshot=snapshot
     )
 from .permissions import IsAdminUser, IsManagerUser, IsTicketOwnerOrManager, CanApproveTicket
 
@@ -1016,6 +1032,96 @@ class TicketViewSet(viewsets.ModelViewSet):
                     {'error': 'Collaborator not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
+
+    # =====================
+    # HISTORY & ROLLBACK
+    # =====================
+
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """Get ticket activity history with snapshots for rollback"""
+        ticket = self.get_object()
+        activities = ActivityLog.objects.filter(ticket=ticket).order_by('-created_at')
+        return Response(ActivityLogSerializer(activities, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
+    def rollback(self, request, pk=None):
+        """Rollback ticket to a previous state (managers and admins only)"""
+        from decimal import Decimal
+        from django.utils.dateparse import parse_datetime
+        
+        ticket = self.get_object()
+        activity_id = request.data.get('activity_id')
+
+        if not activity_id:
+            return Response(
+                {'error': 'activity_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            activity = ActivityLog.objects.get(id=activity_id, ticket=ticket)
+        except ActivityLog.DoesNotExist:
+            return Response(
+                {'error': 'Activity not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not activity.snapshot:
+            return Response(
+                {'error': 'No snapshot available for this activity. Only new activities have snapshots.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Restore ticket state from snapshot
+        snapshot = activity.snapshot
+        old_status = ticket.status
+        
+        ticket.status = snapshot.get('status', ticket.status)
+        ticket.assigned_to_id = snapshot.get('assigned_to_id')
+        ticket.approver_id = snapshot.get('approver_id')
+        ticket.pending_approver_id = snapshot.get('pending_approver_id')
+        ticket.dept_approver_id = snapshot.get('dept_approver_id')
+        ticket.priority = snapshot.get('priority', ticket.priority)
+        ticket.target_department_id = snapshot.get('target_department_id')
+        ticket.ticket_product_id = snapshot.get('ticket_product_id')
+        ticket.complexity = snapshot.get('complexity', ticket.complexity)
+
+        if snapshot.get('deadline'):
+            ticket.deadline = parse_datetime(snapshot['deadline'])
+        else:
+            ticket.deadline = None
+
+        if snapshot.get('estimated_hours'):
+            ticket.estimated_hours = Decimal(snapshot['estimated_hours'])
+        else:
+            ticket.estimated_hours = None
+
+        if snapshot.get('actual_hours'):
+            ticket.actual_hours = Decimal(snapshot['actual_hours'])
+        else:
+            ticket.actual_hours = None
+
+        ticket.save()
+
+        # Log the rollback action
+        log_activity(
+            request.user,
+            ticket,
+            ActivityLog.ActionType.ROLLBACK,
+            f'Rolled back from {old_status} to {ticket.status} (activity #{activity.id} from {activity.created_at.strftime("%Y-%m-%d %H:%M")})'
+        )
+
+        # Notify requester about rollback
+        if ticket.requester != request.user:
+            Notification.objects.create(
+                user=ticket.requester,
+                ticket=ticket,
+                message=f'Ticket "#{ticket.id} - {ticket.title}" has been rolled back to a previous state by {request.user.username}',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+
+        return Response(TicketDetailSerializer(ticket).data)
 
 
 class AttachmentDeleteView(generics.DestroyAPIView):

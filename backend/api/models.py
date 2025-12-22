@@ -358,7 +358,7 @@ class Notification(models.Model):
 
 
 class ActivityLog(models.Model):
-    """Activity log for audit trail"""
+    """Activity log for audit trail with state snapshots for rollback"""
 
     class ActionType(models.TextChoices):
         CREATED = 'created', 'Created'
@@ -372,6 +372,7 @@ class ActivityLog(models.Model):
         CONFIRMED = 'confirmed', 'Confirmed by Requester'
         COMMENTED = 'commented', 'Commented'
         DELETED = 'deleted', 'Deleted'
+        ROLLBACK = 'rollback', 'Rolled Back'
 
     user = models.ForeignKey(
         User,
@@ -389,6 +390,11 @@ class ActivityLog(models.Model):
         choices=ActionType.choices
     )
     details = models.TextField(blank=True)
+    snapshot = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Ticket state snapshot at this point for rollback functionality'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

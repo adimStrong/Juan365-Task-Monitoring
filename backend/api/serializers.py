@@ -300,6 +300,6 @@ class ActivityLogSerializer(serializers.ModelSerializer):
     class Meta:
         from .models import ActivityLog
         model = ActivityLog
-        fields = ['id', 'user', 'ticket', 'ticket_title', 'action', 'action_display',
+        fields = ['id', 'user', 'ticket', 'ticket_title', 'action', 'action_display', 'snapshot',
                   'details', 'created_at']
-        read_only_fields = ['id', 'user', 'ticket', 'action', 'details', 'created_at']
+        read_only_fields = ['id', 'user', 'ticket', 'action', 'details', 'snapshot', 'created_at']

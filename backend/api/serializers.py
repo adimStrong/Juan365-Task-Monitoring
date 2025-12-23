@@ -100,15 +100,22 @@ class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
+    user_department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.filter(is_active=True),
+        required=True,
+        error_messages={'required': 'Department is required for all users'}
+    )
 
     class Meta:
         model = User
         fields = ['username', 'email', 'password', 'password_confirm',
-                  'first_name', 'last_name', 'department', 'telegram_id']
+                  'first_name', 'last_name', 'user_department', 'telegram_id']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({'password_confirm': 'Passwords do not match'})
+        if not attrs.get('user_department'):
+            raise serializers.ValidationError({'user_department': 'Department is required'})
         return attrs
 
     def create(self, validated_data):
@@ -140,10 +147,11 @@ class UpdateUserProfileSerializer(serializers.ModelSerializer):
 
 class UserMinimalSerializer(serializers.ModelSerializer):
     """Minimal user info for nested serialization"""
+    user_department_info = DepartmentMinimalSerializer(source='user_department', read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'role']
+        fields = ['id', 'username', 'first_name', 'last_name', 'role', 'user_department', 'user_department_info']
 
 
 class TicketCommentSerializer(serializers.ModelSerializer):

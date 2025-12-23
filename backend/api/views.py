@@ -535,6 +535,16 @@ class ResetPasswordView(APIView):
 # DEPARTMENT & PRODUCT VIEWS
 # =====================
 
+class PublicDepartmentListView(generics.ListAPIView):
+    """Public endpoint to list active departments (for registration)"""
+    serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+    def get_queryset(self):
+        return Department.objects.filter(is_active=True).order_by('name')
+
+
 class DepartmentViewSet(viewsets.ModelViewSet):
     """
     Department CRUD operations
@@ -710,22 +720,31 @@ class TicketViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def perform_create(self, serializer):
-        """Create ticket with smart approval routing"""
-        from .models import Department
+        """
+        Create ticket with smart approval routing based on requester's department.
+
+        Flow:
+        1. Creative Manager creates → Auto-approve (status=APPROVED)
+        2. Creative member (non-manager) creates → Skip dept approval → PENDING_CREATIVE
+        3. Non-Creative user creates → REQUESTED → needs dept manager approval first
+        """
+        from .models import Department, TicketAnalytics
 
         requester = self.request.user
         ticket = serializer.save(requester=requester)
 
-        # Determine the approver based on requester's role
-        pending_approver = None
-
-        # Check if requester is the Creative Manager
+        # Get Creative department info
         try:
             creative_dept = Department.objects.get(is_creative=True)
-            is_creative_manager = (creative_dept.manager == requester)
+            creative_manager = creative_dept.manager
         except Department.DoesNotExist:
             creative_dept = None
-            is_creative_manager = False
+            creative_manager = None
+
+        # Check requester's department relationship
+        requester_dept = requester.user_department
+        is_in_creative_dept = requester_dept and requester_dept.is_creative
+        is_creative_manager = creative_manager and (creative_manager == requester)
 
         if is_creative_manager:
             # Creative Manager creates ticket → Auto-approve
@@ -734,34 +753,43 @@ class TicketViewSet(viewsets.ModelViewSet):
             ticket.approved_at = timezone.now()
             ticket.pending_approver = None
             log_activity(requester, ticket, ActivityLog.ActionType.APPROVED, 'Auto-approved (Creative Manager)')
-        elif requester.is_manager:
-            # Department Manager creates ticket → Creative Manager approves
-            if creative_dept and creative_dept.manager:
-                pending_approver = creative_dept.manager
-                ticket.pending_approver = pending_approver
+
+        elif is_in_creative_dept:
+            # Creative member (non-manager) creates ticket → Skip dept approval
+            # Go directly to PENDING_CREATIVE for Creative Manager approval
+            ticket.status = Ticket.Status.PENDING_CREATIVE
+            if creative_manager:
+                ticket.pending_approver = creative_manager
                 # Notify Creative Manager
                 Notification.objects.create(
-                    user=pending_approver,
+                    user=creative_manager,
                     ticket=ticket,
-                    message=f'New ticket from manager {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
+                    message=f'New ticket from Creative team member {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
-                notify_user(pending_approver, 'new_request', ticket)
+                notify_user(creative_manager, 'new_request', ticket)
+
         else:
-            # Regular user → Their department manager approves
-            if requester.user_department and requester.user_department.manager:
-                pending_approver = requester.user_department.manager
-                ticket.pending_approver = pending_approver
+            # Non-Creative user creates ticket → needs dept manager approval first
+            ticket.status = Ticket.Status.REQUESTED
+            if requester_dept and requester_dept.manager:
+                ticket.pending_approver = requester_dept.manager
                 # Notify Department Manager
                 Notification.objects.create(
-                    user=pending_approver,
+                    user=requester_dept.manager,
                     ticket=ticket,
                     message=f'New ticket from {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
-                notify_user(pending_approver, 'new_request', ticket)
+                notify_user(requester_dept.manager, 'new_request', ticket)
 
         ticket.save()
+
+        # Create analytics record
+        TicketAnalytics.objects.create(
+            ticket=ticket,
+            created_at=ticket.created_at
+        )
 
         # Log creation
         log_activity(requester, ticket, ActivityLog.ActionType.CREATED)
@@ -773,37 +801,54 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
     def approve(self, request, pk=None):
         """
-        Two-step approval workflow:
-        1. Department Manager approves → PENDING_CREATIVE (goes to Creative Manager)
-        2. Creative Manager approves → APPROVED (can assign)
+        Two-step approval workflow with strict department checks:
+
+        Step 1 (REQUESTED → PENDING_CREATIVE):
+        - ONLY allows same-department manager as the ticket creator
+        - Creative dept users CANNOT approve at this step
+
+        Step 2 (PENDING_CREATIVE → APPROVED):
+        - ONLY allows Creative department users (manager or admin)
+        - Non-Creative users CANNOT approve at this step
         """
         ticket = self.get_object()
         user = request.user
 
-        # Check if user is Creative Manager or Admin
+        # Get Creative department info
         try:
             creative_dept = Department.objects.get(is_creative=True)
-            is_creative_manager = (creative_dept.manager == user) or user.is_admin
+            creative_manager = creative_dept.manager
         except Department.DoesNotExist:
-            is_creative_manager = user.is_admin
+            creative_dept = None
+            creative_manager = None
 
-        # Handle PENDING_CREATIVE status - only Creative Manager/Admin can approve
+        # Check if user is in Creative department
+        user_dept = user.user_department
+        is_in_creative_dept = user_dept and user_dept.is_creative
+        is_creative_manager = creative_manager and (creative_manager == user)
+
+        # Handle PENDING_CREATIVE status - ONLY Creative dept users can approve
         if ticket.status == Ticket.Status.PENDING_CREATIVE:
-            if not is_creative_manager:
+            if not is_in_creative_dept and not user.is_admin:
                 return Response(
-                    {'error': 'Only Creative Manager or Admin can give final approval'},
+                    {'error': 'Only Creative department users can give final approval'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Final approval by Creative Manager
+            # Final approval by Creative
             ticket.status = Ticket.Status.APPROVED
             ticket.approver = user
             ticket.approved_at = timezone.now()
             ticket.pending_approver = None
             ticket.save()
 
+            # Update analytics
+            if hasattr(ticket, 'analytics'):
+                ticket.analytics.creative_approved_at = timezone.now()
+                ticket.analytics.save()
+
             # Log activity
-            log_activity(user, ticket, ActivityLog.ActionType.APPROVED, 'Final approval by Creative Manager')
+            log_activity(user, ticket, ActivityLog.ActionType.APPROVED, 'Final approval by Creative')
 
             # Notify requester
             Notification.objects.create(
@@ -832,37 +877,29 @@ class TicketViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # If Creative Manager or Admin approves directly → APPROVED
-        if is_creative_manager:
-            ticket.status = Ticket.Status.APPROVED
-            ticket.approver = user
-            ticket.approved_at = timezone.now()
-            ticket.pending_approver = None
-            ticket.save()
+        # For REQUESTED status: Check if approver is from same department as creator
+        requester_dept = ticket.requester.user_department
 
-            # Log activity
-            log_activity(user, ticket, ActivityLog.ActionType.APPROVED)
-
-            # Notify requester
-            Notification.objects.create(
-                user=ticket.requester,
-                ticket=ticket,
-                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved',
-                notification_type=Notification.NotificationType.APPROVED
+        # Creative dept users should NOT approve REQUESTED tickets (that's for dept managers)
+        if is_in_creative_dept and not user.is_admin:
+            return Response(
+                {'error': 'Creative department users cannot approve at this step. Only the creator\'s department manager can approve first.'},
+                status=status.HTTP_403_FORBIDDEN
             )
-            notify_user(ticket.requester, 'approved', ticket)
 
-            # Notify assigned user if exists
-            if ticket.assigned_to and ticket.assigned_to != ticket.requester:
-                Notification.objects.create(
-                    user=ticket.assigned_to,
-                    ticket=ticket,
-                    message=f'Ticket "#{ticket.id} - {ticket.title}" has been approved and assigned to you',
-                    notification_type=Notification.NotificationType.ASSIGNED
-                )
-                notify_user(ticket.assigned_to, 'assigned', ticket)
+        # Check if user is manager of creator's department
+        is_same_dept_manager = (
+            user_dept and requester_dept and
+            user_dept.id == requester_dept.id and
+            (requester_dept.manager == user or user.is_manager)
+        )
 
-            return Response(TicketDetailSerializer(ticket).data)
+        # Admin can also approve
+        if not is_same_dept_manager and not user.is_admin:
+            return Response(
+                {'error': f'Only the creator\'s department manager ({requester_dept.name if requester_dept else "unknown"}) can approve this ticket'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Department Manager approves → PENDING_CREATIVE (first approval)
         ticket.status = Ticket.Status.PENDING_CREATIVE
@@ -870,17 +907,18 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.dept_approved_at = timezone.now()
 
         # Set pending approver to Creative Manager
-        try:
-            creative_dept = Department.objects.get(is_creative=True)
-            if creative_dept.manager:
-                ticket.pending_approver = creative_dept.manager
-        except Department.DoesNotExist:
-            pass
+        if creative_manager:
+            ticket.pending_approver = creative_manager
 
         ticket.save()
 
+        # Update analytics
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.dept_approved_at = timezone.now()
+            ticket.analytics.save()
+
         # Log activity
-        log_activity(user, ticket, ActivityLog.ActionType.DEPT_APPROVED, 'Department manager first approval')
+        log_activity(user, ticket, ActivityLog.ActionType.DEPT_APPROVED, f'Department approval by {user_dept.name if user_dept else "Admin"}')
 
         # Notify requester of first approval
         Notification.objects.create(
@@ -942,14 +980,31 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
     def assign(self, request, pk=None):
-        """Assign ticket to a user"""
+        """
+        Assign ticket to a user.
+        RESTRICTION: Can ONLY assign to Creative department members.
+        """
         ticket = self.get_object()
         serializer = TicketAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        ticket.assigned_to = serializer.validated_data['assigned_to']
+        assigned_user = serializer.validated_data['assigned_to']
+
+        # RESTRICTION: Only allow assignment to Creative department members
+        if not assigned_user.user_department or not assigned_user.user_department.is_creative:
+            return Response(
+                {'error': f'Can only assign tickets to Creative department members. {assigned_user.username} is not in Creative department.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        ticket.assigned_to = assigned_user
         ticket.assigned_at = timezone.now()
         ticket.save()
+
+        # Update analytics
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.assigned_at = timezone.now()
+            ticket.analytics.save()
 
         # Log activity
         log_activity(request.user, ticket, ActivityLog.ActionType.ASSIGNED,
@@ -977,9 +1032,9 @@ class TicketViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        if ticket.status not in [Ticket.Status.APPROVED, Ticket.Status.REQUESTED]:
+        if ticket.status != Ticket.Status.APPROVED:
             return Response(
-                {'error': 'Ticket must be approved or requested to start'},
+                {'error': 'Ticket must be approved before starting work'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -989,6 +1044,11 @@ class TicketViewSet(viewsets.ModelViewSet):
             ticket.assigned_to = request.user
             ticket.assigned_at = timezone.now()
         ticket.save()
+
+        # Update analytics
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.started_at = timezone.now()
+            ticket.analytics.save()
 
         # Log activity
         log_activity(request.user, ticket, ActivityLog.ActionType.STARTED)
@@ -1015,6 +1075,12 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.status = Ticket.Status.COMPLETED
         ticket.completed_at = timezone.now()
         ticket.save()
+
+        # Update analytics
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.completed_at = timezone.now()
+            ticket.analytics.calculate_durations()
+            ticket.analytics.save()
 
         # Log activity
         log_activity(request.user, ticket, ActivityLog.ActionType.COMPLETED)
@@ -1058,6 +1124,12 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.confirmed_by_requester = True
         ticket.confirmed_at = timezone.now()
         ticket.save()
+
+        # Update analytics
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.confirmed_at = timezone.now()
+            ticket.analytics.calculate_durations()
+            ticket.analytics.save()
 
         # Log activity
         log_activity(request.user, ticket, ActivityLog.ActionType.CONFIRMED)
@@ -1316,7 +1388,16 @@ class TicketViewSet(viewsets.ModelViewSet):
         else:
             ticket.actual_hours = None
 
+        # Update rollback tracking on ticket
+        ticket.last_rollback_at = timezone.now()
+        ticket.rollback_count = (ticket.rollback_count or 0) + 1
         ticket.save()
+
+        # Update analytics rollback tracking
+        if hasattr(ticket, 'analytics'):
+            ticket.analytics.last_rollback_at = timezone.now()
+            ticket.analytics.rollback_count = (ticket.analytics.rollback_count or 0) + 1
+            ticket.analytics.save()
 
         # Log the rollback action
         log_activity(
@@ -1334,6 +1415,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 message=f'Ticket "#{ticket.id} - {ticket.title}" has been rolled back to a previous state by {request.user.username}',
                 notification_type=Notification.NotificationType.APPROVED
             )
+            notify_user(ticket.requester, 'rollback', ticket)
 
         return Response(TicketDetailSerializer(ticket).data)
 

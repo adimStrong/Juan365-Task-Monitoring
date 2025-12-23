@@ -67,6 +67,9 @@ export const authAPI = {
 
   updateMe: (data) =>
     api.patch('/auth/me/', data),
+
+  getDepartments: () =>
+    api.get('/auth/departments/'),
 };
 
 // Tickets API

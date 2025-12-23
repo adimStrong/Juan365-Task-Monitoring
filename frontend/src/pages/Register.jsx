@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
@@ -7,17 +7,34 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
 
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     first_name: '',
     last_name: '',
-    department: '',
+    user_department: '',  // Changed from 'department' to 'user_department'
     telegram_id: '',
     password: '',
     password_confirm: '',
   });
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await authAPI.getDepartments();
+      setDepartments(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch departments:', error);
+    } finally {
+      setLoadingDepts(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,6 +48,12 @@ const Register = () => {
 
     if (formData.password !== formData.password_confirm) {
       setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.user_department) {
+      setError('Please select a department');
       setLoading(false);
       return;
     }
@@ -158,18 +181,33 @@ const Register = () => {
           </div>
 
           <div>
-            <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
-              Department
+            <label htmlFor="user_department" className="block text-sm font-medium text-gray-700 mb-1">
+              Department *
             </label>
-            <input
-              id="department"
-              name="department"
-              type="text"
-              value={formData.department}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="e.g., Marketing, Engineering"
-            />
+            {loadingDepts ? (
+              <div className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500">
+                Loading departments...
+              </div>
+            ) : (
+              <select
+                id="user_department"
+                name="user_department"
+                required
+                value={formData.user_department}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select your department...</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Required - Select the department you belong to
+            </p>
           </div>
 
           <div>

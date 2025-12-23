@@ -8,7 +8,7 @@ from .views import (
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
     ActivityLogListView, AnalyticsView,
-    DepartmentViewSet, ProductViewSet,
+    DepartmentViewSet, ProductViewSet, PublicDepartmentListView,
     ForgotPasswordView, ResetPasswordView
 )
 
@@ -30,6 +30,7 @@ urlpatterns = [
     path('auth/me/', MeView.as_view(), name='me'),
     path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('auth/reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('auth/departments/', PublicDepartmentListView.as_view(), name='public-departments'),
 
     # Users
     path('users/', UserListView.as_view(), name='user-list'),

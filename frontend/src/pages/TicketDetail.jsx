@@ -289,7 +289,7 @@ const TicketDetail = () => {
 
   const canApprove = isManager && ['requested', 'pending_creative'].includes(ticket.status);
   const canStart = (ticket.assigned_to?.id === user?.id || isManager) &&
-                   ['requested', 'approved'].includes(ticket.status);
+                   ticket.status === 'approved';  // Only approved tickets can be started
   const canComplete = (ticket.assigned_to?.id === user?.id || isManager) &&
                       ticket.status === 'in_progress';
   const canConfirm = ticket.requester?.id === user?.id &&
@@ -829,22 +829,29 @@ const TicketDetail = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
-            {users && users.length > 0 ? (
-              <select
-                value={assignUserId}
-                onChange={(e) => setAssignUserId(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select user...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.first_name || u.username} ({u.username})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-gray-500 text-sm">No users available for assignment.</p>
-            )}
+            <p className="text-sm text-gray-600 mb-4">
+              <span className="text-blue-600 font-medium">Note:</span> Tickets can only be assigned to Creative department members.
+            </p>
+            {(() => {
+              // Filter only Creative department members
+              const creativeUsers = users?.filter(u => u.user_department_info?.is_creative) || [];
+              return creativeUsers.length > 0 ? (
+                <select
+                  value={assignUserId}
+                  onChange={(e) => setAssignUserId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select Creative member...</option>
+                  {creativeUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.first_name || u.username} ({u.username}) - {u.user_department_info?.name || 'Creative'}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-gray-500 text-sm">No Creative department members available for assignment.</p>
+              );
+            })()}
             <div className="mt-4 flex justify-end space-x-2">
               <button
                 onClick={() => setShowAssignModal(false)}
@@ -854,7 +861,7 @@ const TicketDetail = () => {
               </button>
               <button
                 onClick={() => handleAction('assign')}
-                disabled={actionLoading || !assignUserId || !users || users.length === 0}
+                disabled={actionLoading || !assignUserId || !users?.some(u => u.user_department_info?.is_creative)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 Assign

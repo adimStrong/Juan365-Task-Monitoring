@@ -224,10 +224,45 @@ The requester has confirmed that the task was completed satisfactorily. Great jo
     return messages.get(notification_type, f'{emoji} Notification for ticket #{ticket.id}')
 
 
+def get_user_mention(user) -> str:
+    """
+    Get a formatted mention string for a user.
+    Uses telegram_id if numeric (for chat_id mention), or username if available.
+
+    Args:
+        user: User instance
+
+    Returns:
+        Formatted mention string
+    """
+    if not user:
+        return ''
+
+    # If user has telegram_id and it looks like a Telegram username (not numeric)
+    telegram_id = user.telegram_id
+    if telegram_id:
+        # Check if it's a username (starts with @ or is alphanumeric without @)
+        if telegram_id.startswith('@'):
+            return telegram_id
+        # If it's numeric, it's a chat ID - we can use HTML mention
+        try:
+            int(telegram_id)
+            # It's a numeric chat_id - use HTML mention format
+            display_name = user.first_name or user.username
+            return f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+        except ValueError:
+            # It's a username without @
+            return f'@{telegram_id}'
+
+    # Fallback to just the display name
+    return user.first_name or user.username
+
+
 def notify_user(user, notification_type: str, ticket, extra_info: str = '',
                 send_to_group: bool = True) -> dict:
     """
-    Send notification to a user via Telegram AND to the group
+    Send notification to a user via Telegram AND to the group.
+    Includes @mention of the user in group notifications.
 
     Args:
         user: User instance (can be None for group-only notifications)
@@ -248,7 +283,13 @@ def notify_user(user, notification_type: str, ticket, extra_info: str = '',
     if send_to_group:
         group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
         if group_chat_id:
-            results['group'] = send_telegram_message(group_chat_id, message, reply_markup=keyboard)
+            # Add @mention to group message if user has telegram info
+            group_message = message
+            if user:
+                mention = get_user_mention(user)
+                if mention:
+                    group_message = f'{mention}\n\n{message}'
+            results['group'] = send_telegram_message(group_chat_id, group_message, reply_markup=keyboard)
 
     # Send to individual user if they have telegram_id
     if user and user.telegram_id:

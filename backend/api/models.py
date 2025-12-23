@@ -234,6 +234,10 @@ class Ticket(models.Model):
         help_text='User who deleted this ticket'
     )
 
+    # Rollback tracking
+    last_rollback_at = models.DateTimeField(null=True, blank=True, help_text='Last time this ticket was rolled back')
+    rollback_count = models.IntegerField(default=0, help_text='Number of times this ticket has been rolled back')
+
     class Meta:
         ordering = ['-created_at']
 
@@ -252,6 +256,68 @@ class Ticket(models.Model):
         if self.status == self.Status.IN_PROGRESS:
             return (timezone.now() - self.updated_at).days >= 1
         return False
+
+
+class TicketAnalytics(models.Model):
+    """Analytics data for ticket lifecycle tracking"""
+
+    ticket = models.OneToOneField(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='analytics'
+    )
+
+    # Timestamps for each stage
+    created_at = models.DateTimeField(help_text='When ticket was created')
+    dept_approved_at = models.DateTimeField(null=True, blank=True, help_text='When dept manager approved')
+    creative_approved_at = models.DateTimeField(null=True, blank=True, help_text='When creative approved')
+    assigned_at = models.DateTimeField(null=True, blank=True, help_text='When ticket was assigned')
+    started_at = models.DateTimeField(null=True, blank=True, help_text='When work started')
+    completed_at = models.DateTimeField(null=True, blank=True, help_text='When work completed')
+    confirmed_at = models.DateTimeField(null=True, blank=True, help_text='When requester confirmed')
+
+    # Rollback tracking
+    last_rollback_at = models.DateTimeField(null=True, blank=True, help_text='Last rollback time')
+    rollback_count = models.IntegerField(default=0, help_text='Total rollback count')
+
+    # Duration calculations (in minutes)
+    time_to_dept_approval = models.IntegerField(null=True, blank=True, help_text='Minutes from creation to dept approval')
+    time_to_creative_approval = models.IntegerField(null=True, blank=True, help_text='Minutes from dept approval to creative approval')
+    time_to_assignment = models.IntegerField(null=True, blank=True, help_text='Minutes from creative approval to assignment')
+    time_to_start = models.IntegerField(null=True, blank=True, help_text='Minutes from assignment to start')
+    time_to_complete = models.IntegerField(null=True, blank=True, help_text='Minutes from start to completion')
+    total_cycle_time = models.IntegerField(null=True, blank=True, help_text='Total minutes from creation to confirmation')
+
+    class Meta:
+        verbose_name_plural = 'Ticket analytics'
+
+    def __str__(self):
+        return f"Analytics for Ticket #{self.ticket.id}"
+
+    def calculate_durations(self):
+        """Calculate all duration fields based on timestamps"""
+        if self.dept_approved_at and self.created_at:
+            self.time_to_dept_approval = int((self.dept_approved_at - self.created_at).total_seconds() / 60)
+
+        if self.creative_approved_at and self.dept_approved_at:
+            self.time_to_creative_approval = int((self.creative_approved_at - self.dept_approved_at).total_seconds() / 60)
+        elif self.creative_approved_at and self.created_at:
+            # For creative dept users who skip dept approval
+            self.time_to_creative_approval = int((self.creative_approved_at - self.created_at).total_seconds() / 60)
+
+        if self.assigned_at and self.creative_approved_at:
+            self.time_to_assignment = int((self.assigned_at - self.creative_approved_at).total_seconds() / 60)
+
+        if self.started_at and self.assigned_at:
+            self.time_to_start = int((self.started_at - self.assigned_at).total_seconds() / 60)
+
+        if self.completed_at and self.started_at:
+            self.time_to_complete = int((self.completed_at - self.started_at).total_seconds() / 60)
+
+        if self.confirmed_at and self.created_at:
+            self.total_cycle_time = int((self.confirmed_at - self.created_at).total_seconds() / 60)
+
+        self.save()
 
 
 class TicketCollaborator(models.Model):

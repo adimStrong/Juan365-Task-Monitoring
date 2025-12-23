@@ -10,15 +10,15 @@ import {
 
 const StatCard = ({ title, value, color, icon }) => (
   <div className="bg-white overflow-hidden shadow rounded-lg">
-    <div className="p-5">
+    <div className="p-3 sm:p-4">
       <div className="flex items-center">
-        <div className={`flex-shrink-0 ${color} rounded-md p-3`}>
-          {icon}
+        <div className={`flex-shrink-0 ${color} rounded-md p-2 sm:p-3`}>
+          <span className="w-5 h-5 sm:w-6 sm:h-6 block">{icon}</span>
         </div>
-        <div className="ml-5 w-0 flex-1">
+        <div className="ml-3 sm:ml-4 flex-1 min-w-0">
           <dl>
-            <dt className="text-sm font-medium text-gray-500 truncate">{title}</dt>
-            <dd className="text-2xl font-semibold text-gray-900">{value}</dd>
+            <dt className="text-xs sm:text-sm font-medium text-gray-500 truncate">{title}</dt>
+            <dd className="text-lg sm:text-2xl font-semibold text-gray-900">{value}</dd>
           </dl>
         </div>
       </div>
@@ -116,7 +116,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 md:grid-cols-4">
           <StatCard
             title="Total"
             value={stats?.total_tickets || 0}

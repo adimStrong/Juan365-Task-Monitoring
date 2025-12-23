@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 def is_email_enabled():
     """Check if email notifications are enabled"""
-    return getattr(settings, 'EMAIL_ENABLED', False)
+    enabled = getattr(settings, 'EMAIL_ENABLED', False)
+    host_user = getattr(settings, 'EMAIL_HOST_USER', '')
+    logger.info(f'Email check: EMAIL_ENABLED={enabled}, EMAIL_HOST_USER={host_user[:10] if host_user else "not set"}...')
+    return enabled
 
 
 def send_email_notification(to_email: str, subject: str, html_message: str,
@@ -35,11 +38,12 @@ def send_email_notification(to_email: str, subject: str, html_message: str,
         return False
 
     if not is_email_enabled():
-        logger.info('Email notifications are disabled')
+        logger.warning('Email notifications are disabled - check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD env vars')
         return False
 
     try:
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@juan365.com')
+        logger.info(f'Attempting to send email to {to_email} from {from_email}')
 
         # Generate plain text from HTML if not provided
         if not plain_message:

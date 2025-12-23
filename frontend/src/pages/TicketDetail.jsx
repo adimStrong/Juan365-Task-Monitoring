@@ -108,10 +108,14 @@ const TicketDetail = () => {
     if (!comment.trim()) return;
 
     try {
-      await ticketsAPI.addComment(id, comment);
+      const response = await ticketsAPI.addComment(id, comment);
+      // Update state locally instead of full refresh
+      setTicket(prev => ({
+        ...prev,
+        comments: [...(prev.comments || []), response.data]
+      }));
       setComment('');
       toast.success('Comment added');
-      fetchData(); // Refresh to show new comment
     } catch (error) {
       toast.error('Failed to add comment');
     }
@@ -121,13 +125,21 @@ const TicketDetail = () => {
     if (!replyText.trim()) return;
 
     try {
-      await ticketsAPI.addComment(id, replyText, parentId);
+      const response = await ticketsAPI.addComment(id, replyText, parentId);
+      // Update state locally - add reply to parent comment
+      setTicket(prev => ({
+        ...prev,
+        comments: prev.comments.map(c =>
+          c.id === parentId
+            ? { ...c, replies: [...(c.replies || []), response.data] }
+            : c
+        )
+      }));
       setReplyText('');
       setReplyingTo(null);
       // Auto-expand replies after adding one
       setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
       toast.success('Reply added');
-      fetchData();
     } catch (error) {
       toast.error('Failed to add reply');
     }
@@ -143,9 +155,13 @@ const TicketDetail = () => {
 
     setUploadingFile(true);
     try {
-      await ticketsAPI.addAttachment(id, file);
+      const response = await ticketsAPI.addAttachment(id, file);
+      // Update state locally
+      setTicket(prev => ({
+        ...prev,
+        attachments: [...(prev.attachments || []), response.data]
+      }));
       toast.success('File uploaded successfully');
-      fetchData(); // Refresh to show new attachment
       e.target.value = ''; // Reset file input
     } catch (error) {
       toast.error('Failed to upload file: ' + (error.response?.data?.error || error.message));
@@ -159,14 +175,19 @@ const TicketDetail = () => {
 
     try {
       await ticketsAPI.deleteAttachment(attachmentId);
+      // Update state locally - remove the deleted attachment
+      setTicket(prev => ({
+        ...prev,
+        attachments: prev.attachments.filter(att => att.id !== attachmentId)
+      }));
       toast.success('Attachment deleted');
-      fetchData();
     } catch (error) {
       toast.error('Failed to delete attachment');
     }
   };
 
   const handleConfirmComplete = async () => {
+    if (actionLoading) return; // Prevent double-click
     setActionLoading(true);
     try {
       const response = await ticketsAPI.confirmComplete(id);
@@ -174,7 +195,7 @@ const TicketDetail = () => {
       setShowConfirmModal(false);
       toast.success('Completion confirmed!');
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to confirm completion');
+      toast.error(error.response?.data?.error || 'Failed to confirm. Please refresh and try again.');
     } finally {
       setActionLoading(false);
     }
@@ -184,11 +205,15 @@ const TicketDetail = () => {
     if (!collaboratorUserId) return;
     setActionLoading(true);
     try {
-      await ticketsAPI.addCollaborator(id, collaboratorUserId);
+      const response = await ticketsAPI.addCollaborator(id, collaboratorUserId);
+      // Update state locally
+      setTicket(prev => ({
+        ...prev,
+        collaborators: [...(prev.collaborators || []), response.data]
+      }));
       setShowCollaboratorModal(false);
       setCollaboratorUserId('');
       toast.success('Collaborator added');
-      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to add collaborator');
     } finally {
@@ -200,8 +225,12 @@ const TicketDetail = () => {
     if (!window.confirm('Remove this collaborator?')) return;
     try {
       await ticketsAPI.removeCollaborator(id, userId);
+      // Update state locally - remove the collaborator
+      setTicket(prev => ({
+        ...prev,
+        collaborators: prev.collaborators.filter(c => c.user?.id !== userId)
+      }));
       toast.success('Collaborator removed');
-      fetchData();
     } catch (error) {
       toast.error('Failed to remove collaborator');
     }
@@ -228,7 +257,7 @@ const TicketDetail = () => {
       setTicket(response.data);
       setShowHistoryModal(false);
       toast.success('Ticket restored to previous state');
-      fetchData();
+      // No fetchData() needed - response already has updated ticket
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to rollback');
     } finally {

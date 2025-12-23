@@ -26,7 +26,7 @@ services:
       - DJANGO_SECRET_KEY=your-super-secret-key-change-this-in-production
       - DEBUG=False
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend,.trycloudflare.com
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:8501,http://127.0.0.1:3000
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000
       - CORS_ALLOW_ALL=True
     depends_on:
       db:
@@ -39,16 +39,6 @@ services:
     build: ./frontend
     ports:
       - "3000:80"
-    depends_on:
-      - backend
-
-  streamlit:
-    build: ./streamlit_app
-    ports:
-      - "8501:8501"
-    environment:
-      - API_BASE_URL=http://backend:8000
-      - DEPLOYMENT_MODE=api
     depends_on:
       - backend
 

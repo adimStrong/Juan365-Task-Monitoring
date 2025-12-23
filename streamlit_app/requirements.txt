@@ -1,9 +1,0 @@
-# Streamlit Ticket Portal
-streamlit>=1.29
-requests>=2.31
-Pillow>=10.0
-python-dotenv>=1.0
-
-# For local development (optional - not needed for Streamlit Cloud)
-# python-magic-bin>=0.4.14
-# Django>=5.0

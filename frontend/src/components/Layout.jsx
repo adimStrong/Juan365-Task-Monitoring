@@ -274,6 +274,31 @@ const Layout = ({ children }) => {
             </div>
           </div>
         </div>
+
+        {/* Mobile Compact Row - User Info & Logout */}
+        <div className="sm:hidden border-t border-gray-200 bg-gray-50 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                {(user?.first_name || user?.username || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {user?.first_name || user?.username}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 capitalize">
+                  {user?.role}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-red-600 hover:text-red-800 font-medium"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
       </nav>
 
       {/* Main content */}

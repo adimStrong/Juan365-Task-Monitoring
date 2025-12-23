@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
 
 const TicketDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isManager } = useAuth();
+  const toast = useToast();
 
   const [ticket, setTicket] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -78,8 +81,23 @@ const TicketDetail = () => {
           return;
       }
       setTicket(response.data);
+      toast.success(`Action "${action}" completed successfully!`);
     } catch (error) {
-      alert(error.response?.data?.error || 'Action failed');
+      toast.error(error.response?.data?.error || 'Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSoftDelete = async () => {
+    setActionLoading(true);
+    try {
+      await ticketsAPI.softDelete(id);
+      toast.success('Ticket moved to trash');
+      setShowDeleteModal(false);
+      navigate('/tickets');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to delete ticket');
     } finally {
       setActionLoading(false);
     }
@@ -92,9 +110,10 @@ const TicketDetail = () => {
     try {
       await ticketsAPI.addComment(id, comment);
       setComment('');
+      toast.success('Comment added');
       fetchData(); // Refresh to show new comment
     } catch (error) {
-      alert('Failed to add comment');
+      toast.error('Failed to add comment');
     }
   };
 
@@ -107,9 +126,10 @@ const TicketDetail = () => {
       setReplyingTo(null);
       // Auto-expand replies after adding one
       setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
+      toast.success('Reply added');
       fetchData();
     } catch (error) {
-      alert('Failed to add reply');
+      toast.error('Failed to add reply');
     }
   };
 
@@ -124,10 +144,11 @@ const TicketDetail = () => {
     setUploadingFile(true);
     try {
       await ticketsAPI.addAttachment(id, file);
+      toast.success('File uploaded successfully');
       fetchData(); // Refresh to show new attachment
       e.target.value = ''; // Reset file input
     } catch (error) {
-      alert('Failed to upload file: ' + (error.response?.data?.error || error.message));
+      toast.error('Failed to upload file: ' + (error.response?.data?.error || error.message));
     } finally {
       setUploadingFile(false);
     }
@@ -138,9 +159,10 @@ const TicketDetail = () => {
 
     try {
       await ticketsAPI.deleteAttachment(attachmentId);
+      toast.success('Attachment deleted');
       fetchData();
     } catch (error) {
-      alert('Failed to delete attachment');
+      toast.error('Failed to delete attachment');
     }
   };
 
@@ -150,8 +172,9 @@ const TicketDetail = () => {
       const response = await ticketsAPI.confirmComplete(id);
       setTicket(response.data);
       setShowConfirmModal(false);
+      toast.success('Completion confirmed!');
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to confirm completion');
+      toast.error(error.response?.data?.error || 'Failed to confirm completion');
     } finally {
       setActionLoading(false);
     }
@@ -164,9 +187,10 @@ const TicketDetail = () => {
       await ticketsAPI.addCollaborator(id, collaboratorUserId);
       setShowCollaboratorModal(false);
       setCollaboratorUserId('');
+      toast.success('Collaborator added');
       fetchData();
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to add collaborator');
+      toast.error(error.response?.data?.error || 'Failed to add collaborator');
     } finally {
       setActionLoading(false);
     }
@@ -176,9 +200,39 @@ const TicketDetail = () => {
     if (!window.confirm('Remove this collaborator?')) return;
     try {
       await ticketsAPI.removeCollaborator(id, userId);
+      toast.success('Collaborator removed');
       fetchData();
     } catch (error) {
-      alert('Failed to remove collaborator');
+      toast.error('Failed to remove collaborator');
+    }
+  };
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await ticketsAPI.getHistory(id);
+      setHistory(response.data);
+      setShowHistoryModal(true);
+    } catch (error) {
+      toast.error('Failed to load history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRollback = async (activityId) => {
+    if (!window.confirm('Are you sure you want to restore the ticket to this state?')) return;
+    setRollbackLoading(true);
+    try {
+      const response = await ticketsAPI.rollback(id, activityId);
+      setTicket(response.data);
+      setShowHistoryModal(false);
+      toast.success('Ticket restored to previous state');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to rollback');
+    } finally {
+      setRollbackLoading(false);
     }
   };
 
@@ -350,6 +404,15 @@ const TicketDetail = () => {
                   className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
                 >
                   Confirm Completion
+                </button>
+              )}
+              {isManager && ticket.status !== 'completed' && (
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Move to Trash
                 </button>
               )}
             </div>
@@ -874,6 +937,43 @@ const TicketDetail = () => {
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
               >
                 {actionLoading ? 'Adding...' : 'Add Collaborator'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 bg-red-100 rounded-full p-2">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900">Move to Trash</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to move ticket <strong>#{ticket?.id} - {ticket?.title}</strong> to trash?
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              The ticket can be restored from the Trash page by managers.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSoftDelete}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Deleting...' : 'Move to Trash'}
               </button>
             </div>
           </div>

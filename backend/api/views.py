@@ -435,6 +435,11 @@ class TicketViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Ticket.objects.select_related('requester', 'assigned_to', 'approver')
 
+        # Filter out deleted tickets by default (unless viewing trash)
+        include_deleted = self.request.query_params.get('include_deleted', 'false').lower() == 'true'
+        if not include_deleted:
+            queryset = queryset.filter(is_deleted=False)
+
         # Admins and managers see all tickets
         if user.is_manager:
             pass
@@ -1122,6 +1127,103 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
 
         return Response(TicketDetailSerializer(ticket).data)
+
+    # =====================
+    # SOFT DELETE & TRASH
+    # =====================
+
+    @action(detail=True, methods=['post'], permission_classes=[IsTicketOwnerOrManager])
+    def soft_delete(self, request, pk=None):
+        """Soft delete a ticket (move to trash)"""
+        ticket = self.get_object()
+        
+        if ticket.is_deleted:
+            return Response(
+                {'error': 'Ticket is already in trash'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        ticket.is_deleted = True
+        ticket.deleted_at = timezone.now()
+        ticket.deleted_by = request.user
+        ticket.save()
+        
+        # Log activity
+        log_activity(request.user, ticket, ActivityLog.ActionType.DELETED, 'Moved to trash')
+        
+        return Response({
+            'message': f'Ticket #{ticket.id} moved to trash',
+            'ticket': TicketDetailSerializer(ticket).data
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
+    def restore(self, request, pk=None):
+        """Restore a deleted ticket from trash"""
+        # Get ticket including deleted ones
+        ticket = Ticket.objects.get(pk=pk)
+        
+        if not ticket.is_deleted:
+            return Response(
+                {'error': 'Ticket is not in trash'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        ticket.is_deleted = False
+        ticket.deleted_at = None
+        ticket.deleted_by = None
+        ticket.save()
+        
+        # Log activity
+        log_activity(request.user, ticket, ActivityLog.ActionType.UPDATED, 'Restored from trash')
+        
+        # Notify requester
+        if ticket.requester != request.user:
+            Notification.objects.create(
+                user=ticket.requester,
+                ticket=ticket,
+                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been restored from trash',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+        
+        return Response({
+            'message': f'Ticket #{ticket.id} restored from trash',
+            'ticket': TicketDetailSerializer(ticket).data
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsManagerUser])
+    def trash(self, request):
+        """List all deleted tickets (trash bin)"""
+        queryset = Ticket.objects.filter(is_deleted=True).select_related(
+            'requester', 'assigned_to', 'deleted_by'
+        ).order_by('-deleted_at')
+        
+        serializer = TicketListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAdminUser])
+    def permanent_delete(self, request, pk=None):
+        """Permanently delete a ticket (admin only, cannot be undone)"""
+        try:
+            ticket = Ticket.objects.get(pk=pk)
+        except Ticket.DoesNotExist:
+            return Response(
+                {'error': 'Ticket not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not ticket.is_deleted:
+            return Response(
+                {'error': 'Ticket must be in trash before permanent deletion'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        ticket_id = ticket.id
+        ticket_title = ticket.title
+        ticket.delete()
+        
+        return Response({
+            'message': f'Ticket #{ticket_id} - {ticket_title} permanently deleted'
+        })
 
 
 class AttachmentDeleteView(generics.DestroyAPIView):

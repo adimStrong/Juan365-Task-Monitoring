@@ -216,6 +216,18 @@ class Ticket(models.Model):
     confirmed_by_requester = models.BooleanField(default=False, help_text='Requester confirms task completion')
     confirmed_at = models.DateTimeField(null=True, blank=True)
 
+    # Soft delete fields
+    is_deleted = models.BooleanField(default=False, help_text='Soft delete flag')
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deleted_tickets',
+        help_text='User who deleted this ticket'
+    )
+
     class Meta:
         ordering = ['-created_at']
 

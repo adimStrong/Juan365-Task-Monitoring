@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -10,6 +11,7 @@ import Notifications from './pages/Notifications';
 import ActivityLog from './pages/ActivityLog';
 import Users from './pages/Users';
 import Admin from './pages/Admin';
+import Trash from './pages/Trash';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -132,6 +134,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/trash"
+        element={
+          <ProtectedRoute>
+            <Trash />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -141,7 +151,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

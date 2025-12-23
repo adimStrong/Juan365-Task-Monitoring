@@ -198,7 +198,7 @@ class TicketListSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'requester', 'assigned_to', 'pending_approver',
                   'status', 'priority', 'deadline', 'created_at', 'is_overdue',
                   'comment_count', 'ticket_product', 'target_department',
-                  'product', 'department']
+                  'product', 'department', 'is_deleted', 'deleted_at']
 
     def get_comment_count(self, obj):
         return obj.comments.count()
@@ -217,6 +217,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     collaborators = TicketCollaboratorSerializer(many=True, read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     is_idle = serializers.BooleanField(read_only=True)
+    deleted_by = UserMinimalSerializer(read_only=True)
 
     class Meta:
         model = Ticket
@@ -226,7 +227,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
                   'attachments', 'collaborators', 'confirmed_by_requester', 'confirmed_at',
                   'approved_at', 'rejected_at', 'assigned_at', 'started_at', 'completed_at',
                   'ticket_product', 'target_department', 'product', 'department',
-                  'complexity', 'estimated_hours', 'actual_hours']
+                  'complexity', 'estimated_hours', 'actual_hours',
+                  'is_deleted', 'deleted_at', 'deleted_by']
 
     def get_comments(self, obj):
         # Only return top-level comments (replies are nested within them)
@@ -256,7 +258,8 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = ['title', 'description', 'priority', 'deadline', 'assigned_to',
                   'ticket_product', 'target_department', 'product', 'department',
-                  'complexity', 'estimated_hours', 'actual_hours']
+                  'complexity', 'estimated_hours', 'actual_hours',
+                  'is_deleted', 'deleted_at', 'deleted_by']
 
 
 class TicketAssignSerializer(serializers.Serializer):

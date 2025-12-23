@@ -139,8 +139,6 @@ export const ticketsAPI = {
 
   removeCollaborator: (id, userId) =>
     api.delete(`/tickets/${id}/collaborators/`, { data: { user_id: userId } }),
-};
-
 
   // History & Rollback
   getHistory: (id) =>
@@ -148,7 +146,21 @@ export const ticketsAPI = {
 
   rollback: (id, activityId) =>
     api.post(`/tickets/${id}/rollback/`, { activity_id: activityId }),
+
+  // Trash & Restore
+  softDelete: (id) =>
+    api.post(`/tickets/${id}/soft_delete/`),
+
+  restore: (id) =>
+    api.post(`/tickets/${id}/restore/`),
+
+  getTrash: () =>
+    api.get('/tickets/trash/'),
+
+  permanentDelete: (id) =>
+    api.delete(`/tickets/${id}/permanent_delete/`),
 };
+
 // Users API
 export const usersAPI = {
   list: () =>

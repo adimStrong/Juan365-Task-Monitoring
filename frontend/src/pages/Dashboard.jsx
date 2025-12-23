@@ -143,23 +143,33 @@ const Dashboard = () => {
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Tickets by Status</h2>
             {statusChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={statusChartData}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
+                    cy="40%"
+                    innerRadius={35}
+                    outerRadius={65}
                     paddingAngle={2}
                     dataKey="value"
+                    label={({ name, value }) => `${value}`}
+                    labelLine={false}
                   >
                     {statusChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip formatter={(value, name) => [value, name]} />
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
+                    align="center"
+                    wrapperStyle={{
+                      paddingTop: '20px',
+                      fontSize: '11px'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

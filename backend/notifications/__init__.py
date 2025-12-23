@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def notify_user(user, notification_type: str, ticket, extra_info: str = '',
-                send_to_group: bool = True) -> dict:
+                send_to_group: bool = True, actor=None) -> dict:
     """
     Send notification to a user via all available channels (Telegram + Email)
 
@@ -20,6 +20,7 @@ def notify_user(user, notification_type: str, ticket, extra_info: str = '',
         ticket: Ticket instance
         extra_info: Additional information
         send_to_group: Whether to send to Telegram group
+        actor: User who performed the action (for "Approved by", "Assigned by", etc.)
 
     Returns:
         dict with results for each channel
@@ -31,7 +32,7 @@ def notify_user(user, notification_type: str, ticket, extra_info: str = '',
 
     # Send Telegram notification
     try:
-        telegram_result = telegram_notify(user, notification_type, ticket, extra_info, send_to_group)
+        telegram_result = telegram_notify(user, notification_type, ticket, extra_info, send_to_group, actor=actor)
         results['telegram'] = telegram_result
     except Exception as e:
         logger.error(f'Telegram notification failed: {e}')

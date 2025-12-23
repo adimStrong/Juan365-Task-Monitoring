@@ -767,7 +767,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     message=f'New ticket from Creative team member {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
-                notify_user(creative_manager, 'new_request', ticket)
+                notify_user(creative_manager, 'new_request', ticket, actor=requester)
 
         else:
             # Non-Creative user creates ticket → needs dept manager approval first
@@ -781,7 +781,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     message=f'New ticket from {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
-                notify_user(requester_dept.manager, 'new_request', ticket)
+                notify_user(requester_dept.manager, 'new_request', ticket, actor=requester)
 
         ticket.save()
 
@@ -857,7 +857,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 message=f'Your ticket "#{ticket.id} - {ticket.title}" has been fully approved by Creative',
                 notification_type=Notification.NotificationType.APPROVED
             )
-            notify_user(ticket.requester, 'approved', ticket)
+            notify_user(ticket.requester, 'approved', ticket, actor=user)
 
             # Notify department approver if exists
             if ticket.dept_approver and ticket.dept_approver != user:
@@ -927,7 +927,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved by department, pending Creative approval',
             notification_type=Notification.NotificationType.PENDING_CREATIVE
         )
-        notify_user(ticket.requester, 'pending_creative', ticket)
+        notify_user(ticket.requester, 'pending_creative', ticket, actor=user)
 
         # Notify Creative Manager for second approval
         if ticket.pending_approver:
@@ -937,7 +937,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 message=f'Ticket "#{ticket.id} - {ticket.title}" needs your approval (approved by {user.username})',
                 notification_type=Notification.NotificationType.PENDING_CREATIVE
             )
-            notify_user(ticket.pending_approver, 'pending_creative', ticket)
+            notify_user(ticket.pending_approver, 'pending_creative', ticket, actor=user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -974,7 +974,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             notification_type=Notification.NotificationType.REJECTED
         )
         # Send Telegram notification
-        notify_user(ticket.requester, 'rejected', ticket, reason)
+        notify_user(ticket.requester, 'rejected', ticket, reason, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1017,7 +1017,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             notification_type=Notification.NotificationType.ASSIGNED
         )
         # Send Telegram notification
-        notify_user(ticket.assigned_to, 'assigned', ticket)
+        notify_user(ticket.assigned_to, 'assigned', ticket, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1094,7 +1094,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 notification_type=Notification.NotificationType.APPROVED
             )
             # Send Telegram notification
-            notify_user(ticket.requester, 'completed', ticket)
+            notify_user(ticket.requester, 'completed', ticket, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1143,7 +1143,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 notification_type=Notification.NotificationType.APPROVED
             )
             # Send Telegram notification
-            notify_user(ticket.assigned_to, 'confirmed', ticket)
+            notify_user(ticket.assigned_to, 'confirmed', ticket, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1200,7 +1200,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     notification_type=Notification.NotificationType.COMMENT
                 )
                 # Send Telegram notification
-                notify_user(user, 'comment', ticket, comment.comment[:100])
+                notify_user(user, 'comment', ticket, comment.comment[:100], actor=request.user)
 
             return Response(
                 TicketCommentSerializer(comment).data,
@@ -1294,7 +1294,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 message=f'You have been added as a collaborator on ticket "#{ticket.id} - {ticket.title}"',
                 notification_type=Notification.NotificationType.ASSIGNED
             )
-            notify_user(collaborator_user, 'assigned', ticket)
+            notify_user(collaborator_user, 'assigned', ticket, actor=request.user)
 
             return Response(
                 TicketCollaboratorSerializer(collaborator).data,
@@ -1415,7 +1415,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 message=f'Ticket "#{ticket.id} - {ticket.title}" has been rolled back to a previous state by {request.user.username}',
                 notification_type=Notification.NotificationType.APPROVED
             )
-            notify_user(ticket.requester, 'rollback', ticket)
+            notify_user(ticket.requester, 'rollback', ticket, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 

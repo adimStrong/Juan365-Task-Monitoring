@@ -117,7 +117,7 @@ def send_group_notification(notification_type: str, ticket, extra_info: str = ''
     return send_telegram_message(group_chat_id, message, reply_markup=keyboard)
 
 
-def format_ticket_notification(notification_type: str, ticket, extra_info: str = '') -> str:
+def format_ticket_notification(notification_type: str, ticket, extra_info: str = '', actor=None) -> str:
     """
     Format a ticket notification message for Telegram
 
@@ -125,6 +125,7 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         notification_type: Type of notification
         ticket: Ticket instance
         extra_info: Additional information (e.g., rejection reason)
+        actor: User who performed the action (optional)
 
     Returns:
         Formatted HTML message
@@ -140,9 +141,15 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         'idle': '⚠️',
         'completed': '🎉',
         'confirmed': '✔️',
+        'pending_creative': '🔄',
     }
 
     emoji = emojis.get(notification_type, '📌')
+
+    # Get actor display name
+    actor_name = ''
+    if actor:
+        actor_name = actor.get_full_name() or actor.username
 
     # Build message
     messages = {
@@ -160,30 +167,41 @@ Please review and approve/reject this request.
 
 <b>#{ticket.id}</b> - {ticket.title}
 <b>Status:</b> Approved ✓
+{f"<b>Approved by:</b> {actor_name}" if actor_name else ""}
 
-Your ticket has been approved and is ready to proceed.
+The ticket has been approved and is ready to proceed.
+''',
+        'pending_creative': f'''
+{emoji} <b>Ticket Pending Creative Approval</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> Dept Approved → Pending Creative
+{f"<b>Approved by:</b> {actor_name}" if actor_name else ""}
+
+Waiting for Creative department to review.
 ''',
         'rejected': f'''
 {emoji} <b>Ticket Rejected</b>
 
 <b>#{ticket.id}</b> - {ticket.title}
 <b>Status:</b> Rejected
-
+{f"<b>Rejected by:</b> {actor_name}" if actor_name else ""}
 {f"<b>Reason:</b> {extra_info}" if extra_info else ""}
 ''',
         'assigned': f'''
-{emoji} <b>Ticket Assigned to You</b>
+{emoji} <b>Ticket Assigned</b>
 
 <b>#{ticket.id}</b> - {ticket.title}
+<b>Assigned to:</b> {ticket.assigned_to.get_full_name() if ticket.assigned_to else 'Unknown'}
+{f"<b>Assigned by:</b> {actor_name}" if actor_name else ""}
 <b>Priority:</b> {ticket.get_priority_display()}
 <b>Deadline:</b> {ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'No deadline'}
-
-Please start working on this task.
 ''',
         'comment': f'''
 {emoji} <b>New Comment</b>
 
 <b>#{ticket.id}</b> - {ticket.title}
+{f"<b>Comment by:</b> {actor_name}" if actor_name else ""}
 
 {extra_info if extra_info else "A new comment was added to the ticket."}
 ''',
@@ -208,6 +226,7 @@ This task has been idle for more than 1 day. Please update progress.
 
 <b>#{ticket.id}</b> - {ticket.title}
 <b>Status:</b> Completed ✓
+{f"<b>Completed by:</b> {actor_name}" if actor_name else ""}
 
 The task has been completed. Awaiting requester confirmation.
 ''',
@@ -215,9 +234,19 @@ The task has been completed. Awaiting requester confirmation.
 {emoji} <b>Completion Confirmed!</b>
 
 <b>#{ticket.id}</b> - {ticket.title}
-<b>Status:</b> Confirmed by Requester ✓
+<b>Status:</b> Confirmed ✓
+{f"<b>Confirmed by:</b> {actor_name}" if actor_name else ""}
 
 The requester has confirmed that the task was completed satisfactorily. Great job!
+''',
+        'rollback': f'''
+⏪ <b>Ticket Rolled Back</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> {ticket.get_status_display()}
+{f"<b>Rolled back by:</b> {actor_name}" if actor_name else ""}
+
+The ticket has been restored to a previous state.
 ''',
     }
 
@@ -259,7 +288,7 @@ def get_user_mention(user) -> str:
 
 
 def notify_user(user, notification_type: str, ticket, extra_info: str = '',
-                send_to_group: bool = True) -> dict:
+                send_to_group: bool = True, actor=None) -> dict:
     """
     Send notification to a user via Telegram AND to the group.
     Includes @mention of the user in group notifications.
@@ -270,13 +299,14 @@ def notify_user(user, notification_type: str, ticket, extra_info: str = '',
         ticket: Ticket instance
         extra_info: Additional information
         send_to_group: Whether to also send to the group chat
+        actor: User who performed the action (for "Approved by", "Assigned by", etc.)
 
     Returns:
         dict with 'individual' and 'group' success status
     """
     results = {'individual': False, 'group': False}
 
-    message = format_ticket_notification(notification_type, ticket, extra_info)
+    message = format_ticket_notification(notification_type, ticket, extra_info, actor=actor)
     keyboard = create_ticket_keyboard(ticket.id, show_actions=(notification_type == 'new_request'))
 
     # Send to group if enabled

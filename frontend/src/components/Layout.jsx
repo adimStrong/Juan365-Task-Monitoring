@@ -275,31 +275,32 @@ const Layout = ({ children }) => {
           </div>
         </div>
 
-        {/* Mobile Compact Row - User Info & Logout */}
-        <div className="sm:hidden border-t border-gray-200 bg-gray-50 px-4 py-2">
+        </nav>
+
+      {/* Mobile Compact Row - User Info & Logout (below nav, fixed position) */}
+      <div className="sm:hidden bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 {(user?.first_name || user?.username || 'U').charAt(0).toUpperCase()}
               </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.first_name || user?.username}
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 capitalize">
-                  {user?.role}
-                </span>
+                </p>
+                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="text-sm text-red-600 hover:text-red-800 font-medium"
+              className="flex-shrink-0 px-3 py-1.5 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600"
             >
               Logout
             </button>
           </div>
         </div>
-      </nav>
+      </div>
 
       {/* Main content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">

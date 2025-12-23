@@ -79,8 +79,10 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
                   'role', 'user_department', 'user_department_info', 'department',
                   'telegram_id', 'is_approved', 'approved_by', 'approved_by_name',
-                  'approved_at', 'date_joined', 'is_active']
-        read_only_fields = ['id', 'date_joined', 'approved_by', 'approved_by_name', 'approved_at']
+                  'approved_at', 'date_joined', 'is_active',
+                  'is_locked', 'locked_at', 'failed_login_attempts']
+        read_only_fields = ['id', 'date_joined', 'approved_by', 'approved_by_name', 'approved_at',
+                           'is_locked', 'locked_at', 'failed_login_attempts']
 
 
 class UserManagementSerializer(serializers.ModelSerializer):

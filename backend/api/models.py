@@ -72,6 +72,12 @@ class User(AbstractUser):
     )
     approved_at = models.DateTimeField(null=True, blank=True)
 
+    # Password management fields
+    is_locked = models.BooleanField(default=False, help_text='Account locked due to failed login attempts')
+    locked_at = models.DateTimeField(null=True, blank=True)
+    failed_login_attempts = models.IntegerField(default=0)
+    last_failed_login = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
 
@@ -470,3 +476,50 @@ class FileAsset(models.Model):
                 return f"{size:.1f} {unit}"
             size /= 1024
         return f"{size:.1f} TB"
+
+
+class PasswordResetToken(models.Model):
+    """Token for password reset functionality"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens'
+    )
+    token = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Password reset for {self.user.username}"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        return not self.is_used and not self.is_expired
+
+
+class LoginAttempt(models.Model):
+    """Track login attempts for security auditing"""
+
+    username = models.CharField(max_length=150)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    success = models.BooleanField(default=False)
+    failure_reason = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        status = 'Success' if self.success else 'Failed'
+        return f"{self.username} - {status} - {self.created_at}"

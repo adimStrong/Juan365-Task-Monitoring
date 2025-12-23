@@ -196,6 +196,9 @@ export const usersAPI = {
 
   deleteUser: (id) =>
     api.delete(`/users/manage/${id}/delete_user/`),
+
+  unlockAccount: (id) =>
+    api.post(`/users/manage/${id}/unlock_account/`),
 };
 
 // Dashboard API

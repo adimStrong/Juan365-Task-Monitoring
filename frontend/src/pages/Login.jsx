@@ -89,12 +89,17 @@ const Login = () => {
             </button>
           </div>
 
-          <p className="text-center text-sm text-gray-600">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-              Create account
+          <div className="flex items-center justify-between text-sm">
+            <Link to="/forgot-password" className="text-gray-600 hover:text-gray-800">
+              Forgot password?
             </Link>
-          </p>
+            <span className="text-gray-600">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
+                Create account
+              </Link>
+            </span>
+          </div>
         </form>
       </div>
     </div>

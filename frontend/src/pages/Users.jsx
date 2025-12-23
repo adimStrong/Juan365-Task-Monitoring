@@ -228,6 +228,19 @@ const Users = () => {
     }
   };
 
+  // Unlock account handler
+  const handleUnlockAccount = async (userId) => {
+    setActionLoading(userId);
+    try {
+      await usersAPI.unlockAccount(userId);
+      fetchUsers();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to unlock account');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Delete user handler
   const handleDeleteUser = async (user) => {
     if (user.id === currentUser?.id) {
@@ -258,6 +271,9 @@ const Users = () => {
   };
 
   const getStatusBadge = (user) => {
+    if (user.is_locked) {
+      return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Locked</span>;
+    }
     if (!user.is_active) {
       return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Inactive</span>;
     }
@@ -453,6 +469,17 @@ const Users = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                               </svg>
                             </button>
+                            {/* Unlock Account Button */}
+                            {user.is_locked && (
+                              <button
+                                onClick={() => handleUnlockAccount(user.id)}
+                                disabled={actionLoading === user.id}
+                                className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 disabled:opacity-50"
+                                title="Unlock Account"
+                              >
+                                Unlock
+                              </button>
+                            )}
                             {!user.is_approved && user.is_active && (
                               <button
                                 onClick={() => handleApprove(user.id)}

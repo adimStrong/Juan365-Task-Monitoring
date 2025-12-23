@@ -69,12 +69,34 @@ class RegisterView(generics.CreateAPIView):
 
 
 class CustomTokenObtainPairView(APIView):
-    """Custom login view that checks if user is approved"""
+    """Custom login view that checks if user is approved and handles account lockout"""
     permission_classes = [AllowAny]
+
+    MAX_LOGIN_ATTEMPTS = 3
+    LOCKOUT_DURATION_MINUTES = 30
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+
+    def log_attempt(self, username, success, failure_reason='', request=None):
+        from .models import LoginAttempt
+        LoginAttempt.objects.create(
+            username=username,
+            ip_address=self.get_client_ip(request) if request else None,
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500] if request else '',
+            success=success,
+            failure_reason=failure_reason
+        )
 
     def post(self, request):
         from rest_framework_simplejwt.tokens import RefreshToken
         from django.contrib.auth import authenticate
+        from datetime import timedelta
 
         username = request.data.get('username')
         password = request.data.get('password')
@@ -85,25 +107,85 @@ class CustomTokenObtainPairView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check if user exists and is locked
+        try:
+            user_check = User.objects.get(username=username)
+
+            # Check if account is locked
+            if user_check.is_locked:
+                # Check if lockout period has passed
+                if user_check.locked_at:
+                    unlock_time = user_check.locked_at + timedelta(minutes=self.LOCKOUT_DURATION_MINUTES)
+                    if timezone.now() >= unlock_time:
+                        # Unlock account
+                        user_check.is_locked = False
+                        user_check.locked_at = None
+                        user_check.failed_login_attempts = 0
+                        user_check.save()
+                    else:
+                        minutes_left = int((unlock_time - timezone.now()).total_seconds() / 60)
+                        self.log_attempt(username, False, 'Account locked', request)
+                        return Response(
+                            {'detail': f'Account is locked due to multiple failed login attempts. Try again in {minutes_left + 1} minutes, or contact admin to unlock.'},
+                            status=status.HTTP_423_LOCKED
+                        )
+        except User.DoesNotExist:
+            pass
+
         user = authenticate(username=username, password=password)
 
         if user is None:
+            # Track failed attempt
+            try:
+                user_obj = User.objects.get(username=username)
+                user_obj.failed_login_attempts += 1
+                user_obj.last_failed_login = timezone.now()
+
+                if user_obj.failed_login_attempts >= self.MAX_LOGIN_ATTEMPTS:
+                    user_obj.is_locked = True
+                    user_obj.locked_at = timezone.now()
+                    user_obj.save()
+                    self.log_attempt(username, False, 'Account locked after max attempts', request)
+                    return Response(
+                        {'detail': f'Account locked due to {self.MAX_LOGIN_ATTEMPTS} failed login attempts. Contact admin to unlock or wait {self.LOCKOUT_DURATION_MINUTES} minutes.'},
+                        status=status.HTTP_423_LOCKED
+                    )
+
+                user_obj.save()
+                remaining = self.MAX_LOGIN_ATTEMPTS - user_obj.failed_login_attempts
+                self.log_attempt(username, False, 'Invalid password', request)
+                return Response(
+                    {'detail': f'Invalid credentials. {remaining} attempt(s) remaining before account lockout.'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            except User.DoesNotExist:
+                self.log_attempt(username, False, 'User not found', request)
+
             return Response(
                 {'detail': 'Invalid credentials'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
         if not user.is_active:
+            self.log_attempt(username, False, 'Account deactivated', request)
             return Response(
                 {'detail': 'Account is deactivated. Contact administrator.'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
         if not user.is_approved:
+            self.log_attempt(username, False, 'Account not approved', request)
             return Response(
                 {'detail': 'Account pending approval. Please wait for admin to approve your registration.'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+
+        # Reset failed attempts on successful login
+        user.failed_login_attempts = 0
+        user.last_failed_login = None
+        user.save()
+
+        self.log_attempt(username, True, '', request)
 
         refresh = RefreshToken.for_user(user)
 
@@ -316,9 +398,136 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         
         username = user.username
         user.delete()
-        
+
         return Response({
             'message': f'User {username} deleted successfully'
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsManagerUser])
+    def unlock_account(self, request, pk=None):
+        """Unlock a locked user account (admin/manager only)"""
+        user = self.get_object()
+
+        if not user.is_locked:
+            return Response(
+                {'error': 'Account is not locked'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.is_locked = False
+        user.locked_at = None
+        user.failed_login_attempts = 0
+        user.last_failed_login = None
+        user.save()
+
+        return Response({
+            'message': f'Account unlocked successfully for {user.username}',
+            'user': UserSerializer(user).data
+        })
+
+
+class ForgotPasswordView(APIView):
+    """Request password reset token"""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import secrets
+        from datetime import timedelta
+        from .models import PasswordResetToken
+
+        username = request.data.get('username')
+        email = request.data.get('email')
+
+        if not username and not email:
+            return Response(
+                {'error': 'Username or email is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            if username:
+                user = User.objects.get(username=username)
+            else:
+                user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Don't reveal if user exists
+            return Response({
+                'message': 'If the account exists, a password reset token has been generated. Contact admin to get the token.'
+            })
+
+        # Generate reset token
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(hours=24)
+
+        # Invalidate previous tokens
+        PasswordResetToken.objects.filter(user=user, is_used=False).update(is_used=True)
+
+        # Create new token
+        reset_token = PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
+
+        # In production, this would send an email
+        # For now, admin can view tokens in admin panel
+        return Response({
+            'message': 'Password reset token generated. Contact admin to get the token.',
+            # Only show token if request is from admin
+            'token': token if request.user.is_authenticated and request.user.is_admin else None
+        })
+
+
+class ResetPasswordView(APIView):
+    """Reset password using token"""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from .models import PasswordResetToken
+
+        token = request.data.get('token')
+        new_password = request.data.get('password')
+
+        if not token or not new_password:
+            return Response(
+                {'error': 'Token and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(new_password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token)
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {'error': 'Invalid or expired token'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not reset_token.is_valid:
+            return Response(
+                {'error': 'Token has expired or already been used'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Reset password
+        user = reset_token.user
+        user.set_password(new_password)
+        user.is_locked = False
+        user.failed_login_attempts = 0
+        user.save()
+
+        # Mark token as used
+        reset_token.is_used = True
+        reset_token.used_at = timezone.now()
+        reset_token.save()
+
+        return Response({
+            'message': 'Password reset successfully. You can now login with your new password.'
         })
 
 

@@ -8,7 +8,8 @@ from .views import (
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
     ActivityLogListView, AnalyticsView,
-    DepartmentViewSet, ProductViewSet
+    DepartmentViewSet, ProductViewSet,
+    ForgotPasswordView, ResetPasswordView
 )
 
 router = DefaultRouter()
@@ -27,6 +28,8 @@ urlpatterns = [
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
+    path('auth/reset-password/', ResetPasswordView.as_view(), name='reset-password'),
 
     # Users
     path('users/', UserListView.as_view(), name='user-list'),

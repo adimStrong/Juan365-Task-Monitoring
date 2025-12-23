@@ -139,10 +139,16 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class UpdateUserProfileSerializer(serializers.ModelSerializer):
-    """Serializer for updating user profile (name, email, telegram)"""
+    """Serializer for updating user profile (name, email, telegram, department)"""
+    user_department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'email', 'telegram_id', 'department']
+        fields = ['first_name', 'last_name', 'email', 'telegram_id', 'user_department']
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):

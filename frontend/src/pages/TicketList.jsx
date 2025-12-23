@@ -116,11 +116,11 @@ const TicketList = () => {
         {/* Search & Filters */}
         <div className="bg-white shadow rounded-lg p-4">
           {/* Search Bar */}
-          <div className="flex gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search tickets by title or description..."
+                placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -252,69 +252,75 @@ const TicketList = () => {
               </div>
             </div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ticket
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Requester
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned To
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tickets.map((ticket) => (
-                  <tr key={ticket.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <Link to={`/tickets/${ticket.id}`} className="block">
-                        <div className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                          #{ticket.id} - {ticket.title}
-                        </div>
-                        {ticket.is_overdue && (
-                          <span className="text-xs text-red-600 font-medium">Overdue!</span>
-                        )}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {ticket.requester?.first_name || ticket.requester?.username}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {ticket.assigned_to?.first_name || ticket.assigned_to?.username || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(ticket.status)}`}>
-                        {getStatusText(ticket.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(ticket.created_at)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ticket
+                    </th>
+                    <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Requester
+                    </th>
+                    <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Assigned To
+                    </th>
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Priority
+                    </th>
+                    <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {tickets.map((ticket) => (
+                    <tr key={ticket.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4">
+                        <Link to={`/tickets/${ticket.id}`} className="block">
+                          <div className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                            #{ticket.id} - {ticket.title}
+                          </div>
+                          {ticket.is_overdue && (
+                            <span className="text-xs text-red-600 font-medium">Overdue!</span>
+                          )}
+                          {/* Show requester on mobile */}
+                          <div className="sm:hidden text-xs text-gray-500 mt-1">
+                            From: {ticket.requester?.first_name || ticket.requester?.username}
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {ticket.requester?.first_name || ticket.requester?.username}
+                        </div>
+                      </td>
+                      <td className="hidden md:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {ticket.assigned_to?.first_name || ticket.assigned_to?.username || '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(ticket.status)}`}>
+                          {getStatusText(ticket.status)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(ticket.priority)}`}>
+                          {ticket.priority}
+                        </span>
+                      </td>
+                      <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(ticket.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

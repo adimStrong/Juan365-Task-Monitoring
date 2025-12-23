@@ -300,7 +300,7 @@ const TicketDetail = () => {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <button
               onClick={() => navigate('/tickets')}
@@ -308,15 +308,15 @@ const TicketDetail = () => {
             >
               ← Back to Tickets
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
               #{ticket.id} - {ticket.title}
             </h1>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className={`px-3 py-1 text-sm rounded-full ${getStatusColor(ticket.status)}`}>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <span className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full ${getStatusColor(ticket.status)}`}>
               {getStatusText(ticket.status)}
             </span>
-            <span className={`px-3 py-1 text-sm rounded-full ${getPriorityColor(ticket.priority)}`}>
+            <span className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full ${getPriorityColor(ticket.priority)}`}>
               {ticket.priority}
             </span>
           </div>
@@ -721,7 +721,7 @@ const TicketDetail = () => {
       {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Ticket History</h3>
               <button
@@ -796,7 +796,7 @@ const TicketDetail = () => {
       {/* Reject Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Ticket</h3>
             <textarea
               value={rejectReason}
@@ -827,7 +827,7 @@ const TicketDetail = () => {
       {/* Assign Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
             <p className="text-sm text-gray-600 mb-4">
               <span className="text-blue-600 font-medium">Note:</span> Tickets can only be assigned to Creative department members.
@@ -874,7 +874,7 @@ const TicketDetail = () => {
       {/* Confirm Completion Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Task Completion</h3>
             <p className="text-gray-600 mb-4">
               Are you satisfied with the completed work on this ticket? By confirming, you acknowledge that the task has been completed to your satisfaction.
@@ -901,7 +901,7 @@ const TicketDetail = () => {
       {/* Add Collaborator Modal */}
       {showCollaboratorModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add Collaborator</h3>
             <p className="text-gray-600 text-sm mb-4">
               Add a team member to collaborate on this ticket. They will be notified and can work on this task.
@@ -953,7 +953,7 @@ const TicketDetail = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
             <div className="flex items-center space-x-3 mb-4">
               <div className="flex-shrink-0 bg-red-100 rounded-full p-2">
                 <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

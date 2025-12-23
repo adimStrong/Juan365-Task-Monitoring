@@ -378,23 +378,23 @@ const Users = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       User
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Department
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Role
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Joined
                     </th>
                     {isAdmin && (
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-2 sm:px-6 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     )}
@@ -403,24 +403,28 @@ const Users = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                            <span className="text-gray-600 font-medium">
+                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 font-medium text-sm sm:text-base">
                               {(user.first_name?.[0] || user.username[0]).toUpperCase()}
                             </span>
                           </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
+                          <div className="ml-2 sm:ml-4 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">
                               {user.first_name} {user.last_name}
                             </div>
-                            <div className="text-sm text-gray-500">
-                              @{user.username} {user.email && ('· ' + user.email)}
+                            <div className="text-xs sm:text-sm text-gray-500 truncate">
+                              @{user.username}
+                            </div>
+                            {/* Show department on mobile */}
+                            <div className="md:hidden text-xs text-gray-400 mt-0.5">
+                              {user.user_department_info?.name || 'No dept'}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="hidden md:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         {user.user_department_info ? (
                           <span className={`px-2 py-1 text-xs rounded-full ${user.user_department_info.is_creative ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
                             {user.user_department_info.name}
@@ -429,13 +433,13 @@ const Users = () => {
                           <span className="text-xs text-gray-400">No department</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         {isAdmin && user.is_approved ? (
                           <select
                             value={user.role}
                             onChange={(e) => handleChangeRole(user.id, e.target.value)}
                             disabled={actionLoading === user.id}
-                            className={`text-xs rounded-full px-3 py-1 border-0 ${getRoleColor(user.role)} cursor-pointer`}
+                            className={`text-xs rounded-full px-2 sm:px-3 py-1 border-0 ${getRoleColor(user.role)} cursor-pointer`}
                           >
                             <option value="member">Member</option>
                             <option value="manager">Manager</option>
@@ -447,15 +451,15 @@ const Users = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         {getStatusBadge(user)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(user.date_joined)}
                       </td>
                       {isAdmin && (
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <div className="flex justify-end space-x-2">
+                        <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right text-sm">
+                          <div className="flex justify-end flex-wrap gap-1 sm:space-x-2 sm:flex-nowrap">
                             {/* Edit Profile Button */}
                             <button
                               onClick={() => openEditModal(user)}
@@ -565,7 +569,7 @@ const Users = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       First Name *
@@ -740,7 +744,7 @@ const Users = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                     <input

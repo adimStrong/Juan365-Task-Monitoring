@@ -181,34 +181,46 @@ const Admin = () => {
 
         {/* Departments Table */}
         {activeTab === 'departments' && (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="bg-white shadow rounded-lg overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Manager</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Manager</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {departments.map((dept) => (
                   <tr key={dept.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="text-sm font-medium text-gray-900">{dept.name}</div>
                       {dept.description && (
-                        <div className="text-sm text-gray-500">{dept.description}</div>
+                        <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{dept.description}</div>
                       )}
+                      {/* Show manager on mobile */}
+                      <div className="md:hidden text-xs text-gray-400 mt-0.5">
+                        {dept.manager ? `${dept.manager.first_name} ${dept.manager.last_name || ''}` : 'No manager'}
+                      </div>
+                      {/* Show type badge on mobile */}
+                      <div className="sm:hidden mt-1">
+                        {dept.is_creative ? (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800">Creative</span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Standard</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="hidden md:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                       {dept.manager ? (
                         <span>{dept.manager.first_name} {dept.manager.last_name || dept.manager.username}</span>
                       ) : (
                         <span className="text-gray-400">No manager</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       {dept.is_creative ? (
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
                           Creative
@@ -219,32 +231,34 @@ const Admin = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                         dept.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
                         {dept.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => openEditModal(dept)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(dept)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end flex-wrap gap-1 sm:gap-0">
+                        <button
+                          onClick={() => openEditModal(dept)}
+                          className="text-blue-600 hover:text-blue-900 sm:mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(dept)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {departments.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="5" className="px-3 py-6 sm:px-6 sm:py-8 text-center text-gray-500">
                       No departments found. Add one to get started.
                     </td>
                   </tr>
@@ -256,51 +270,59 @@ const Admin = () => {
 
         {/* Products Table */}
         {activeTab === 'products' && (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="bg-white shadow rounded-lg overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {products.map((prod) => (
                   <tr key={prod.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="text-sm font-medium text-gray-900">{prod.name}</div>
+                      {/* Show description on mobile */}
+                      {prod.description && (
+                        <div className="sm:hidden text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">
+                          {prod.description}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-500">
                       {prod.description || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                         prod.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
                         {prod.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => openEditModal(prod)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(prod)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end flex-wrap gap-1 sm:gap-0">
+                        <button
+                          onClick={() => openEditModal(prod)}
+                          className="text-blue-600 hover:text-blue-900 sm:mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(prod)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="4" className="px-3 py-6 sm:px-6 sm:py-8 text-center text-gray-500">
                       No products found. Add one to get started.
                     </td>
                   </tr>
@@ -312,15 +334,15 @@ const Admin = () => {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200">
+                <h3 className="text-base sm:text-lg font-medium text-gray-900">
                   {editingItem ? 'Edit' : 'Add'} {activeTab === 'departments' ? 'Department' : 'Product'}
                 </h3>
               </div>
               <form onSubmit={handleSubmit}>
-                <div className="px-6 py-4 space-y-4">
+                <div className="px-4 py-3 sm:px-6 sm:py-4 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Name *
@@ -403,17 +425,17 @@ const Admin = () => {
                     </label>
                   </div>
                 </div>
-                <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 flex justify-end space-x-2 sm:space-x-3">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-3 py-2 sm:px-4 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-3 py-2 sm:px-4 bg-blue-600 text-sm text-white rounded-md hover:bg-blue-700"
                   >
                     {editingItem ? 'Save Changes' : 'Create'}
                   </button>

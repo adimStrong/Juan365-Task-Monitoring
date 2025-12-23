@@ -10,7 +10,7 @@ from django.utils import timezone
 import logging
 
 from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product
-from notifications.telegram import notify_user
+from notifications import notify_user  # Unified notification (Telegram + Email)
 
 logger = logging.getLogger(__name__)
 from .serializers import (

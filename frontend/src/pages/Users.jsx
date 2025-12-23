@@ -382,6 +382,9 @@ const Users = () => {
                       User
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Department
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Role
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -414,11 +417,17 @@ const Users = () => {
                             <div className="text-sm text-gray-500">
                               @{user.username} {user.email && ('· ' + user.email)}
                             </div>
-                            {user.user_department_info && (
-                              <div className="text-xs text-gray-400">{user.user_department_info.name}</div>
-                            )}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {user.user_department_info ? (
+                          <span className={`px-2 py-1 text-xs rounded-full ${user.user_department_info.is_creative ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {user.user_department_info.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">No department</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {isAdmin && user.is_approved ? (

@@ -116,24 +116,48 @@ const Dashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
           <StatCard
-            title="Total Tickets"
+            title="Total"
             value={stats?.total_tickets || 0}
             color="bg-blue-500"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
           />
           <StatCard
-            title="Pending Approval"
+            title="Dept Approval"
             value={stats?.pending_approval || 0}
-            color="bg-yellow-500"
+            color="bg-indigo-500"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          />
+          <StatCard
+            title="Creative Approval"
+            value={stats?.pending_creative || 0}
+            color="bg-purple-500"
+            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>}
+          />
+          <StatCard
+            title="Approved"
+            value={stats?.approved || 0}
+            color="bg-cyan-500"
+            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             title="In Progress"
             value={stats?.in_progress || 0}
-            color="bg-green-500"
+            color="bg-yellow-500"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          />
+          <StatCard
+            title="Completed"
+            value={stats?.completed || 0}
+            color="bg-green-500"
+            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+          />
+          <StatCard
+            title="Rejected"
+            value={stats?.rejected || 0}
+            color="bg-gray-500"
+            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>}
           />
           <StatCard
             title="Overdue"

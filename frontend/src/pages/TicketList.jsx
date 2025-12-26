@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import { TicketListSkeleton } from '../components/Skeleton';
 import TicketCard from '../components/TicketCard';
 import TicketPreviewModal from '../components/TicketPreviewModal';
 
@@ -294,8 +295,29 @@ const TicketList = () => {
 
         {/* Loading State */}
         {loading ? (
-          <div className="bg-white shadow rounded-lg flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created'].map((h) => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {[...Array(6)].map((_, i) => (
+                    <tr key={i}>
+                      {[...Array(6)].map((_, j) => (
+                        <td key={j} className="px-6 py-4">
+                          <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : tickets.length === 0 ? (
           /* Empty State */

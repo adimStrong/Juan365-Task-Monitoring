@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { dashboardAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import { DashboardSkeleton } from '../components/Skeleton';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   LineChart, Line, Legend, ResponsiveContainer
@@ -94,9 +95,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
+        <DashboardSkeleton />
       </Layout>
     );
   }

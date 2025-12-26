@@ -1964,12 +1964,16 @@ class AnalyticsView(APIView):
             avg_approval_to_complete_hours = round(avg_approval_to_complete_seconds / 3600, 1)
 
             # Calculate total quantity output for user (from regular tickets + product items)
-            user_quantity = completed_tickets.aggregate(total=Sum('quantity'))['total'] or 0
+            # For regular tickets: use ticket.quantity
+            # For ads/telegram: use product_items.quantity (not ticket.quantity)
+            user_regular_qty = completed_tickets.exclude(
+                request_type__in=['ads', 'telegram_channel']
+            ).aggregate(total=Sum('quantity'))['total'] or 0
             # Add quantities from product_items for Ads/Telegram tickets
             user_product_items_qty = TicketProductItem.objects.filter(
                 ticket__in=completed_tickets
             ).aggregate(total=Sum('quantity'))['total'] or 0
-            total_user_output = user_quantity + user_product_items_qty
+            total_user_output = user_regular_qty + user_product_items_qty
 
             # Calculate average acknowledge time for user (time from assignment to start) - now in seconds
             user_ack_times = []
@@ -1979,12 +1983,16 @@ class AnalyticsView(APIView):
             avg_ack_seconds = round(sum(user_ack_times) / len(user_ack_times), 0) if user_ack_times else None
 
             # Calculate assigned output (total quantity from all assigned tickets)
-            assigned_quantity = user_tickets.aggregate(total=Sum('quantity'))['total'] or 0
-            # Add quantities from product_items for assigned Ads/Telegram tickets
+            # For regular tickets: use ticket.quantity
+            # For ads/telegram: use product_items.quantity (not ticket.quantity)
+            regular_assigned_qty = user_tickets.exclude(
+                request_type__in=['ads', 'telegram_channel']
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            # Add quantities from product_items for Ads/Telegram tickets
             assigned_product_items_qty = TicketProductItem.objects.filter(
                 ticket__in=user_tickets
             ).aggregate(total=Sum('quantity'))['total'] or 0
-            total_assigned_output = assigned_quantity + assigned_product_items_qty
+            total_assigned_output = regular_assigned_qty + assigned_product_items_qty
 
             user_stats.append({
                 'user_id': user.id,
@@ -2119,9 +2127,11 @@ class AnalyticsView(APIView):
         # =====================
         # NEW: Quantity Metrics
         # =====================
-        # Total quantity from regular tickets (completed)
+        # Total quantity from regular tickets (completed) - exclude ads/telegram
         completed_tickets = tickets.filter(status=Ticket.Status.COMPLETED)
-        regular_quantity = completed_tickets.aggregate(total=Sum('quantity'))['total'] or 0
+        regular_quantity = completed_tickets.exclude(
+            request_type__in=['ads', 'telegram_channel']
+        ).aggregate(total=Sum('quantity'))['total'] or 0
         # Add quantities from product_items for Ads/Telegram tickets
         product_items_quantity = TicketProductItem.objects.filter(
             ticket__in=completed_tickets

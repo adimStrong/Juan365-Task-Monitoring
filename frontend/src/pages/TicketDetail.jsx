@@ -338,8 +338,9 @@ const TicketDetail = () => {
   if (!ticket) return null;
 
   const canApprove = isManager && ['requested', 'pending_creative'].includes(ticket.status);
-  const canStart = (ticket.assigned_to?.id === user?.id || isManager) &&
-                   ticket.status === 'approved';  // Only approved tickets can be started
+  // Only the assigned person can start editing (must be assigned first)
+  const canStart = ticket.assigned_to?.id === user?.id &&
+                   ticket.status === 'approved';
   const canComplete = (ticket.assigned_to?.id === user?.id || isManager) &&
                       ticket.status === 'in_progress';
   const canConfirm = ticket.requester?.id === user?.id &&

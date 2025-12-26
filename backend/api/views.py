@@ -757,9 +757,10 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         requester = self.request.user
 
-        # Validate department restriction: non-admin users can only submit to their own department
+        # Validate department restriction: only admins and managers can submit to any department
         target_department_id = serializer.validated_data.get('target_department')
-        if target_department_id and not requester.is_admin:
+        can_select_any_department = requester.is_admin or requester.role == 'manager'
+        if target_department_id and not can_select_any_department:
             user_dept = requester.user_department
             if user_dept and target_department_id.id != user_dept.id:
                 from rest_framework.exceptions import PermissionDenied
@@ -1073,9 +1074,17 @@ class TicketViewSet(viewsets.ModelViewSet):
         """
         ticket = self.get_object()
 
-        if ticket.assigned_to != request.user and not request.user.is_manager:
+        # Ticket must be assigned first
+        if not ticket.assigned_to:
             return Response(
-                {'error': 'Only assigned user can start this ticket'},
+                {'error': 'Ticket must be assigned before starting work'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only the assigned person can start (not even managers)
+        if ticket.assigned_to != request.user:
+            return Response(
+                {'error': 'Only the assigned user can start this ticket'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -1087,11 +1096,6 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.status = Ticket.Status.IN_PROGRESS
         ticket.started_at = timezone.now()
-        if not ticket.assigned_to:
-            ticket.assigned_to = request.user
-            ticket.assigned_at = timezone.now()
-            # Calculate deadline if not already set
-            ticket.deadline = calculate_deadline_from_priority(ticket.priority, ticket.file_format)
         ticket.save()
 
         # Update analytics - record acknowledgment time

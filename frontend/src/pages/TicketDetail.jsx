@@ -756,14 +756,14 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm text-gray-500">Department</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {ticket.target_department?.name || '-'}
+                    {ticket.target_department?.name || ticket.department || '-'}
                   </dd>
                 </div>
-                {ticket.ticket_product && (
+                {(ticket.ticket_product || ticket.product) && (
                   <div>
                     <dt className="text-sm text-gray-500">Product</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {ticket.ticket_product.name}
+                      {ticket.ticket_product?.name || ticket.product}
                     </dd>
                   </div>
                 )}

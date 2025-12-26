@@ -1959,23 +1959,31 @@ class AnalyticsView(APIView):
         # Sort by total assigned descending
         user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
 
-        # Product breakdown (using ticket_product FK)
-        product_stats = tickets.filter(ticket_product__isnull=False).values(
-            product=F('ticket_product__name')
+        # Product breakdown (using ticket_product FK, fallback to old text field)
+        product_stats = tickets.filter(
+            Q(ticket_product__isnull=False) | ~Q(product='')
         ).annotate(
+            product_name=Coalesce(F('ticket_product__name'), F('product'))
+        ).values('product_name').annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
             in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
-        ).order_by('-count')
+        ).filter(product_name__isnull=False).exclude(product_name='').order_by('-count')
+        # Rename for frontend compatibility
+        product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]
 
-        # Department breakdown (using target_department FK)
-        department_stats = tickets.filter(target_department__isnull=False).values(
-            department=F('target_department__name')
+        # Department breakdown (using target_department FK, fallback to old text field)
+        department_stats = tickets.filter(
+            Q(target_department__isnull=False) | ~Q(department='')
         ).annotate(
+            dept_name=Coalesce(F('target_department__name'), F('department'))
+        ).values('dept_name').annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
             in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
-        ).order_by('-count')
+        ).filter(dept_name__isnull=False).exclude(dept_name='').order_by('-count')
+        # Rename for frontend compatibility
+        department_stats = [{'department': s['dept_name'], **{k: v for k, v in s.items() if k != 'dept_name'}} for s in department_stats]
 
         # Overall stats
         total_completed = tickets.filter(status=Ticket.Status.COMPLETED).count()

@@ -650,6 +650,11 @@ class ProductViewSet(viewsets.ModelViewSet):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
 
+        # Filter by category (general, ads, telegram)
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
         return queryset.order_by('name')
 
     def get_permissions(self):
@@ -687,6 +692,8 @@ class TicketViewSet(viewsets.ModelViewSet):
             'target_department',
             'ticket_product',
             'deleted_by'
+        ).prefetch_related(
+            'product_items', 'product_items__product'  # For Ads/Telegram multi-product support
         ).annotate(
             # Annotate counts to avoid N+1 queries in serializers
             comment_count_annotated=Count('comments', distinct=True),

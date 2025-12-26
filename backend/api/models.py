@@ -27,8 +27,20 @@ class Department(models.Model):
 
 class Product(models.Model):
     """Product model for ticket categorization"""
+
+    class Category(models.TextChoices):
+        GENERAL = 'general', 'General'
+        ADS = 'ads', 'Ads'
+        TELEGRAM = 'telegram', 'Telegram'
+
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.GENERAL,
+        help_text='Product category for filtering by request type'
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -122,12 +134,18 @@ class Ticket(models.Model):
         PHOTOSHOOT = 'photoshoot', 'Photoshoot'
         VIDEOSHOOT = 'videoshoot', 'Videoshoot'
         LIVE_PRODUCTION = 'live_production', 'Live Production'
+        ADS = 'ads', 'Ads'
+        TELEGRAM_CHANNEL = 'telegram_channel', 'Telegram Official Channel'
 
     class FileFormat(models.TextChoices):
         STILL = 'still', 'Still'
         GIF = 'gif', 'Gif'
         VIDEO_LANDSCAPE = 'video_landscape', 'Video (Landscape)'
         VIDEO_PORTRAIT = 'video_portrait', 'Video (Portrait)'
+
+    class Criteria(models.TextChoices):
+        IMAGE = 'image', 'Image'
+        VIDEO = 'video', 'Video'
 
     title = models.CharField(max_length=200)
     description = models.TextField()
@@ -270,6 +288,18 @@ class Ticket(models.Model):
     # Revision tracking
     revision_count = models.IntegerField(default=0, help_text='Number of revision requests')
 
+    # Quantity and criteria fields for request types
+    quantity = models.PositiveIntegerField(
+        default=1,
+        help_text='Number of creatives needed (max 1000)'
+    )
+    criteria = models.CharField(
+        max_length=10,
+        choices=Criteria.choices,
+        blank=True,
+        help_text='Creative type: image or video'
+    )
+
     class Meta:
         ordering = ['-created_at']
 
@@ -288,6 +318,47 @@ class Ticket(models.Model):
         if self.status == self.Status.IN_PROGRESS:
             return (timezone.now() - self.updated_at).days >= 1
         return False
+
+
+class TicketProductItem(models.Model):
+    """For Ads and Telegram request types - stores multiple products with quantities"""
+
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='product_items'
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name='ticket_items'
+    )
+    quantity = models.PositiveIntegerField(
+        default=1,
+        help_text='Quantity for this product (max 1000)'
+    )
+    criteria = models.CharField(
+        max_length=10,
+        choices=Ticket.Criteria.choices,
+        blank=True,
+        help_text='Auto-set for Ads: VID=video, STATIC=image'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def save(self, *args, **kwargs):
+        # Auto-set criteria for Ads products based on product name
+        if self.product and not self.criteria:
+            if 'VID' in self.product.name.upper():
+                self.criteria = 'video'
+            elif 'STATIC' in self.product.name.upper():
+                self.criteria = 'image'
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.product.name} x {self.quantity}"
 
 
 class TicketAnalytics(models.Model):

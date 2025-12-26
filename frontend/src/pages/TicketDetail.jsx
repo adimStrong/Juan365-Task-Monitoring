@@ -774,6 +774,37 @@ const TicketDetail = () => {
                     </dd>
                   </div>
                 )}
+                {/* Quantity - Show for non-Ads/Telegram or when no product_items */}
+                {ticket.quantity > 0 && (!ticket.product_items || ticket.product_items.length === 0) && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Quantity</dt>
+                    <dd className="text-sm font-medium text-gray-900">{ticket.quantity}</dd>
+                  </div>
+                )}
+                {/* Criteria */}
+                {ticket.criteria_display && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Criteria</dt>
+                    <dd className="text-sm font-medium text-gray-900">{ticket.criteria_display}</dd>
+                  </div>
+                )}
+                {/* Product Items - For Ads/Telegram with multiple products */}
+                {ticket.product_items && ticket.product_items.length > 0 && (
+                  <div>
+                    <dt className="text-sm text-gray-500 mb-2">Products</dt>
+                    <dd className="space-y-2">
+                      {ticket.product_items.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm">
+                          <span className="font-medium text-gray-900">{item.product_name}</span>
+                          <span className="text-gray-600">x{item.quantity}</span>
+                        </div>
+                      ))}
+                      <div className="text-xs text-gray-500 mt-1">
+                        Total: {ticket.product_items.reduce((sum, item) => sum + item.quantity, 0)} items
+                      </div>
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Created</dt>
                   <dd className="text-sm font-medium text-gray-900">{formatDate(ticket.created_at)}</dd>

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, Department, Product
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, Department, Product, TicketProductItem
 
 User = get_user_model()
 
@@ -52,10 +52,11 @@ class DepartmentMinimalSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     """Serializer for products"""
     ticket_count = serializers.SerializerMethodField()
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'is_active', 'ticket_count', 'created_at']
+        fields = ['id', 'name', 'description', 'category', 'category_display', 'is_active', 'ticket_count', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def get_ticket_count(self, obj):
@@ -66,7 +67,24 @@ class ProductMinimalSerializer(serializers.ModelSerializer):
     """Minimal product info for nested serialization"""
     class Meta:
         model = Product
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'category']
+
+
+class TicketProductItemSerializer(serializers.ModelSerializer):
+    """Serializer for ticket product items (Ads/Telegram multi-product)"""
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_category = serializers.CharField(source='product.category', read_only=True)
+
+    class Meta:
+        model = TicketProductItem
+        fields = ['id', 'product', 'product_name', 'product_category', 'quantity', 'criteria', 'created_at']
+        read_only_fields = ['id', 'product_name', 'product_category', 'criteria', 'created_at']
+
+
+class TicketProductItemCreateSerializer(serializers.Serializer):
+    """Serializer for creating product items within ticket creation"""
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    quantity = serializers.IntegerField(min_value=1, max_value=1000, default=1)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -212,6 +230,8 @@ class TicketListSerializer(serializers.ModelSerializer):
     attachment_count = serializers.SerializerMethodField()
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
     file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
+    criteria_display = serializers.CharField(source='get_criteria_display', read_only=True)
+    product_items = TicketProductItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Ticket
@@ -220,7 +240,7 @@ class TicketListSerializer(serializers.ModelSerializer):
                   'comment_count', 'attachment_count', 'ticket_product', 'target_department',
                   'product', 'department', 'is_deleted', 'deleted_at',
                   'request_type', 'request_type_display', 'file_format', 'file_format_display',
-                  'revision_count']
+                  'revision_count', 'quantity', 'criteria', 'criteria_display', 'product_items']
 
     def get_comment_count(self, obj):
         # Use annotated count if available, otherwise fallback to query
@@ -247,6 +267,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     deleted_by = UserMinimalSerializer(read_only=True)
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
     file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
+    criteria_display = serializers.CharField(source='get_criteria_display', read_only=True)
+    product_items = TicketProductItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Ticket
@@ -259,7 +281,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
                   'complexity', 'estimated_hours', 'actual_hours',
                   'is_deleted', 'deleted_at', 'deleted_by',
                   'request_type', 'request_type_display', 'file_format', 'file_format_display',
-                  'revision_count']
+                  'revision_count', 'quantity', 'criteria', 'criteria_display', 'product_items']
 
     def get_comments(self, obj):
         # Only return top-level comments (replies are nested within them)
@@ -269,27 +291,70 @@ class TicketDetailSerializer(serializers.ModelSerializer):
 
 class TicketCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating tickets"""
+    product_items = TicketProductItemCreateSerializer(many=True, required=False, write_only=True)
 
     class Meta:
         model = Ticket
         fields = ['id', 'title', 'description', 'priority', 'assigned_to',
                   'ticket_product', 'target_department', 'product', 'department',
-                  'complexity', 'estimated_hours', 'request_type', 'file_format']
+                  'complexity', 'estimated_hours', 'request_type', 'file_format',
+                  'quantity', 'criteria', 'product_items']
         read_only_fields = ['id']
 
     def validate(self, attrs):
-        # Validate file_format is only allowed for socmed_posting request type
         request_type = attrs.get('request_type', '')
         file_format = attrs.get('file_format', '')
+        product_items = attrs.get('product_items', [])
+        quantity = attrs.get('quantity', 1)
+
+        # Validate file_format is only allowed for socmed_posting request type
         if file_format and request_type != 'socmed_posting':
             raise serializers.ValidationError({
                 'file_format': 'File format is only applicable for Socmed Posting requests'
             })
+
+        # Validate quantity limit
+        if quantity > 1000:
+            raise serializers.ValidationError({
+                'quantity': 'Quantity cannot exceed 1000'
+            })
+
+        # For Ads/Telegram, product_items are required
+        if request_type in ['ads', 'telegram_channel']:
+            if not product_items:
+                raise serializers.ValidationError({
+                    'product_items': 'Product items are required for Ads and Telegram requests'
+                })
+            # Validate total quantity across product items
+            total_qty = sum(item.get('quantity', 1) for item in product_items)
+            if total_qty > 1000:
+                raise serializers.ValidationError({
+                    'product_items': 'Total quantity across all products cannot exceed 1000'
+                })
+
+        # Auto-set criteria based on request type and file format
+        if request_type == 'socmed_posting' and file_format:
+            if file_format in ['still', 'gif']:
+                attrs['criteria'] = 'image'
+            elif file_format in ['video_landscape', 'video_portrait']:
+                attrs['criteria'] = 'video'
+
         return attrs
 
     def create(self, validated_data):
+        product_items_data = validated_data.pop('product_items', [])
         validated_data['requester'] = self.context['request'].user
-        return super().create(validated_data)
+        ticket = super().create(validated_data)
+
+        # Create product items for Ads/Telegram requests
+        for item_data in product_items_data:
+            TicketProductItem.objects.create(
+                ticket=ticket,
+                product=item_data['product'],
+                quantity=item_data.get('quantity', 1)
+            )
+
+        return ticket
 
 
 class TicketUpdateSerializer(serializers.ModelSerializer):
@@ -301,7 +366,7 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
                   'ticket_product', 'target_department', 'product', 'department',
                   'complexity', 'estimated_hours', 'actual_hours',
                   'is_deleted', 'deleted_at', 'deleted_by',
-                  'request_type', 'file_format']
+                  'request_type', 'file_format', 'quantity', 'criteria']
 
 
 class RevisionRequestSerializer(serializers.Serializer):

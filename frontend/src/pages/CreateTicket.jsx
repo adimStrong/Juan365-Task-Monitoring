@@ -11,6 +11,8 @@ const REQUEST_TYPES = [
   { value: 'photoshoot', label: 'Photoshoot' },
   { value: 'videoshoot', label: 'Videoshoot' },
   { value: 'live_production', label: 'Live Production' },
+  { value: 'ads', label: 'Ads' },
+  { value: 'telegram_channel', label: 'Telegram Official Channel' },
 ];
 
 // File format options (only for Socmed Posting)
@@ -20,6 +22,18 @@ const FILE_FORMATS = [
   { value: 'video_landscape', label: 'Video (Landscape)' },
   { value: 'video_portrait', label: 'Video (Portrait)' },
 ];
+
+// Criteria options (for manual selection)
+const CRITERIA_OPTIONS = [
+  { value: 'image', label: 'Image' },
+  { value: 'video', label: 'Video' },
+];
+
+// Request types that require manual criteria selection
+const MANUAL_CRITERIA_TYPES = ['website_banner', 'photoshoot', 'videoshoot', 'live_production', 'telegram_channel'];
+
+// Request types that use product items (Ads, Telegram)
+const PRODUCT_ITEM_TYPES = ['ads', 'telegram_channel'];
 
 // Priority descriptions with auto-deadline info
 const PRIORITY_INFO = {
@@ -49,7 +63,10 @@ const CreateTicket = () => {
     target_department: '',
     request_type: '',
     file_format: '',
+    quantity: 1,
+    criteria: '',
   });
+  const [productItems, setProductItems] = useState([]);
 
   // Check if user has a department assigned
   const hasUserDepartment = !!user?.user_department;
@@ -67,10 +84,23 @@ const CreateTicket = () => {
     }
   }, [canSelectAnyDepartment, hasUserDepartment, user, formData.target_department]);
 
-  // Reset file_format when request_type changes away from socmed_posting
+  // Reset fields when request_type changes
   useEffect(() => {
+    // Reset file_format when not socmed_posting
     if (formData.request_type !== 'socmed_posting' && formData.file_format) {
       setFormData((prev) => ({ ...prev, file_format: '' }));
+    }
+    // Reset criteria when changing to type that doesn't need manual selection
+    if (!MANUAL_CRITERIA_TYPES.includes(formData.request_type) && formData.criteria) {
+      setFormData((prev) => ({ ...prev, criteria: '' }));
+    }
+    // Reset product_items when changing away from Ads/Telegram
+    if (!PRODUCT_ITEM_TYPES.includes(formData.request_type) && productItems.length > 0) {
+      setProductItems([]);
+    }
+    // Reset ticket_product when switching to Ads/Telegram
+    if (PRODUCT_ITEM_TYPES.includes(formData.request_type) && formData.ticket_product) {
+      setFormData((prev) => ({ ...prev, ticket_product: '' }));
     }
   }, [formData.request_type]);
 
@@ -142,6 +172,49 @@ const CreateTicket = () => {
     return '📎';
   };
 
+  // Filter products by category
+  const getProductsByCategory = (category) => {
+    return products.filter((p) => p.category === category);
+  };
+
+  // Get general products (for standard request types)
+  const generalProducts = products.filter((p) => p.category === 'general' || !p.category);
+  // Get Ads products
+  const adsProducts = getProductsByCategory('ads');
+  // Get Telegram products
+  const telegramProducts = getProductsByCategory('telegram');
+
+  // Product items handlers
+  const addProductItem = () => {
+    const availableProducts =
+      formData.request_type === 'ads' ? adsProducts : telegramProducts;
+    if (availableProducts.length === 0) return;
+    // Find first product not already added
+    const usedProductIds = productItems.map((item) => item.product);
+    const nextProduct = availableProducts.find((p) => !usedProductIds.includes(p.id));
+    if (nextProduct) {
+      setProductItems([...productItems, { product: nextProduct.id, quantity: 1 }]);
+    }
+  };
+
+  const removeProductItem = (index) => {
+    setProductItems(productItems.filter((_, i) => i !== index));
+  };
+
+  const updateProductItem = (index, field, value) => {
+    const updated = [...productItems];
+    updated[index][field] = field === 'quantity' ? Math.min(1000, Math.max(1, parseInt(value) || 1)) : value;
+    setProductItems(updated);
+  };
+
+  // Get available products for selection (exclude already added ones)
+  const getAvailableProducts = (currentProductId) => {
+    const categoryProducts =
+      formData.request_type === 'ads' ? adsProducts : telegramProducts;
+    const usedProductIds = productItems.map((item) => item.product);
+    return categoryProducts.filter((p) => p.id === currentProductId || !usedProductIds.includes(p.id));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -153,6 +226,14 @@ const CreateTicket = () => {
       if (!data.target_department) delete data.target_department;
       if (!data.request_type) delete data.request_type;
       if (!data.file_format) delete data.file_format;
+      if (!data.criteria) delete data.criteria;
+
+      // For Ads/Telegram, include product_items
+      if (PRODUCT_ITEM_TYPES.includes(formData.request_type) && productItems.length > 0) {
+        data.product_items = productItems;
+        // Don't send quantity for Ads/Telegram (it's per product item)
+        delete data.quantity;
+      }
 
       const response = await ticketsAPI.create(data);
       const ticketId = response.data.id;
@@ -347,26 +428,29 @@ const CreateTicket = () => {
               )}
             </div>
 
-            <div>
-              <label htmlFor="ticket_product" className="block text-sm font-medium text-gray-700 mb-1">
-                Product
-              </label>
-              <select
-                id="ticket_product"
-                name="ticket_product"
-                value={formData.ticket_product}
-                onChange={handleChange}
-                disabled={dropdownLoading}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
-              >
-                <option value="">{dropdownLoading ? 'Loading...' : 'Select Product'}</option>
-                {products.map((prod) => (
-                  <option key={prod.id} value={prod.id}>
-                    {prod.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Product dropdown - hide for Ads/Telegram */}
+            {!PRODUCT_ITEM_TYPES.includes(formData.request_type) && (
+              <div>
+                <label htmlFor="ticket_product" className="block text-sm font-medium text-gray-700 mb-1">
+                  Product
+                </label>
+                <select
+                  id="ticket_product"
+                  name="ticket_product"
+                  value={formData.ticket_product}
+                  onChange={handleChange}
+                  disabled={dropdownLoading}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                >
+                  <option value="">{dropdownLoading ? 'Loading...' : 'Select Product'}</option>
+                  {generalProducts.map((prod) => (
+                    <option key={prod.id} value={prod.id}>
+                      {prod.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Type of Request and File Format */}
@@ -413,7 +497,124 @@ const CreateTicket = () => {
                 </select>
               </div>
             )}
+
+            {/* Criteria - Manual selection for certain types */}
+            {MANUAL_CRITERIA_TYPES.includes(formData.request_type) && (
+              <div>
+                <label htmlFor="criteria" className="block text-sm font-medium text-gray-700 mb-1">
+                  Criteria (Image/Video)
+                </label>
+                <select
+                  id="criteria"
+                  name="criteria"
+                  value={formData.criteria}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select Criteria</option>
+                  {CRITERIA_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
+          {/* Quantity - Show for non-Ads/Telegram types */}
+          {formData.request_type && !PRODUCT_ITEM_TYPES.includes(formData.request_type) && (
+            <div>
+              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">
+                Quantity (max 1000)
+              </label>
+              <input
+                type="number"
+                id="quantity"
+                name="quantity"
+                min="1"
+                max="1000"
+                value={formData.quantity}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    quantity: Math.min(1000, Math.max(1, parseInt(e.target.value) || 1)),
+                  }))
+                }
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">Number of creatives needed for this request</p>
+            </div>
+          )}
+
+          {/* Product Items - For Ads and Telegram */}
+          {PRODUCT_ITEM_TYPES.includes(formData.request_type) && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  {formData.request_type === 'ads' ? 'Ads Products' : 'Telegram Products'}
+                </label>
+                <button
+                  type="button"
+                  onClick={addProductItem}
+                  disabled={
+                    (formData.request_type === 'ads' ? adsProducts : telegramProducts).length ===
+                    productItems.length
+                  }
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  + Add Product
+                </button>
+              </div>
+
+              {productItems.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  Click &quot;Add Product&quot; to add products to this request.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {productItems.map((item, index) => (
+                    <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-md border border-gray-200">
+                      <select
+                        value={item.product}
+                        onChange={(e) => updateProductItem(index, 'product', parseInt(e.target.value))}
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {getAvailableProducts(item.product).map((prod) => (
+                          <option key={prod.id} value={prod.id}>
+                            {prod.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">Qty:</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="1000"
+                          value={item.quantity}
+                          onChange={(e) => updateProductItem(index, 'quantity', e.target.value)}
+                          className="w-20 border border-gray-300 rounded-md px-2 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProductItem(index)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-500">
+                    Total quantity: {productItems.reduce((sum, item) => sum + item.quantity, 0)} / 1000 max
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Priority with auto-deadline info */}
           <div>

@@ -165,7 +165,7 @@ const Analytics = () => {
           </div>
         ) : analytics ? (
           <>
-            {/* Summary Cards */}
+            {/* Summary Cards - Row 1 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
@@ -206,6 +206,45 @@ const Analytics = () => {
                 </div>
               </div>
 
+              {/* NEW: Total Output */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Total Output</p>
+                    <p className="text-3xl font-bold text-indigo-600">{analytics.summary.total_quantity_produced || 0}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  Total creatives produced
+                </div>
+              </div>
+
+              {/* NEW: Avg Quantity per Ticket */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Avg Output/Ticket</p>
+                    <p className="text-3xl font-bold text-teal-600">{analytics.summary.avg_quantity_per_ticket || 0}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  Creatives per completed ticket
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Cards - Row 2 (Time metrics) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -313,6 +352,9 @@ const Analytics = () => {
                         Completed
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Output
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         In Progress
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -352,6 +394,9 @@ const Analytics = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
                           {user.completed}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-medium">
+                          {user.total_output || 0}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-yellow-600">
                           {user.in_progress}
                         </td>
@@ -372,7 +417,7 @@ const Analytics = () => {
                     ))}
                     {analytics.user_performance.filter(u => u.total_assigned > 0).length === 0 && (
                       <tr>
-                        <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                           No user performance data available
                         </td>
                       </tr>
@@ -393,7 +438,14 @@ const Analytics = () => {
                       <div key={stat.request_type}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">{stat.display_name}</span>
-                          <span className="text-sm text-gray-500">{stat.count} tickets</span>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-500">{stat.count} tickets</span>
+                            {stat.total_quantity > 0 && (
+                              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                                {stat.completed_quantity || 0} qty
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
@@ -469,6 +521,83 @@ const Analytics = () => {
                   <p className="text-gray-500 text-center py-8">No product data available</p>
                 )}
               </div>
+
+              {/* By Criteria (Image vs Video) */}
+              {analytics.by_criteria && analytics.by_criteria.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">By Criteria (Image vs Video)</h3>
+                  <div className="space-y-4">
+                    {analytics.by_criteria.map((stat) => (
+                      <div key={stat.criteria}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className={`w-3 h-3 rounded-full ${stat.criteria === 'image' ? 'bg-pink-500' : 'bg-blue-500'}`} />
+                            <span className="text-sm font-medium text-gray-700">{stat.display_name}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm text-gray-500">{stat.count} tickets</span>
+                            <span className="text-xs text-gray-400 ml-2">({stat.total_quantity || 0} qty)</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className={`h-3 rounded-full ${stat.criteria === 'image' ? 'bg-pink-500' : 'bg-blue-500'}`}
+                            style={{ width: `${(stat.count / analytics.summary.total_tickets) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>{stat.completed} completed</span>
+                          <span>{stat.completed_quantity || 0} qty completed</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Ads Product Output */}
+              {analytics.ads_product_output && analytics.ads_product_output.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Ads Product Output</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {analytics.ads_product_output.map((stat) => (
+                      <div key={stat.product_name} className="border border-orange-200 bg-orange-50 rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 text-sm truncate">{stat.product_name}</h4>
+                        <div className="mt-2 flex items-baseline space-x-2">
+                          <span className="text-2xl font-bold text-orange-600">{stat.total_quantity}</span>
+                          <span className="text-xs text-gray-500">total qty</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs">
+                          <span className="text-green-600">{stat.completed_quantity} completed</span>
+                          <span className="text-gray-500">{stat.ticket_count} tickets</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Telegram Product Output */}
+              {analytics.telegram_product_output && analytics.telegram_product_output.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Telegram Product Output</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {analytics.telegram_product_output.map((stat) => (
+                      <div key={stat.product_name} className="border border-sky-200 bg-sky-50 rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 text-sm truncate">{stat.product_name}</h4>
+                        <div className="mt-2 flex items-baseline space-x-2">
+                          <span className="text-2xl font-bold text-sky-600">{stat.total_quantity}</span>
+                          <span className="text-xs text-gray-500">total qty</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs">
+                          <span className="text-green-600">{stat.completed_quantity} completed</span>
+                          <span className="text-gray-500">{stat.ticket_count} tickets</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : null}

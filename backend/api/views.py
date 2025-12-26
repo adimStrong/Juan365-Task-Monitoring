@@ -1896,8 +1896,9 @@ class AnalyticsView(APIView):
     permission_classes = [IsManagerUser]
 
     def get(self, request):
-        from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField, Min, Max
+        from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField, Min, Max, Sum
         from django.db.models.functions import Coalesce
+        from .models import TicketProductItem
 
         # Get available date range (min/max dates with data)
         all_tickets = Ticket.objects.all()
@@ -1948,6 +1949,14 @@ class AnalyticsView(APIView):
             avg_approval_to_complete_seconds = sum(approval_times) / len(approval_times) if approval_times else 0
             avg_approval_to_complete_hours = round(avg_approval_to_complete_seconds / 3600, 1)
 
+            # Calculate total quantity output for user (from regular tickets + product items)
+            user_quantity = completed_tickets.aggregate(total=Sum('quantity'))['total'] or 0
+            # Add quantities from product_items for Ads/Telegram tickets
+            user_product_items_qty = TicketProductItem.objects.filter(
+                ticket__in=completed_tickets
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            total_user_output = user_quantity + user_product_items_qty
+
             user_stats.append({
                 'user_id': user.id,
                 'username': user.username,
@@ -1960,7 +1969,8 @@ class AnalyticsView(APIView):
                 'pending': user_tickets.filter(status__in=[Ticket.Status.REQUESTED, Ticket.Status.APPROVED]).count(),
                 'avg_processing_hours': avg_processing_hours,
                 'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
-                'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0
+                'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0,
+                'total_output': total_user_output,  # NEW: quantity output
             })
 
         # Sort by total assigned descending
@@ -2011,23 +2021,37 @@ class AnalyticsView(APIView):
         tickets_with_revisions = tickets.filter(revision_count__gt=0).count()
         revision_rate = round(tickets_with_revisions / total_tickets * 100, 1) if total_tickets > 0 else 0
 
-        # Request type breakdown
+        # Request type breakdown with quantity metrics
         request_type_stats = tickets.exclude(request_type='').values('request_type').annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-            avg_revisions=Avg('revision_count')
+            avg_revisions=Avg('revision_count'),
+            total_quantity=Sum('quantity'),  # NEW: total quantity
+            completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)),  # NEW
         ).order_by('-count')
 
-        # Map request_type values to display names
+        # Map request_type values to display names (including new types)
         request_type_display = {
             'socmed_posting': 'Socmed Posting',
             'website_banner': 'Website Banner (H5 & WEB)',
             'photoshoot': 'Photoshoot',
             'videoshoot': 'Videoshoot',
             'live_production': 'Live Production',
+            'ads': 'Ads',  # NEW
+            'telegram_channel': 'Telegram Official Channel',  # NEW
         }
         for stat in request_type_stats:
             stat['display_name'] = request_type_display.get(stat['request_type'], stat['request_type'])
+            # For Ads/Telegram, add product_items quantity
+            if stat['request_type'] in ['ads', 'telegram_channel']:
+                items_qty = TicketProductItem.objects.filter(
+                    ticket__in=tickets.filter(request_type=stat['request_type'])
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                completed_items_qty = TicketProductItem.objects.filter(
+                    ticket__in=tickets.filter(request_type=stat['request_type'], status=Ticket.Status.COMPLETED)
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                stat['total_quantity'] = items_qty
+                stat['completed_quantity'] = completed_items_qty
 
         # Time to acknowledge metrics
         acknowledge_times = []
@@ -2061,6 +2085,93 @@ class AnalyticsView(APIView):
                 'avg_processing_hours': avg_hours
             })
 
+        # =====================
+        # NEW: Quantity Metrics
+        # =====================
+        # Total quantity from regular tickets (completed)
+        completed_tickets = tickets.filter(status=Ticket.Status.COMPLETED)
+        regular_quantity = completed_tickets.aggregate(total=Sum('quantity'))['total'] or 0
+        # Add quantities from product_items for Ads/Telegram tickets
+        product_items_quantity = TicketProductItem.objects.filter(
+            ticket__in=completed_tickets
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        total_quantity_produced = regular_quantity + product_items_quantity
+        avg_quantity_per_ticket = round(total_quantity_produced / total_completed, 1) if total_completed > 0 else 0
+
+        # =====================
+        # NEW: Criteria Breakdown
+        # =====================
+        # Get criteria stats (for tickets with criteria set)
+        criteria_stats = list(tickets.exclude(criteria='').values('criteria').annotate(
+            count=Count('id'),
+            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+            total_quantity=Sum('quantity'),
+            completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED))
+        ).order_by('-count'))
+
+        # Add display names for criteria
+        criteria_display_names = {'image': 'Image', 'video': 'Video'}
+        for stat in criteria_stats:
+            stat['display_name'] = criteria_display_names.get(stat['criteria'], stat['criteria'].title())
+
+        # For old tickets without criteria, count them as "video" (default)
+        old_tickets_count = tickets.filter(criteria='').count()
+        old_tickets_completed = tickets.filter(criteria='', status=Ticket.Status.COMPLETED).count()
+        old_tickets_quantity = tickets.filter(criteria='').aggregate(total=Sum('quantity'))['total'] or 0
+        old_tickets_completed_qty = tickets.filter(criteria='', status=Ticket.Status.COMPLETED).aggregate(total=Sum('quantity'))['total'] or 0
+
+        if old_tickets_count > 0:
+            # Check if video already exists in criteria_stats
+            video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
+            if video_stat:
+                video_stat['count'] += old_tickets_count
+                video_stat['completed'] += old_tickets_completed
+                video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + old_tickets_quantity
+                video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + old_tickets_completed_qty
+            else:
+                criteria_stats.append({
+                    'criteria': 'video',
+                    'display_name': 'Video',
+                    'count': old_tickets_count,
+                    'completed': old_tickets_completed,
+                    'total_quantity': old_tickets_quantity,
+                    'completed_quantity': old_tickets_completed_qty
+                })
+
+        # =====================
+        # NEW: Product Items Breakdown (for Ads/Telegram)
+        # =====================
+        product_items_stats = list(TicketProductItem.objects.filter(
+            ticket__in=tickets
+        ).values('product__name', 'product__category').annotate(
+            ticket_count=Count('ticket', distinct=True),
+            total_quantity=Sum('quantity'),
+            completed_quantity=Sum(
+                'quantity',
+                filter=Q(ticket__status=Ticket.Status.COMPLETED)
+            )
+        ).order_by('-total_quantity'))
+
+        # Separate by category
+        ads_product_stats = [
+            {
+                'product_name': s['product__name'],
+                'ticket_count': s['ticket_count'],
+                'total_quantity': s['total_quantity'] or 0,
+                'completed_quantity': s['completed_quantity'] or 0
+            }
+            for s in product_items_stats if s['product__category'] == 'ads'
+        ]
+        telegram_product_stats = [
+            {
+                'product_name': s['product__name'],
+                'ticket_count': s['ticket_count'],
+                'total_quantity': s['total_quantity'] or 0,
+                'completed_quantity': s['completed_quantity'] or 0
+            }
+            for s in product_items_stats if s['product__category'] == 'telegram'
+        ]
+
         return Response({
             'date_range': {
                 'min_date': min_date,
@@ -2074,11 +2185,18 @@ class AnalyticsView(APIView):
                 'avg_acknowledge_hours': avg_acknowledge_hours,
                 'avg_acknowledge_minutes': avg_acknowledge_minutes,
                 'tickets_with_revisions': tickets_with_revisions,
-                'revision_rate': revision_rate
+                'revision_rate': revision_rate,
+                # NEW: Quantity metrics
+                'total_quantity_produced': total_quantity_produced,
+                'avg_quantity_per_ticket': avg_quantity_per_ticket,
             },
             'user_performance': user_stats,
             'by_product': list(product_stats),
             'by_department': list(department_stats),
             'by_request_type': list(request_type_stats),
-            'by_priority': priority_stats
+            'by_priority': priority_stats,
+            # NEW: Additional breakdowns
+            'by_criteria': criteria_stats,
+            'ads_product_output': ads_product_stats,
+            'telegram_product_output': telegram_product_stats,
         })

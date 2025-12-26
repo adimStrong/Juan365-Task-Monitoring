@@ -2134,7 +2134,10 @@ class AnalyticsView(APIView):
         # NEW: Criteria Breakdown
         # =====================
         # Get criteria stats (for tickets with criteria set)
-        criteria_stats = list(tickets.exclude(criteria='').values('criteria').annotate(
+        # EXCLUDE ads/telegram_channel as they use product_items instead of ticket.quantity
+        criteria_stats = list(tickets.exclude(criteria='').exclude(
+            request_type__in=['ads', 'telegram_channel']
+        ).values('criteria').annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
             total_quantity=Sum('quantity'),
@@ -2225,6 +2228,39 @@ class AnalyticsView(APIView):
                     'total_quantity': ads_image_qty,
                     'completed_quantity': ads_image_completed_qty
                 })
+
+        # Add Telegram product items to criteria
+        # Use product_item.criteria if set, otherwise fall back to ticket.criteria
+        telegram_items = TicketProductItem.objects.filter(
+            ticket__in=tickets.filter(request_type='telegram_channel')
+        ).select_related('ticket')
+
+        for criteria_val in ['image', 'video']:
+            # Items with explicit criteria OR items without criteria but ticket has this criteria
+            telegram_qty = sum(
+                item.quantity for item in telegram_items
+                if (item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val)
+            )
+            telegram_completed_qty = sum(
+                item.quantity for item in telegram_items
+                if ((item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val))
+                and item.ticket.status == Ticket.Status.COMPLETED
+            )
+
+            if telegram_qty > 0:
+                existing_stat = next((s for s in criteria_stats if s['criteria'] == criteria_val), None)
+                if existing_stat:
+                    existing_stat['total_quantity'] = (existing_stat['total_quantity'] or 0) + telegram_qty
+                    existing_stat['completed_quantity'] = (existing_stat['completed_quantity'] or 0) + telegram_completed_qty
+                else:
+                    criteria_stats.append({
+                        'criteria': criteria_val,
+                        'display_name': criteria_display_names.get(criteria_val, criteria_val.title()),
+                        'count': 0,
+                        'completed': 0,
+                        'total_quantity': telegram_qty,
+                        'completed_quantity': telegram_completed_qty
+                    })
 
         # =====================
         # NEW: Product Items Breakdown (for Ads/Telegram)

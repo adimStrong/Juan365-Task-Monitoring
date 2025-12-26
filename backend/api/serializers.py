@@ -230,7 +230,7 @@ class TicketListSerializer(serializers.ModelSerializer):
     attachment_count = serializers.SerializerMethodField()
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
     file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
-    criteria_display = serializers.CharField(source='get_criteria_display', read_only=True)
+    criteria_display = serializers.SerializerMethodField()
     product_items = TicketProductItemSerializer(many=True, read_only=True)
 
     class Meta:
@@ -250,6 +250,12 @@ class TicketListSerializer(serializers.ModelSerializer):
         # Use annotated count if available, otherwise fallback to query
         return getattr(obj, 'attachment_count_annotated', obj.attachments.count())
 
+    def get_criteria_display(self, obj):
+        # Default to "Video" for old tickets without criteria set
+        if obj.criteria:
+            return obj.get_criteria_display()
+        return 'Video'
+
 
 class TicketDetailSerializer(serializers.ModelSerializer):
     """Serializer for ticket detail view"""
@@ -267,7 +273,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     deleted_by = UserMinimalSerializer(read_only=True)
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
     file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
-    criteria_display = serializers.CharField(source='get_criteria_display', read_only=True)
+    criteria_display = serializers.SerializerMethodField()
     product_items = TicketProductItemSerializer(many=True, read_only=True)
 
     class Meta:
@@ -287,6 +293,12 @@ class TicketDetailSerializer(serializers.ModelSerializer):
         # Only return top-level comments (replies are nested within them)
         top_level_comments = obj.comments.filter(parent__isnull=True)
         return TicketCommentSerializer(top_level_comments, many=True).data
+
+    def get_criteria_display(self, obj):
+        # Default to "Video" for old tickets without criteria set
+        if obj.criteria:
+            return obj.get_criteria_display()
+        return 'Video'
 
 
 class TicketCreateSerializer(serializers.ModelSerializer):

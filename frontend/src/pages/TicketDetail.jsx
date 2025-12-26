@@ -781,13 +781,11 @@ const TicketDetail = () => {
                     <dd className="text-sm font-medium text-gray-900">{ticket.quantity}</dd>
                   </div>
                 )}
-                {/* Criteria */}
-                {ticket.criteria_display && (
-                  <div>
-                    <dt className="text-sm text-gray-500">Criteria</dt>
-                    <dd className="text-sm font-medium text-gray-900">{ticket.criteria_display}</dd>
-                  </div>
-                )}
+                {/* Criteria - defaults to Video for old tickets */}
+                <div>
+                  <dt className="text-sm text-gray-500">Criteria</dt>
+                  <dd className="text-sm font-medium text-gray-900">{ticket.criteria_display || 'Video'}</dd>
+                </div>
                 {/* Product Items - For Ads/Telegram with multiple products */}
                 {ticket.product_items && ticket.product_items.length > 0 && (
                   <div>

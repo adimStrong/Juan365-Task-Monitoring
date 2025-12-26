@@ -117,8 +117,8 @@ const TicketPreviewModal = ({ ticketId, onClose }) => {
                   #{ticket.id} - {ticket.title}
                 </h2>
 
-                {/* Quick Info */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                {/* Quick Info - Row 1 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                   <div>
                     <dt className="text-xs text-gray-500">Requester</dt>
                     <dd className="text-sm font-medium text-gray-900">
@@ -145,24 +145,81 @@ const TicketPreviewModal = ({ ticketId, onClose }) => {
                   </div>
                 </div>
 
-                {/* Request Type and File Format */}
-                {(ticket.request_type_display || ticket.file_format_display) && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {ticket.request_type_display && (
-                      <span className="px-2 py-1 text-xs bg-indigo-100 text-indigo-800 rounded">
-                        {ticket.request_type_display}
+                {/* Quick Info - Row 2: Department, Product, Quantity, Criteria */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                  <div>
+                    <dt className="text-xs text-gray-500">Department</dt>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {ticket.target_department?.name || ticket.department || '-'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Product</dt>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {ticket.ticket_product?.name || ticket.product || '-'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Quantity</dt>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {ticket.quantity || 1}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Criteria</dt>
+                    <dd className="text-sm font-medium text-gray-900">
+                      <span className={`inline-flex items-center ${
+                        ticket.criteria_display === 'Image' ? 'text-pink-600' : 'text-blue-600'
+                      }`}>
+                        {ticket.criteria_display === 'Image' ? (
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                        {ticket.criteria_display || 'Video'}
                       </span>
-                    )}
-                    {ticket.file_format_display && (
-                      <span className="px-2 py-1 text-xs bg-pink-100 text-pink-800 rounded">
-                        {ticket.file_format_display}
-                      </span>
-                    )}
-                    {ticket.revision_count > 0 && (
-                      <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded">
-                        {ticket.revision_count} revision{ticket.revision_count > 1 ? 's' : ''}
-                      </span>
-                    )}
+                    </dd>
+                  </div>
+                </div>
+
+                {/* Request Type and File Format Tags */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {ticket.request_type_display && (
+                    <span className="px-2 py-1 text-xs bg-indigo-100 text-indigo-800 rounded">
+                      {ticket.request_type_display}
+                    </span>
+                  )}
+                  {ticket.file_format_display && (
+                    <span className="px-2 py-1 text-xs bg-pink-100 text-pink-800 rounded">
+                      {ticket.file_format_display}
+                    </span>
+                  )}
+                  {ticket.revision_count > 0 && (
+                    <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded">
+                      {ticket.revision_count} revision{ticket.revision_count > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Product Items for Ads/Telegram */}
+                {ticket.product_items && ticket.product_items.length > 0 && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Products</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ticket.product_items.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-white p-2 rounded border text-sm">
+                          <span className="font-medium text-gray-900 truncate">{item.product_name}</span>
+                          <span className="text-gray-600 ml-2">x{item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      Total: {ticket.product_items.reduce((sum, item) => sum + item.quantity, 0)} items
+                    </div>
                   </div>
                 )}
 

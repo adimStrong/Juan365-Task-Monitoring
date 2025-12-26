@@ -372,6 +372,9 @@ const Analytics = () => {
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Avg Processing
                       </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Avg Ack Time
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -422,11 +425,20 @@ const Analytics = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
                           {formatHours(user.avg_processing_hours)}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600">
+                          {user.avg_acknowledge_minutes !== null && user.avg_acknowledge_minutes !== undefined
+                            ? user.avg_acknowledge_minutes < 1
+                              ? '< 1m'
+                              : user.avg_acknowledge_minutes < 60
+                                ? `${Math.round(user.avg_acknowledge_minutes)}m`
+                                : `${Math.round(user.avg_acknowledge_minutes / 60 * 10) / 10}h`
+                            : '-'}
+                        </td>
                       </tr>
                     ))}
                     {analytics.user_performance.filter(u => u.total_assigned > 0).length === 0 && (
                       <tr>
-                        <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
                           No user performance data available
                         </td>
                       </tr>

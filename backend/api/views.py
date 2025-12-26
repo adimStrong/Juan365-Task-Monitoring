@@ -1951,8 +1951,8 @@ class AnalyticsView(APIView):
                     delta = (t.completed_at - t.started_at).total_seconds()
                     processing_times.append(delta)
 
-            avg_processing_seconds = sum(processing_times) / len(processing_times) if processing_times else 0
-            avg_processing_hours = round(avg_processing_seconds / 3600, 1)
+            avg_processing_seconds = sum(processing_times) / len(processing_times) if processing_times else None
+            avg_processing_hours = round(avg_processing_seconds / 3600, 1) if avg_processing_seconds else None
 
             # Calculate average approval to completion time
             approval_times = []
@@ -1972,6 +1972,13 @@ class AnalyticsView(APIView):
             ).aggregate(total=Sum('quantity'))['total'] or 0
             total_user_output = user_quantity + user_product_items_qty
 
+            # Calculate average acknowledge time for user (time from assignment to start)
+            user_ack_times = []
+            for t in user_tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
+                if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
+                    user_ack_times.append(t.analytics.time_to_acknowledge)
+            avg_ack_minutes = round(sum(user_ack_times) / len(user_ack_times), 1) if user_ack_times else None
+
             user_stats.append({
                 'user_id': user.id,
                 'username': user.username,
@@ -1986,6 +1993,7 @@ class AnalyticsView(APIView):
                 'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
                 'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0,
                 'total_output': total_user_output,  # NEW: quantity output
+                'avg_acknowledge_minutes': avg_ack_minutes,  # NEW: avg acknowledge time
             })
 
         # Sort by total assigned descending
@@ -2030,7 +2038,7 @@ class AnalyticsView(APIView):
 
         overall_avg_processing_hours = round(
             (sum(all_processing_times) / len(all_processing_times) / 3600), 1
-        ) if all_processing_times else 0
+        ) if all_processing_times else None
 
         # Revision statistics
         tickets_with_revisions = tickets.filter(revision_count__gt=0).count()
@@ -2152,6 +2160,60 @@ class AnalyticsView(APIView):
                     'completed': old_tickets_completed,
                     'total_quantity': old_tickets_quantity,
                     'completed_quantity': old_tickets_completed_qty
+                })
+
+        # Add quantities from TicketProductItem (Ads) to criteria breakdown
+        # Ads products: VID = video, STATIC = image
+        product_items_for_criteria = TicketProductItem.objects.filter(ticket__in=tickets)
+
+        # Video from Ads (product name contains VID)
+        ads_video_qty = product_items_for_criteria.filter(
+            product__name__icontains='VID'
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        ads_video_completed_qty = product_items_for_criteria.filter(
+            product__name__icontains='VID',
+            ticket__status=Ticket.Status.COMPLETED
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        # Image from Ads (product name contains STATIC)
+        ads_image_qty = product_items_for_criteria.filter(
+            product__name__icontains='STATIC'
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        ads_image_completed_qty = product_items_for_criteria.filter(
+            product__name__icontains='STATIC',
+            ticket__status=Ticket.Status.COMPLETED
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        # Add Ads video quantities to video criteria
+        if ads_video_qty > 0:
+            video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
+            if video_stat:
+                video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + ads_video_qty
+                video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + ads_video_completed_qty
+            else:
+                criteria_stats.append({
+                    'criteria': 'video',
+                    'display_name': 'Video',
+                    'count': 0,
+                    'completed': 0,
+                    'total_quantity': ads_video_qty,
+                    'completed_quantity': ads_video_completed_qty
+                })
+
+        # Add Ads image quantities to image criteria
+        if ads_image_qty > 0:
+            image_stat = next((s for s in criteria_stats if s['criteria'] == 'image'), None)
+            if image_stat:
+                image_stat['total_quantity'] = (image_stat['total_quantity'] or 0) + ads_image_qty
+                image_stat['completed_quantity'] = (image_stat['completed_quantity'] or 0) + ads_image_completed_qty
+            else:
+                criteria_stats.append({
+                    'criteria': 'image',
+                    'display_name': 'Image',
+                    'count': 0,
+                    'completed': 0,
+                    'total_quantity': ads_image_qty,
+                    'completed_quantity': ads_image_completed_qty
                 })
 
         # =====================

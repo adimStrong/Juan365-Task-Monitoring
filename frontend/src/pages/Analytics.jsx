@@ -84,18 +84,33 @@ const Analytics = () => {
   };
 
   const formatHours = (hours) => {
+    // Format hours with detail: Xh Ym or Xm Ys
     if (hours === null || hours === undefined) return '-';
-    if (hours === 0) return '< 1m';
-    if (hours < 1) return `${Math.round(hours * 60)}m`;
-    return `${hours}h`;
+    const totalSeconds = Math.round(hours * 3600);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    if (totalSeconds < 3600) {
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
   };
 
   const formatSeconds = (seconds) => {
-    // Format seconds into human readable time (Xs, Xm, Xh)
+    // Format seconds with detail: Xh Ym or Xm Ys
     if (seconds === null || seconds === undefined) return '-';
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-    return `${Math.round(seconds / 3600 * 10) / 10}h`;
+    seconds = Math.round(seconds);
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
   };
 
   if (!isManager) {

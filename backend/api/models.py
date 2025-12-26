@@ -413,9 +413,9 @@ class TicketAnalytics(models.Model):
         if self.assigned_at and self.creative_approved_at:
             self.time_to_assignment = int((self.assigned_at - self.creative_approved_at).total_seconds() / 60)
 
-        # Time from assignment to acknowledgment (designer clicks "Start Editing")
+        # Time from assignment to acknowledgment (designer clicks "Start Editing") - stored in seconds
         if self.acknowledged_at and self.assigned_at:
-            self.time_to_acknowledge = int((self.acknowledged_at - self.assigned_at).total_seconds() / 60)
+            self.time_to_acknowledge = int((self.acknowledged_at - self.assigned_at).total_seconds())
 
         if self.started_at and self.assigned_at:
             self.time_to_start = int((self.started_at - self.assigned_at).total_seconds() / 60)

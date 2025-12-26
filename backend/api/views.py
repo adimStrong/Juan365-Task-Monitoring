@@ -1137,10 +1137,10 @@ class TicketViewSet(viewsets.ModelViewSet):
         if hasattr(ticket, 'analytics'):
             ticket.analytics.acknowledged_at = timezone.now()
             ticket.analytics.started_at = timezone.now()
-            # Calculate time from assignment to acknowledgment
+            # Calculate time from assignment to acknowledgment (in seconds for precision)
             if ticket.analytics.assigned_at:
                 ticket.analytics.time_to_acknowledge = int(
-                    (timezone.now() - ticket.analytics.assigned_at).total_seconds() / 60
+                    (timezone.now() - ticket.analytics.assigned_at).total_seconds()
                 )
             ticket.analytics.save()
 
@@ -1972,12 +1972,20 @@ class AnalyticsView(APIView):
             ).aggregate(total=Sum('quantity'))['total'] or 0
             total_user_output = user_quantity + user_product_items_qty
 
-            # Calculate average acknowledge time for user (time from assignment to start)
+            # Calculate average acknowledge time for user (time from assignment to start) - now in seconds
             user_ack_times = []
             for t in user_tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
                 if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
                     user_ack_times.append(t.analytics.time_to_acknowledge)
-            avg_ack_minutes = round(sum(user_ack_times) / len(user_ack_times), 1) if user_ack_times else None
+            avg_ack_seconds = round(sum(user_ack_times) / len(user_ack_times), 0) if user_ack_times else None
+
+            # Calculate assigned output (total quantity from all assigned tickets)
+            assigned_quantity = user_tickets.aggregate(total=Sum('quantity'))['total'] or 0
+            # Add quantities from product_items for assigned Ads/Telegram tickets
+            assigned_product_items_qty = TicketProductItem.objects.filter(
+                ticket__in=user_tickets
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            total_assigned_output = assigned_quantity + assigned_product_items_qty
 
             user_stats.append({
                 'user_id': user.id,
@@ -1986,14 +1994,15 @@ class AnalyticsView(APIView):
                 'role': user.role,
                 'department': user.user_department.name if user.user_department else user.department,
                 'total_assigned': user_tickets.count(),
+                'assigned_output': total_assigned_output,  # NEW: assigned quantity output
                 'completed': completed_tickets.count(),
                 'in_progress': user_tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
                 'pending': user_tickets.filter(status__in=[Ticket.Status.REQUESTED, Ticket.Status.APPROVED]).count(),
                 'avg_processing_hours': avg_processing_hours,
                 'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
                 'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0,
-                'total_output': total_user_output,  # NEW: quantity output
-                'avg_acknowledge_minutes': avg_ack_minutes,  # NEW: avg acknowledge time
+                'total_output': total_user_output,  # Completed quantity output
+                'avg_acknowledge_seconds': avg_ack_seconds,  # NOW in seconds
             })
 
         # Sort by total assigned descending
@@ -2076,15 +2085,14 @@ class AnalyticsView(APIView):
                 stat['total_quantity'] = items_qty
                 stat['completed_quantity'] = completed_items_qty
 
-        # Time to acknowledge metrics
+        # Time to acknowledge metrics (now in seconds)
         acknowledge_times = []
         for t in tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
             # Check if analytics exists and time_to_acknowledge is set (including 0)
             if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
                 acknowledge_times.append(t.analytics.time_to_acknowledge)
 
-        avg_acknowledge_minutes = round(sum(acknowledge_times) / len(acknowledge_times), 1) if acknowledge_times else 0
-        avg_acknowledge_hours = round(avg_acknowledge_minutes / 60, 2)
+        avg_acknowledge_seconds = round(sum(acknowledge_times) / len(acknowledge_times), 0) if acknowledge_times else None
 
         # Priority breakdown with processing times
         priority_stats = []
@@ -2260,8 +2268,7 @@ class AnalyticsView(APIView):
                 'completed_tickets': total_completed,
                 'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
                 'avg_processing_hours': overall_avg_processing_hours,
-                'avg_acknowledge_hours': avg_acknowledge_hours,
-                'avg_acknowledge_minutes': avg_acknowledge_minutes,
+                'avg_acknowledge_seconds': avg_acknowledge_seconds,  # Now in seconds for precision
                 'tickets_with_revisions': tickets_with_revisions,
                 'revision_rate': revision_rate,
                 # NEW: Quantity metrics

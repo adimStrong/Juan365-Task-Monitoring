@@ -90,12 +90,12 @@ const Analytics = () => {
     return `${hours}h`;
   };
 
-  const formatAcknowledgeTime = (hours, minutes) => {
-    // Use minutes for more precision on acknowledge time
-    if (minutes === null || minutes === undefined) return '-';
-    if (minutes === 0) return '< 1m';
-    if (minutes < 60) return `${Math.round(minutes)}m`;
-    return `${hours}h`;
+  const formatSeconds = (seconds) => {
+    // Format seconds into human readable time (Xs, Xm, Xh)
+    if (seconds === null || seconds === undefined) return '-';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds / 3600 * 10) / 10}h`;
   };
 
   if (!isManager) {
@@ -275,7 +275,7 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Avg Acknowledge Time</p>
-                    <p className="text-3xl font-bold text-orange-600">{formatAcknowledgeTime(analytics.summary.avg_acknowledge_hours, analytics.summary.avg_acknowledge_minutes)}</p>
+                    <p className="text-3xl font-bold text-orange-600">{formatSeconds(analytics.summary.avg_acknowledge_seconds)}</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,6 +358,9 @@ const Analytics = () => {
                         Assigned
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Assigned Qty
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Completed
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -403,6 +406,9 @@ const Analytics = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
                           {user.total_assigned}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600">
+                          {user.assigned_output || 0}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
                           {user.completed}
                         </td>
@@ -426,19 +432,13 @@ const Analytics = () => {
                           {formatHours(user.avg_processing_hours)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600">
-                          {user.avg_acknowledge_minutes !== null && user.avg_acknowledge_minutes !== undefined
-                            ? user.avg_acknowledge_minutes < 1
-                              ? '< 1m'
-                              : user.avg_acknowledge_minutes < 60
-                                ? `${Math.round(user.avg_acknowledge_minutes)}m`
-                                : `${Math.round(user.avg_acknowledge_minutes / 60 * 10) / 10}h`
-                            : '-'}
+                          {formatSeconds(user.avg_acknowledge_seconds)}
                         </td>
                       </tr>
                     ))}
                     {analytics.user_performance.filter(u => u.total_assigned > 0).length === 0 && (
                       <tr>
-                        <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
                           No user performance data available
                         </td>
                       </tr>
@@ -461,11 +461,9 @@ const Analytics = () => {
                           <span className="text-sm font-medium text-gray-700">{stat.display_name}</span>
                           <div className="flex items-center space-x-2">
                             <span className="text-sm text-gray-500">{stat.count} tickets</span>
-                            {stat.total_quantity > 0 && (
-                              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                                {stat.completed_quantity || 0} qty
-                              </span>
-                            )}
+                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                              {stat.total_quantity || 0} qty
+                            </span>
                           </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">

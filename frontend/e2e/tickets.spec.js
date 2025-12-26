@@ -3,28 +3,14 @@
  * Tests for ticket management workflows
  */
 import { test, expect } from '@playwright/test';
-
-// Test credentials
-const ADMIN_USER = { username: 'admin', password: 'admin123' };
-
-// Helper function to login
-async function login(page, username, password) {
-  await page.goto('/login', { waitUntil: 'networkidle' });
-  await page.fill('input[name="username"], input[placeholder*="username" i]', username);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Sign in")');
-  // Wait for navigation away from login page
-  await page.waitForURL(/^(?!.*\/login).*$/, { timeout: 20000 });
-  // Wait for dashboard to fully load - wait for Welcome heading or any main content
-  await page.waitForLoadState('networkidle');
-  await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
-}
+import { ADMIN_USER, login } from './fixtures/auth.fixture.js';
 
 test.describe('Ticket Management', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
   });
 
   test('E2E-TICKET-001: Create ticket and verify in list', async ({ page }) => {
@@ -189,8 +175,9 @@ test.describe('Ticket Management', () => {
 test.describe('Ticket Workflow', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
   });
 
   test('E2E-TICKET-007: Complete ticket workflow', async ({ page }) => {

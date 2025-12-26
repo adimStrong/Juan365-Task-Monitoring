@@ -67,7 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: backend  # Run after backend tests pass
-    continue-on-error: true  # Don't fail the build if E2E tests fail
+
+    env:
+      BASE_URL: https://juan365-ticketing-frontend.vercel.app
 
     steps:
       - uses: actions/checkout@v4
@@ -87,11 +89,29 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Wait for Vercel deployment
+        run: |
+          echo "Waiting for $BASE_URL to be ready..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Vercel is ready (attempt $i)"
+              exit 0
+            fi
+            echo "⏳ Waiting for Vercel... attempt $i (status: $STATUS)"
+            sleep 10
+          done
+          echo "⚠️ Vercel health check timed out, proceeding anyway..."
+
+      - name: Create auth directory
+        working-directory: frontend
+        run: mkdir -p playwright/.auth
+
       - name: Run E2E tests
         working-directory: frontend
-        run: npx playwright test --project=chromium --retries=2
+        run: npx playwright test --project=chromium --retries=3
         env:
-          BASE_URL: https://juan365-ticketing-frontend.vercel.app
+          BASE_URL: ${{ env.BASE_URL }}
           CI: true
 
       - name: Upload report
@@ -100,6 +120,14 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: frontend/test-results/
           retention-days: 7
 
   notify:

@@ -14,14 +14,16 @@ export default defineConfig({
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: isCI,
-  /* Retry failed tests - more retries in CI */
-  retries: isCI ? 2 : 1,
+  /* Retry failed tests - 3 retries in CI for production URL reliability */
+  retries: isCI ? 3 : 1,
   /* Use 1 worker in CI for stability, 2 locally for speed */
   workers: isCI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
     ['html', { outputFolder: 'playwright-report' }],
-    ['list']
+    ['list'],
+    // JUnit reporter for CI integration
+    ...(isCI ? [['junit', { outputFile: 'test-results/results.xml' }]] : []),
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
@@ -35,7 +37,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
 
     /* Video on failure */
-    video: 'on-first-retry',
+    video: 'retain-on-failure',
 
     /* Action timeout for clicks, fills, etc - longer in CI */
     actionTimeout: isCI ? 30000 : 15000,
@@ -46,22 +48,56 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    // Auth setup - runs before tests to create authenticated state
+    {
+      name: 'setup',
+      testMatch: /global\.setup\.js/,
+    },
+    // Auth tests need to start fresh (no stored state)
+    {
+      name: 'chromium-auth',
+      testMatch: /auth\.spec\.js/,
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    // Other tests use persisted auth state
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /auth\.spec\.js/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      testIgnore: /auth\.spec\.js/,
+      use: {
+        ...devices['Desktop Firefox'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      testIgnore: /auth\.spec\.js/,
+      use: {
+        ...devices['Desktop Safari'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     /* Test against mobile viewports. */
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      testIgnore: /auth\.spec\.js/,
+      use: {
+        ...devices['Pixel 5'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
   ],
 

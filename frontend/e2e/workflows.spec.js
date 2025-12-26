@@ -3,36 +3,23 @@
  * Tests for end-to-end user workflows
  */
 import { test, expect } from '@playwright/test';
-
-// Test credentials
-const ADMIN_USER = { username: 'admin', password: 'admin123' };
-
-// Helper function to login
-async function login(page, username, password) {
-  await page.goto('/login', { waitUntil: 'networkidle' });
-  await page.fill('input[name="username"], input[placeholder*="username" i]', username);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Sign in")');
-  // Wait for navigation away from login page
-  await page.waitForURL(/^(?!.*\/login).*$/, { timeout: 20000 });
-  // Wait for dashboard to fully load - wait for Welcome heading or any main content
-  await page.waitForLoadState('networkidle');
-  await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
-}
+import { ADMIN_USER, login } from './fixtures/auth.fixture.js';
 
 test.describe('Dashboard & Navigation', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
   });
 
   test('E2E-NAV-001: Dashboard loads with correct stats', async ({ page }) => {
     // Verify dashboard elements - heading "Welcome back, admin!"
-    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
 
-    // Check stats cards
-    await expect(page.locator('text=/Total Tickets/i').first()).toBeVisible({ timeout: 5000 });
+    // Check stats cards using data-testid with fallback to text selector
+    const statCard = page.locator('[data-testid="stat-total"], :text("Total")').first();
+    await expect(statCard).toBeVisible({ timeout: 10000 });
   });
 
   test('E2E-NAV-002: Navigation between all pages', async ({ page }) => {
@@ -117,8 +104,9 @@ test.describe('Dashboard & Navigation', () => {
 test.describe('Complete User Journey', () => {
 
   test('Full ticket lifecycle as admin', async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
 
     // 1. Create ticket - button is "+ Create New Ticket" on dashboard
     const createTicketBtn = page.locator('a:has-text("Create New Ticket")');
@@ -178,8 +166,9 @@ test.describe('Complete User Journey', () => {
 test.describe('Error Handling', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
   });
 
   test('Non-existent page redirects to dashboard or 404', async ({ page }) => {
@@ -207,11 +196,11 @@ test.describe('Responsive Design', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
 
-    // Login
-    await page.context().clearCookies();
-    await login(page, ADMIN_USER.username, ADMIN_USER.password);
+    // Tests use storageState for auth, just navigate to dashboard
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForLoadState('networkidle');
 
     // Dashboard should load - heading "Welcome back, admin!"
-    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
   });
 });

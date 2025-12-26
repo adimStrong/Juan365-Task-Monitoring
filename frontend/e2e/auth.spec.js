@@ -3,22 +3,7 @@
  * Tests for login, registration, and logout flows
  */
 import { test, expect } from '@playwright/test';
-
-// Test credentials
-const ADMIN_USER = { username: 'admin', password: 'admin123' };
-
-// Helper function to login
-async function login(page, username, password) {
-  await page.goto('/login', { waitUntil: 'networkidle' });
-  await page.fill('input[name="username"], input[placeholder*="username" i]', username);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Sign in")');
-  // Wait for navigation away from login page
-  await page.waitForURL(/^(?!.*\/login).*$/, { timeout: 20000 });
-  // Wait for dashboard to fully load - wait for Welcome heading or any main content
-  await page.waitForLoadState('networkidle');
-  await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
-}
+import { ADMIN_USER, login, logout } from './fixtures/auth.fixture.js';
 
 test.describe('Authentication Flow', () => {
 
@@ -29,30 +14,34 @@ test.describe('Authentication Flow', () => {
   });
 
   test('E2E-AUTH-001: Login with valid credentials', async ({ page }) => {
-    // Fill login form
-    await page.fill('input[name="username"], input[placeholder*="username" i]', ADMIN_USER.username);
-    await page.fill('input[type="password"]', ADMIN_USER.password);
+    // Fill login form using data-testid selectors
+    const usernameInput = page.locator('[data-testid="input-username"], input[name="username"]');
+    const passwordInput = page.locator('[data-testid="input-password"], input[type="password"]');
+    const loginBtn = page.locator('[data-testid="btn-login"], button:has-text("Sign in")');
 
-    // Submit form
-    await page.click('button:has-text("Sign in")');
+    await usernameInput.fill(ADMIN_USER.username);
+    await passwordInput.fill(ADMIN_USER.password);
+    await loginBtn.click();
 
     // Wait for redirect to dashboard (URL should not contain /login)
-    await page.waitForURL(/^(?!.*\/login).*$/, { timeout: 10000 });
+    await page.waitForURL(/^(?!.*\/login).*$/, { timeout: 20000 });
 
     // Verify on dashboard - heading "Welcome back, admin!"
-    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible({ timeout: 15000 });
   });
 
   test('E2E-AUTH-002: Login error for invalid credentials', async ({ page }) => {
     // Fill login form with invalid credentials
-    await page.fill('input[name="username"], input[placeholder*="username" i]', 'wronguser');
-    await page.fill('input[type="password"]', 'wrongpassword');
+    const usernameInput = page.locator('[data-testid="input-username"], input[name="username"]');
+    const passwordInput = page.locator('[data-testid="input-password"], input[type="password"]');
+    const loginBtn = page.locator('[data-testid="btn-login"], button:has-text("Sign in")');
 
-    // Submit form
-    await page.click('button:has-text("Sign in")');
+    await usernameInput.fill('wronguser');
+    await passwordInput.fill('wrongpassword');
+    await loginBtn.click();
 
     // Should show error message and stay on login page
-    await expect(page.locator('text=/invalid|incorrect|error|failed/i').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/invalid|incorrect|error|failed/i').first()).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/login/);
   });
 

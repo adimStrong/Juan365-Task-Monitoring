@@ -8,8 +8,8 @@ import {
   LineChart, Line, Legend, ResponsiveContainer
 } from 'recharts';
 
-const StatCard = ({ title, value, color, icon }) => (
-  <div className="bg-white overflow-hidden shadow rounded-lg">
+const StatCard = ({ title, value, color, icon, testId }) => (
+  <div className="bg-white overflow-hidden shadow rounded-lg" data-testid={testId}>
     <div className="p-3 sm:p-4">
       <div className="flex items-center">
         <div className={`flex-shrink-0 ${color} rounded-md p-2 sm:p-3`}>
@@ -18,7 +18,7 @@ const StatCard = ({ title, value, color, icon }) => (
         <div className="ml-3 sm:ml-4 flex-1 min-w-0">
           <dl>
             <dt className="text-xs sm:text-sm font-medium text-gray-500 truncate">{title}</dt>
-            <dd className="text-lg sm:text-2xl font-semibold text-gray-900">{value}</dd>
+            <dd className="text-lg sm:text-2xl font-semibold text-gray-900" data-testid={testId ? `${testId}-value` : undefined}>{value}</dd>
           </dl>
         </div>
       </div>
@@ -121,48 +121,56 @@ const Dashboard = () => {
             title="Total"
             value={stats?.total_tickets || 0}
             color="bg-blue-500"
+            testId="stat-total"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
           />
           <StatCard
             title="Dept Approval"
             value={stats?.pending_approval || 0}
             color="bg-indigo-500"
+            testId="stat-dept-approval"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             title="Creative Approval"
             value={stats?.pending_creative || 0}
             color="bg-purple-500"
+            testId="stat-creative-approval"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>}
           />
           <StatCard
             title="Approved"
             value={stats?.approved || 0}
             color="bg-cyan-500"
+            testId="stat-approved"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             title="In Progress"
             value={stats?.in_progress || 0}
             color="bg-yellow-500"
+            testId="stat-in-progress"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
           />
           <StatCard
             title="Completed"
             value={stats?.completed || 0}
             color="bg-green-500"
+            testId="stat-completed"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
           />
           <StatCard
             title="Rejected"
             value={stats?.rejected || 0}
             color="bg-gray-500"
+            testId="stat-rejected"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>}
           />
           <StatCard
             title="Overdue"
             value={stats?.overdue || 0}
             color="bg-red-500"
+            testId="stat-overdue"
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}
           />
         </div>

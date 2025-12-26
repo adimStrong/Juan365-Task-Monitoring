@@ -14,6 +14,7 @@ import ActivityLog from './pages/ActivityLog';
 import Users from './pages/Users';
 import Admin from './pages/Admin';
 import Trash from './pages/Trash';
+import Analytics from './pages/Analytics';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -157,6 +158,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Trash />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics />
           </ProtectedRoute>
         }
       />

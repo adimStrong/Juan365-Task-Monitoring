@@ -208,16 +208,24 @@ class TicketListSerializer(serializers.ModelSerializer):
     target_department = DepartmentMinimalSerializer(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     comment_count = serializers.SerializerMethodField()
+    attachment_count = serializers.SerializerMethodField()
+    request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
+    file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
 
     class Meta:
         model = Ticket
         fields = ['id', 'title', 'requester', 'assigned_to', 'pending_approver',
                   'status', 'priority', 'deadline', 'created_at', 'is_overdue',
-                  'comment_count', 'ticket_product', 'target_department',
-                  'product', 'department', 'is_deleted', 'deleted_at']
+                  'comment_count', 'attachment_count', 'ticket_product', 'target_department',
+                  'product', 'department', 'is_deleted', 'deleted_at',
+                  'request_type', 'request_type_display', 'file_format', 'file_format_display',
+                  'revision_count']
 
     def get_comment_count(self, obj):
         return obj.comments.count()
+
+    def get_attachment_count(self, obj):
+        return obj.attachments.count()
 
 
 class TicketDetailSerializer(serializers.ModelSerializer):
@@ -234,6 +242,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     is_overdue = serializers.BooleanField(read_only=True)
     is_idle = serializers.BooleanField(read_only=True)
     deleted_by = UserMinimalSerializer(read_only=True)
+    request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
+    file_format_display = serializers.CharField(source='get_file_format_display', read_only=True)
 
     class Meta:
         model = Ticket
@@ -244,7 +254,9 @@ class TicketDetailSerializer(serializers.ModelSerializer):
                   'approved_at', 'rejected_at', 'assigned_at', 'started_at', 'completed_at',
                   'ticket_product', 'target_department', 'product', 'department',
                   'complexity', 'estimated_hours', 'actual_hours',
-                  'is_deleted', 'deleted_at', 'deleted_by']
+                  'is_deleted', 'deleted_at', 'deleted_by',
+                  'request_type', 'request_type_display', 'file_format', 'file_format_display',
+                  'revision_count']
 
     def get_comments(self, obj):
         # Only return top-level comments (replies are nested within them)
@@ -257,10 +269,20 @@ class TicketCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ['id', 'title', 'description', 'priority', 'deadline', 'assigned_to',
+        fields = ['id', 'title', 'description', 'priority', 'assigned_to',
                   'ticket_product', 'target_department', 'product', 'department',
-                  'complexity', 'estimated_hours']
+                  'complexity', 'estimated_hours', 'request_type', 'file_format']
         read_only_fields = ['id']
+
+    def validate(self, attrs):
+        # Validate file_format is only allowed for socmed_posting request type
+        request_type = attrs.get('request_type', '')
+        file_format = attrs.get('file_format', '')
+        if file_format and request_type != 'socmed_posting':
+            raise serializers.ValidationError({
+                'file_format': 'File format is only applicable for Socmed Posting requests'
+            })
+        return attrs
 
     def create(self, validated_data):
         validated_data['requester'] = self.context['request'].user
@@ -272,10 +294,16 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'priority', 'deadline', 'assigned_to',
+        fields = ['title', 'description', 'priority', 'assigned_to',
                   'ticket_product', 'target_department', 'product', 'department',
                   'complexity', 'estimated_hours', 'actual_hours',
-                  'is_deleted', 'deleted_at', 'deleted_by']
+                  'is_deleted', 'deleted_at', 'deleted_by',
+                  'request_type', 'file_format']
+
+
+class RevisionRequestSerializer(serializers.Serializer):
+    """Serializer for requesting revision on a ticket"""
+    revision_comments = serializers.CharField(required=True, min_length=1)
 
 
 class TicketAssignSerializer(serializers.Serializer):

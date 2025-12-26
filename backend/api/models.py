@@ -116,6 +116,19 @@ class Ticket(models.Model):
         HIGH = 'high', 'High'
         URGENT = 'urgent', 'Urgent'
 
+    class RequestType(models.TextChoices):
+        SOCMED_POSTING = 'socmed_posting', 'Socmed Posting'
+        WEBSITE_BANNER = 'website_banner', 'Website Banner (H5 & WEB)'
+        PHOTOSHOOT = 'photoshoot', 'Photoshoot'
+        VIDEOSHOOT = 'videoshoot', 'Videoshoot'
+        LIVE_PRODUCTION = 'live_production', 'Live Production'
+
+    class FileFormat(models.TextChoices):
+        STILL = 'still', 'Still'
+        GIF = 'gif', 'Gif'
+        VIDEO_LANDSCAPE = 'video_landscape', 'Video (Landscape)'
+        VIDEO_PORTRAIT = 'video_portrait', 'Video (Portrait)'
+
     title = models.CharField(max_length=200)
     description = models.TextField()
 
@@ -238,6 +251,23 @@ class Ticket(models.Model):
     last_rollback_at = models.DateTimeField(null=True, blank=True, help_text='Last time this ticket was rolled back')
     rollback_count = models.IntegerField(default=0, help_text='Number of times this ticket has been rolled back')
 
+    # New fields for request type and file format
+    request_type = models.CharField(
+        max_length=50,
+        choices=RequestType.choices,
+        blank=True,
+        help_text='Type of creative request'
+    )
+    file_format = models.CharField(
+        max_length=50,
+        choices=FileFormat.choices,
+        blank=True,
+        help_text='File format (only for Socmed Posting)'
+    )
+
+    # Revision tracking
+    revision_count = models.IntegerField(default=0, help_text='Number of revision requests')
+
     class Meta:
         ordering = ['-created_at']
 
@@ -272,6 +302,7 @@ class TicketAnalytics(models.Model):
     dept_approved_at = models.DateTimeField(null=True, blank=True, help_text='When dept manager approved')
     creative_approved_at = models.DateTimeField(null=True, blank=True, help_text='When creative approved')
     assigned_at = models.DateTimeField(null=True, blank=True, help_text='When ticket was assigned')
+    acknowledged_at = models.DateTimeField(null=True, blank=True, help_text='When designer acknowledged/started editing')
     started_at = models.DateTimeField(null=True, blank=True, help_text='When work started')
     completed_at = models.DateTimeField(null=True, blank=True, help_text='When work completed')
     confirmed_at = models.DateTimeField(null=True, blank=True, help_text='When requester confirmed')
@@ -284,6 +315,7 @@ class TicketAnalytics(models.Model):
     time_to_dept_approval = models.IntegerField(null=True, blank=True, help_text='Minutes from creation to dept approval')
     time_to_creative_approval = models.IntegerField(null=True, blank=True, help_text='Minutes from dept approval to creative approval')
     time_to_assignment = models.IntegerField(null=True, blank=True, help_text='Minutes from creative approval to assignment')
+    time_to_acknowledge = models.IntegerField(null=True, blank=True, help_text='Minutes from assignment to acknowledgment')
     time_to_start = models.IntegerField(null=True, blank=True, help_text='Minutes from assignment to start')
     time_to_complete = models.IntegerField(null=True, blank=True, help_text='Minutes from start to completion')
     total_cycle_time = models.IntegerField(null=True, blank=True, help_text='Total minutes from creation to confirmation')
@@ -307,6 +339,10 @@ class TicketAnalytics(models.Model):
 
         if self.assigned_at and self.creative_approved_at:
             self.time_to_assignment = int((self.assigned_at - self.creative_approved_at).total_seconds() / 60)
+
+        # Time from assignment to acknowledgment (designer clicks "Start Editing")
+        if self.acknowledged_at and self.assigned_at:
+            self.time_to_acknowledge = int((self.acknowledged_at - self.assigned_at).total_seconds() / 60)
 
         if self.started_at and self.assigned_at:
             self.time_to_start = int((self.started_at - self.assigned_at).total_seconds() / 60)
@@ -454,6 +490,7 @@ class ActivityLog(models.Model):
         STARTED = 'started', 'Started'
         COMPLETED = 'completed', 'Completed'
         CONFIRMED = 'confirmed', 'Confirmed by Requester'
+        REVISION_REQUESTED = 'revision_requested', 'Revision Requested'
         COMMENTED = 'commented', 'Commented'
         DELETED = 'deleted', 'Deleted'
         ROLLBACK = 'rollback', 'Rolled Back'

@@ -32,6 +32,8 @@ const TicketDetail = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [rollbackLoading, setRollbackLoading] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionComments, setRevisionComments] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -265,6 +267,25 @@ const TicketDetail = () => {
     }
   };
 
+  const handleRequestRevision = async () => {
+    if (!revisionComments.trim()) {
+      toast.error('Please provide revision comments');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await ticketsAPI.requestRevision(id, revisionComments);
+      setTicket(response.data);
+      setShowRevisionModal(false);
+      setRevisionComments('');
+      toast.success('Revision requested successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to request revision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getPriorityColor = (priority) => {
     const colors = {
       urgent: 'bg-red-100 text-red-800',
@@ -324,6 +345,11 @@ const TicketDetail = () => {
   const canConfirm = ticket.requester?.id === user?.id &&
                      ticket.status === 'completed' &&
                      !ticket.confirmed_by_requester;
+  // Can request revision: requester or collaborator, ticket is completed, not yet confirmed
+  const isCollaborator = ticket.collaborators?.some(c => c.user?.id === user?.id);
+  const canRequestRevision = (ticket.requester?.id === user?.id || isCollaborator || isManager) &&
+                             ticket.status === 'completed' &&
+                             !ticket.confirmed_by_requester;
 
   return (
     <Layout>
@@ -414,7 +440,7 @@ const TicketDetail = () => {
                   disabled={actionLoading}
                   className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
                 >
-                  Start Work
+                  Start Editing
                 </button>
               )}
               {canComplete && (
@@ -433,6 +459,15 @@ const TicketDetail = () => {
                   className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
                 >
                   Confirm Completion
+                </button>
+              )}
+              {canRequestRevision && (
+                <button
+                  onClick={() => setShowRevisionModal(true)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                >
+                  Request Revision
                 </button>
               )}
               {isManager && ticket.status !== 'completed' && (
@@ -679,10 +714,32 @@ const TicketDetail = () => {
                     {ticket.approver?.first_name || ticket.approver?.username || '-'}
                   </dd>
                 </div>
+                {ticket.request_type_display && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Request Type</dt>
+                    <dd className="text-sm font-medium text-gray-900">{ticket.request_type_display}</dd>
+                  </div>
+                )}
+                {ticket.file_format_display && (
+                  <div>
+                    <dt className="text-sm text-gray-500">File Format</dt>
+                    <dd className="text-sm font-medium text-gray-900">{ticket.file_format_display}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Deadline</dt>
-                  <dd className="text-sm font-medium text-gray-900">{formatDate(ticket.deadline)}</dd>
+                  <dd className={`text-sm font-medium ${ticket.is_overdue ? 'text-red-600' : 'text-gray-900'}`}>
+                    {ticket.deadline ? formatDate(ticket.deadline) : 'Set on assignment'}
+                  </dd>
                 </div>
+                {ticket.revision_count > 0 && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Revisions</dt>
+                    <dd className="text-sm font-medium text-orange-600">
+                      {ticket.revision_count} revision{ticket.revision_count > 1 ? 's' : ''} requested
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Created</dt>
                   <dd className="text-sm font-medium text-gray-900">{formatDate(ticket.created_at)}</dd>
@@ -1010,6 +1067,55 @@ const TicketDetail = () => {
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
               >
                 {actionLoading ? 'Deleting...' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Revision Modal */}
+      {showRevisionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 bg-orange-100 rounded-full p-2">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900">Request Revision</h3>
+            </div>
+            {ticket.revision_count > 0 && (
+              <p className="text-sm text-orange-600 mb-3">
+                This will be revision #{ticket.revision_count + 1}
+              </p>
+            )}
+            <p className="text-gray-600 text-sm mb-4">
+              Please describe what changes or corrections are needed. The designer will be notified and the ticket will return to In Progress status.
+            </p>
+            <textarea
+              value={revisionComments}
+              onChange={(e) => setRevisionComments(e.target.value)}
+              rows={4}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+              placeholder="Describe the changes needed..."
+            />
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowRevisionModal(false);
+                  setRevisionComments('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestRevision}
+                disabled={actionLoading || !revisionComments.trim()}
+                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Submitting...' : 'Request Revision'}
               </button>
             </div>
           </div>

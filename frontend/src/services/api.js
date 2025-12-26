@@ -133,6 +133,10 @@ export const ticketsAPI = {
   confirmComplete: (id) =>
     api.post(`/tickets/${id}/confirm/`),
 
+  // Request revision
+  requestRevision: (id, revisionComments) =>
+    api.post(`/tickets/${id}/request_revision/`, { revision_comments: revisionComments }),
+
   // Collaborators
   getCollaborators: (id) =>
     api.get(`/tickets/${id}/collaborators/`),
@@ -217,6 +221,12 @@ export const dashboardAPI = {
 
   getOverdue: () =>
     api.get('/dashboard/overdue/'),
+};
+
+// Analytics API
+export const analyticsAPI = {
+  getAnalytics: (params = {}) =>
+    api.get('/analytics/', { params }),
 };
 
 // Notifications API

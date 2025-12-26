@@ -19,7 +19,8 @@ from .serializers import (
     TicketUpdateSerializer, TicketAssignSerializer, TicketRejectSerializer,
     TicketCommentSerializer, TicketAttachmentSerializer, TicketCollaboratorSerializer,
     NotificationSerializer, DashboardStatsSerializer, ActivityLogSerializer,
-    DepartmentSerializer, ProductSerializer, ChangePasswordSerializer, UpdateUserProfileSerializer
+    DepartmentSerializer, ProductSerializer, ChangePasswordSerializer, UpdateUserProfileSerializer,
+    RevisionRequestSerializer
 )
 
 
@@ -39,6 +40,9 @@ def log_activity(user, ticket, action, details=''):
         'complexity': ticket.complexity,
         'estimated_hours': str(ticket.estimated_hours) if ticket.estimated_hours else None,
         'actual_hours': str(ticket.actual_hours) if ticket.actual_hours else None,
+        'request_type': ticket.request_type,
+        'file_format': ticket.file_format,
+        'revision_count': ticket.revision_count,
     }
     ActivityLog.objects.create(
         user=user,
@@ -47,6 +51,27 @@ def log_activity(user, ticket, action, details=''):
         details=details,
         snapshot=snapshot
     )
+
+
+def calculate_deadline_from_priority(priority, file_format):
+    """
+    Calculate deadline based on priority and file format.
+    - Urgent: 3hrs for video, 2hrs for still
+    - High: 24hrs
+    - Medium: 72hrs
+    - Low: 168hrs (7 days)
+    """
+    is_video = file_format in ['video_landscape', 'video_portrait']
+
+    hours_map = {
+        'urgent': 3 if is_video else 2,
+        'high': 24,
+        'medium': 72,
+        'low': 168,
+    }
+
+    hours = hours_map.get(priority, 72)  # Default to medium (72 hours)
+    return timezone.now() + timedelta(hours=hours)
 from .permissions import IsAdminUser, IsManagerUser, IsTicketOwnerOrManager, CanApproveTicket
 
 User = get_user_model()
@@ -983,6 +1008,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         """
         Assign ticket to a user.
         RESTRICTION: Can ONLY assign to Creative department members.
+        Auto-calculates deadline based on priority when assigned.
         """
         ticket = self.get_object()
         serializer = TicketAssignSerializer(data=request.data)
@@ -999,6 +1025,11 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.assigned_to = assigned_user
         ticket.assigned_at = timezone.now()
+
+        # Auto-calculate deadline based on priority and file format
+        # Deadline timer starts when ticket is assigned
+        ticket.deadline = calculate_deadline_from_priority(ticket.priority, ticket.file_format)
+
         ticket.save()
 
         # Update analytics
@@ -1006,14 +1037,15 @@ class TicketViewSet(viewsets.ModelViewSet):
             ticket.analytics.assigned_at = timezone.now()
             ticket.analytics.save()
 
-        # Log activity
+        # Log activity with deadline info
+        deadline_info = ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'N/A'
         log_activity(request.user, ticket, ActivityLog.ActionType.ASSIGNED,
-                    f'Assigned to {ticket.assigned_to.username}')
+                    f'Assigned to {ticket.assigned_to.username}. Deadline: {deadline_info}')
 
         Notification.objects.create(
             user=ticket.assigned_to,
             ticket=ticket,
-            message=f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you',
+            message=f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you. Deadline: {deadline_info}',
             notification_type=Notification.NotificationType.ASSIGNED
         )
         # Send Telegram notification
@@ -1023,7 +1055,13 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
-        """Start working on a ticket"""
+        """
+        Start working on a ticket (Designer acknowledges/starts editing).
+        This action:
+        1. Changes status to IN_PROGRESS
+        2. Records acknowledgment time for analytics
+        3. Triggers the deadline countdown (already set on assignment)
+        """
         ticket = self.get_object()
 
         if ticket.assigned_to != request.user and not request.user.is_manager:
@@ -1043,15 +1081,33 @@ class TicketViewSet(viewsets.ModelViewSet):
         if not ticket.assigned_to:
             ticket.assigned_to = request.user
             ticket.assigned_at = timezone.now()
+            # Calculate deadline if not already set
+            ticket.deadline = calculate_deadline_from_priority(ticket.priority, ticket.file_format)
         ticket.save()
 
-        # Update analytics
+        # Update analytics - record acknowledgment time
         if hasattr(ticket, 'analytics'):
+            ticket.analytics.acknowledged_at = timezone.now()
             ticket.analytics.started_at = timezone.now()
+            # Calculate time from assignment to acknowledgment
+            if ticket.analytics.assigned_at:
+                ticket.analytics.time_to_acknowledge = int(
+                    (timezone.now() - ticket.analytics.assigned_at).total_seconds() / 60
+                )
             ticket.analytics.save()
 
         # Log activity
-        log_activity(request.user, ticket, ActivityLog.ActionType.STARTED)
+        log_activity(request.user, ticket, ActivityLog.ActionType.STARTED, 'Designer acknowledged and started editing')
+
+        # Notify requester that work has started
+        if ticket.requester != request.user:
+            Notification.objects.create(
+                user=ticket.requester,
+                ticket=ticket,
+                message=f'Work has started on your ticket "#{ticket.id} - {ticket.title}"',
+                notification_type=Notification.NotificationType.APPROVED
+            )
+            notify_user(ticket.requester, 'started', ticket, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1144,6 +1200,70 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
             # Send Telegram notification
             notify_user(ticket.assigned_to, 'confirmed', ticket, actor=request.user)
+
+        return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['post'])
+    def request_revision(self, request, pk=None):
+        """
+        Requester requests revision on a completed ticket.
+        This sends the ticket back to IN_PROGRESS status with revision comments.
+        Tracks revision count and history.
+        """
+        ticket = self.get_object()
+        serializer = RevisionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Only requester or collaborators can request revision
+        is_requester = ticket.requester == request.user
+        is_collaborator = ticket.collaborators.filter(user=request.user).exists()
+
+        if not is_requester and not is_collaborator and not request.user.is_manager:
+            return Response(
+                {'error': 'Only the requester or collaborators can request revision'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if ticket.status != Ticket.Status.COMPLETED:
+            return Response(
+                {'error': 'Only completed tickets can have revision requested'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        revision_comments = serializer.validated_data['revision_comments']
+
+        # Update ticket status back to IN_PROGRESS
+        ticket.status = Ticket.Status.IN_PROGRESS
+        ticket.revision_count += 1
+        ticket.confirmed_by_requester = False  # Reset confirmation
+        ticket.confirmed_at = None
+        ticket.completed_at = None  # Reset completion
+        ticket.save()
+
+        # Create revision comment
+        TicketComment.objects.create(
+            ticket=ticket,
+            user=request.user,
+            comment=f"[REVISION REQUEST #{ticket.revision_count}] {revision_comments}"
+        )
+
+        # Log activity
+        log_activity(
+            request.user,
+            ticket,
+            ActivityLog.ActionType.REVISION_REQUESTED,
+            f'Revision #{ticket.revision_count}: {revision_comments}'
+        )
+
+        # Notify assigned designer
+        if ticket.assigned_to and ticket.assigned_to != request.user:
+            Notification.objects.create(
+                user=ticket.assigned_to,
+                ticket=ticket,
+                message=f'Revision requested for ticket "#{ticket.id} - {ticket.title}": {revision_comments[:100]}',
+                notification_type=Notification.NotificationType.COMMENT
+            )
+            notify_user(ticket.assigned_to, 'revision_requested', ticket, revision_comments, actor=request.user)
 
         return Response(TicketDetailSerializer(ticket).data)
 
@@ -1833,14 +1953,74 @@ class AnalyticsView(APIView):
             (sum(all_processing_times) / len(all_processing_times) / 3600), 1
         ) if all_processing_times else 0
 
+        # Revision statistics
+        tickets_with_revisions = tickets.filter(revision_count__gt=0).count()
+        revision_rate = round(tickets_with_revisions / total_tickets * 100, 1) if total_tickets > 0 else 0
+
+        # Request type breakdown
+        request_type_stats = tickets.exclude(request_type='').values('request_type').annotate(
+            count=Count('id'),
+            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+            avg_revisions=Avg('revision_count')
+        ).order_by('-count')
+
+        # Map request_type values to display names
+        request_type_display = {
+            'socmed_posting': 'Socmed Posting',
+            'website_banner': 'Website Banner (H5 & WEB)',
+            'photoshoot': 'Photoshoot',
+            'videoshoot': 'Videoshoot',
+            'live_production': 'Live Production',
+        }
+        for stat in request_type_stats:
+            stat['display_name'] = request_type_display.get(stat['request_type'], stat['request_type'])
+
+        # Time to acknowledge metrics
+        acknowledge_times = []
+        for t in tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
+            if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge:
+                acknowledge_times.append(t.analytics.time_to_acknowledge)
+
+        avg_acknowledge_minutes = round(sum(acknowledge_times) / len(acknowledge_times), 1) if acknowledge_times else 0
+        avg_acknowledge_hours = round(avg_acknowledge_minutes / 60, 2)
+
+        # Priority breakdown with processing times
+        priority_stats = []
+        for priority in ['urgent', 'high', 'medium', 'low']:
+            priority_tickets = tickets.filter(priority=priority)
+            priority_completed = priority_tickets.filter(status=Ticket.Status.COMPLETED)
+
+            # Calculate avg processing time for this priority
+            priority_processing_times = []
+            for t in priority_completed.filter(started_at__isnull=False, completed_at__isnull=False):
+                if t.started_at and t.completed_at:
+                    delta = (t.completed_at - t.started_at).total_seconds()
+                    priority_processing_times.append(delta)
+
+            avg_hours = round(sum(priority_processing_times) / len(priority_processing_times) / 3600, 1) if priority_processing_times else 0
+
+            priority_stats.append({
+                'priority': priority,
+                'display_name': priority.title(),
+                'total': priority_tickets.count(),
+                'completed': priority_completed.count(),
+                'avg_processing_hours': avg_hours
+            })
+
         return Response({
             'summary': {
                 'total_tickets': total_tickets,
                 'completed_tickets': total_completed,
                 'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
-                'avg_processing_hours': overall_avg_processing_hours
+                'avg_processing_hours': overall_avg_processing_hours,
+                'avg_acknowledge_hours': avg_acknowledge_hours,
+                'avg_acknowledge_minutes': avg_acknowledge_minutes,
+                'tickets_with_revisions': tickets_with_revisions,
+                'revision_rate': revision_rate
             },
             'user_performance': user_stats,
             'by_product': list(product_stats),
-            'by_department': list(department_stats)
+            'by_department': list(department_stats),
+            'by_request_type': list(request_type_stats),
+            'by_priority': priority_stats
         })

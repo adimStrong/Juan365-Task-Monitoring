@@ -1,10 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsAPI, departmentsAPI, productsAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+
+// Request type options
+const REQUEST_TYPES = [
+  { value: 'socmed_posting', label: 'Socmed Posting' },
+  { value: 'website_banner', label: 'Website Banner (H5 & WEB)' },
+  { value: 'photoshoot', label: 'Photoshoot' },
+  { value: 'videoshoot', label: 'Videoshoot' },
+  { value: 'live_production', label: 'Live Production' },
+];
+
+// File format options (only for Socmed Posting)
+const FILE_FORMATS = [
+  { value: 'still', label: 'Still' },
+  { value: 'gif', label: 'Gif' },
+  { value: 'video_landscape', label: 'Video (Landscape)' },
+  { value: 'video_portrait', label: 'Video (Portrait)' },
+];
+
+// Priority descriptions with auto-deadline info
+const PRIORITY_INFO = {
+  urgent: { label: 'Urgent', deadline: '2-3 hours (2hrs still, 3hrs video)', color: 'text-red-600' },
+  high: { label: 'High', deadline: '24 hours', color: 'text-orange-600' },
+  medium: { label: 'Medium', deadline: '72 hours (3 days)', color: 'text-yellow-600' },
+  low: { label: 'Low', deadline: '168 hours (7 days)', color: 'text-green-600' },
+};
 
 const CreateTicket = () => {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dropdownLoading, setDropdownLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,38 +42,32 @@ const CreateTicket = () => {
     title: '',
     description: '',
     priority: 'medium',
-    deadline: '',
     ticket_product: '',
     target_department: '',
+    request_type: '',
+    file_format: '',
   });
 
-  // Get today's date in YYYY-MM-DDTHH:MM format for min attribute
-  const getMinDateTime = () => {
-    const now = new Date();
-    return now.toISOString().slice(0, 16);
-  };
-
-  // Get end of today for urgent priority max date
-  const getMaxDateTimeForUrgent = () => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    return today.toISOString().slice(0, 16);
-  };
+  // Check if user is in Social Media department
+  const isSocialMediaUser = user?.user_department_info?.name?.toLowerCase().includes('social media');
 
   useEffect(() => {
     fetchDepartmentsAndProducts();
   }, []);
 
-  // Reset deadline when priority changes to urgent if deadline is not same day
+  // Auto-select user's department for Social Media users
   useEffect(() => {
-    if (formData.priority === 'urgent' && formData.deadline) {
-      const deadlineDate = new Date(formData.deadline);
-      const today = new Date();
-      if (deadlineDate.toDateString() !== today.toDateString()) {
-        setFormData((prev) => ({ ...prev, deadline: '' }));
-      }
+    if (isSocialMediaUser && user?.user_department && !formData.target_department) {
+      setFormData((prev) => ({ ...prev, target_department: user.user_department }));
     }
-  }, [formData.priority]);
+  }, [isSocialMediaUser, user, formData.target_department]);
+
+  // Reset file_format when request_type changes away from socmed_posting
+  useEffect(() => {
+    if (formData.request_type !== 'socmed_posting' && formData.file_format) {
+      setFormData((prev) => ({ ...prev, file_format: '' }));
+    }
+  }, [formData.request_type]);
 
   const fetchDepartmentsAndProducts = async () => {
     setDropdownLoading(true);
@@ -69,51 +90,39 @@ const CreateTicket = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  
-  const validateDeadline = () => {
-    if (!formData.deadline) {
-      return 'Deadline is required';
-    }
-    const deadlineDate = new Date(formData.deadline);
-    const now = new Date();
-    if (deadlineDate < now) {
-      return 'Deadline cannot be in the past';
-    }
-    if (formData.priority === 'urgent') {
-      const today = new Date();
-      if (deadlineDate.toDateString() !== today.toDateString()) {
-        return 'Urgent tickets must have a same-day deadline';
-      }
-    }
-    return null;
-  };
-
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    // Validate deadline
-    const deadlineError = validateDeadline();
-    if (deadlineError) {
-      setError(deadlineError);
-      return;
-    }
-
     setLoading(true);
 
     try {
       const data = { ...formData };
       if (!data.ticket_product) delete data.ticket_product;
       if (!data.target_department) delete data.target_department;
+      if (!data.request_type) delete data.request_type;
+      if (!data.file_format) delete data.file_format;
 
       const response = await ticketsAPI.create(data);
       navigate(`/tickets/${response.data.id}`);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create ticket');
+      setError(err.response?.data?.detail || err.response?.data?.file_format?.[0] || 'Failed to create ticket');
     } finally {
       setLoading(false);
     }
   };
+
+  // Filter departments for Social Media users (only show their department unless admin)
+  const getFilteredDepartments = () => {
+    if (isAdmin) {
+      return departments;
+    }
+    if (isSocialMediaUser) {
+      return departments.filter((dept) => dept.id === user?.user_department);
+    }
+    return departments;
+  };
+
+  const filteredDepartments = getFilteredDepartments();
 
   return (
     <Layout>
@@ -177,16 +186,21 @@ const handleSubmit = async (e) => {
                 name="target_department"
                 value={formData.target_department}
                 onChange={handleChange}
-                disabled={dropdownLoading}
+                disabled={dropdownLoading || (isSocialMediaUser && !isAdmin)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
               >
                 <option value="">{dropdownLoading ? 'Loading...' : 'Select Department'}</option>
-                {departments.map((dept) => (
+                {filteredDepartments.map((dept) => (
                   <option key={dept.id} value={dept.id}>
                     {dept.name}
                   </option>
                 ))}
               </select>
+              {isSocialMediaUser && !isAdmin && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Social Media users can only submit to their own department
+                </p>
+              )}
             </div>
 
             <div>
@@ -211,51 +225,73 @@ const handleSubmit = async (e) => {
             </div>
           </div>
 
+          {/* Type of Request and File Format */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-                Priority
+              <label htmlFor="request_type" className="block text-sm font-medium text-gray-700 mb-1">
+                Type of Request
               </label>
               <select
-                id="priority"
-                name="priority"
-                value={formData.priority}
+                id="request_type"
+                name="request_type"
+                value={formData.request_type}
                 onChange={handleChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
+                <option value="">Select Request Type</option>
+                {REQUEST_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
               </select>
-              {formData.priority === 'urgent' && (
-                <p className="mt-1 text-xs text-orange-600">
-                  Urgent tickets require same-day deadline
-                </p>
-              )}
             </div>
 
-            <div>
-              <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
-                Deadline *
-              </label>
-              <input
-                type="datetime-local"
-                id="deadline"
-                name="deadline"
-                required
-                value={formData.deadline}
-                onChange={handleChange}
-                min={getMinDateTime()}
-                max={formData.priority === 'urgent' ? getMaxDateTimeForUrgent() : undefined}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              {formData.priority === 'urgent' && (
-                <p className="mt-1 text-xs text-orange-600">
-                  Must be today
-                </p>
-              )}
-            </div>
+            {/* File Format - Only show for Socmed Posting */}
+            {formData.request_type === 'socmed_posting' && (
+              <div>
+                <label htmlFor="file_format" className="block text-sm font-medium text-gray-700 mb-1">
+                  File Format/Type
+                </label>
+                <select
+                  id="file_format"
+                  name="file_format"
+                  value={formData.file_format}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select File Format/Type</option>
+                  {FILE_FORMATS.map((format) => (
+                    <option key={format.value} value={format.value}>
+                      {format.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Priority with auto-deadline info */}
+          <div>
+            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+              Priority
+            </label>
+            <select
+              id="priority"
+              name="priority"
+              value={formData.priority}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              {Object.entries(PRIORITY_INFO).map(([value, info]) => (
+                <option key={value} value={value}>
+                  {info.label} - {info.deadline}
+                </option>
+              ))}
+            </select>
+            <p className={`mt-1 text-sm ${PRIORITY_INFO[formData.priority]?.color || 'text-gray-500'}`}>
+              Deadline will be auto-calculated: <strong>{PRIORITY_INFO[formData.priority]?.deadline}</strong> from assignment
+            </p>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

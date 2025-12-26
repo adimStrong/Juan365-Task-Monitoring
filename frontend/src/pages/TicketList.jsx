@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import TicketCard from '../components/TicketCard';
+import TicketPreviewModal from '../components/TicketPreviewModal';
 
 const TicketList = () => {
   const { isManager } = useAuth();
@@ -10,6 +12,8 @@ const TicketList = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  const [previewTicketId, setPreviewTicketId] = useState(null);
 
   // Filters from URL
   const statusFilter = searchParams.get('status') || '';
@@ -21,6 +25,14 @@ const TicketList = () => {
   useEffect(() => {
     fetchTickets();
   }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo]);
+
+  // Load view preference from localStorage
+  useEffect(() => {
+    const savedView = localStorage.getItem('ticketViewMode');
+    if (savedView) {
+      setViewMode(savedView);
+    }
+  }, []);
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -52,6 +64,15 @@ const TicketList = () => {
 
   const clearFilters = () => {
     setSearchParams({});
+  };
+
+  const toggleViewMode = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem('ticketViewMode', mode);
+  };
+
+  const handleCardClick = (ticket) => {
+    setPreviewTicketId(ticket.id);
   };
 
   const hasActiveFilters = statusFilter || priorityFilter || searchQuery || dateFrom || dateTo;
@@ -113,9 +134,9 @@ const TicketList = () => {
           </Link>
         </div>
 
-        {/* Search & Filters */}
+        {/* Search, Filters & View Toggle */}
         <div className="bg-white shadow rounded-lg p-4">
-          {/* Search Bar */}
+          {/* Search Bar and View Toggle */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
             <div className="flex-1">
               <input
@@ -126,19 +147,42 @@ const TicketList = () => {
                 className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2 border rounded-md text-sm font-medium ${
-                showFilters || hasActiveFilters
-                  ? 'border-blue-500 text-blue-600 bg-blue-50'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <svg className="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Filters {hasActiveFilters && `(${[statusFilter, priorityFilter, dateFrom, dateTo].filter(Boolean).length})`}
-            </button>
+            <div className="flex gap-2">
+              {/* View Toggle */}
+              <div className="flex border border-gray-300 rounded-md overflow-hidden">
+                <button
+                  onClick={() => toggleViewMode('table')}
+                  className={`px-3 py-2 ${viewMode === 'table' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  title="Table View"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => toggleViewMode('cards')}
+                  className={`px-3 py-2 ${viewMode === 'cards' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  title="Card View"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-4 py-2 border rounded-md text-sm font-medium ${
+                  showFilters || hasActiveFilters
+                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <svg className="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters {hasActiveFilters && `(${[statusFilter, priorityFilter, dateFrom, dateTo].filter(Boolean).length})`}
+              </button>
+            </div>
           </div>
 
           {/* Advanced Filters */}
@@ -216,42 +260,55 @@ const TicketList = () => {
           </div>
         )}
 
-        {/* Tickets Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        {/* Loading State */}
+        {loading ? (
+          <div className="bg-white shadow rounded-lg flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          </div>
+        ) : tickets.length === 0 ? (
+          /* Empty State */
+          <div className="bg-white shadow rounded-lg text-center py-12">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              {hasActiveFilters ? 'No tickets match your filters' : 'No tickets found'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {hasActiveFilters ? 'Try adjusting your filters' : 'Create your first ticket to get started.'}
+            </p>
+            <div className="mt-6">
+              {hasActiveFilters ? (
+                <button
+                  onClick={clearFilters}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <Link
+                  to="/tickets/new"
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  + New Ticket
+                </Link>
+              )}
             </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">
-                {hasActiveFilters ? 'No tickets match your filters' : 'No tickets found'}
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {hasActiveFilters ? 'Try adjusting your filters' : 'Create your first ticket to get started.'}
-              </p>
-              <div className="mt-6">
-                {hasActiveFilters ? (
-                  <button
-                    onClick={clearFilters}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    Clear Filters
-                  </button>
-                ) : (
-                  <Link
-                    to="/tickets/new"
-                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    + New Ticket
-                  </Link>
-                )}
-              </div>
-            </div>
-          ) : (
+          </div>
+        ) : viewMode === 'cards' ? (
+          /* Card View */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {tickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                onClick={handleCardClick}
+              />
+            ))}
+          </div>
+        ) : (
+          /* Table View */
+          <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -278,20 +335,27 @@ const TicketList = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {tickets.map((ticket) => (
-                    <tr key={ticket.id} className="hover:bg-gray-50">
+                    <tr
+                      key={ticket.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setPreviewTicketId(ticket.id)}
+                    >
                       <td className="px-3 py-3 sm:px-6 sm:py-4">
-                        <Link to={`/tickets/${ticket.id}`} className="block">
-                          <div className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                            #{ticket.id} - {ticket.title}
-                          </div>
-                          {ticket.is_overdue && (
-                            <span className="text-xs text-red-600 font-medium">Overdue!</span>
-                          )}
-                          {/* Show requester on mobile */}
-                          <div className="sm:hidden text-xs text-gray-500 mt-1">
-                            From: {ticket.requester?.first_name || ticket.requester?.username}
-                          </div>
-                        </Link>
+                        <div className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                          #{ticket.id} - {ticket.title}
+                        </div>
+                        {ticket.is_overdue && (
+                          <span className="text-xs text-red-600 font-medium">Overdue!</span>
+                        )}
+                        {ticket.revision_count > 0 && (
+                          <span className="text-xs text-orange-600 ml-2">
+                            ({ticket.revision_count} rev)
+                          </span>
+                        )}
+                        {/* Show requester on mobile */}
+                        <div className="sm:hidden text-xs text-gray-500 mt-1">
+                          From: {ticket.requester?.first_name || ticket.requester?.username}
+                        </div>
                       </td>
                       <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
@@ -321,9 +385,17 @@ const TicketList = () => {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* Preview Modal */}
+      {previewTicketId && (
+        <TicketPreviewModal
+          ticketId={previewTicketId}
+          onClose={() => setPreviewTicketId(null)}
+        />
+      )}
     </Layout>
   );
 };

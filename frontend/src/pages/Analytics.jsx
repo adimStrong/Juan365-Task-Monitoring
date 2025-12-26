@@ -24,26 +24,46 @@ const Analytics = () => {
 
   useEffect(() => {
     if (isManager) {
-      fetchAnalytics();
+      fetchAnalytics(true); // Initial load - set default dates
     }
   }, [isManager]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (isInitialLoad = false) => {
     setLoading(true);
     setError(null);
     try {
+      // First fetch to get date range (without filters on initial load)
       const params = {};
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      if (!isInitialLoad) {
+        if (dateFrom) params.date_from = dateFrom;
+        if (dateTo) params.date_to = dateTo;
+      }
 
       const response = await analyticsAPI.getAnalytics(params);
-      setAnalytics(response.data);
 
       // Set min/max date constraints from API response
       if (response.data.date_range) {
-        setMinDate(response.data.date_range.min_date || '');
-        setMaxDate(response.data.date_range.max_date || '');
+        const newMinDate = response.data.date_range.min_date || '';
+        const newMaxDate = response.data.date_range.max_date || '';
+        setMinDate(newMinDate);
+        setMaxDate(newMaxDate);
+
+        // On initial load, default both date pickers to the latest date and refetch
+        if (isInitialLoad && newMaxDate) {
+          setDateFrom(newMaxDate);
+          setDateTo(newMaxDate);
+          // Fetch again with the latest date filter
+          const filteredResponse = await analyticsAPI.getAnalytics({
+            date_from: newMaxDate,
+            date_to: newMaxDate
+          });
+          setAnalytics(filteredResponse.data);
+          setLoading(false);
+          return;
+        }
       }
+
+      setAnalytics(response.data);
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
       setError('Failed to load analytics data');

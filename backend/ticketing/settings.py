@@ -34,9 +34,15 @@ CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS]
 # Add Cloudflare tunnel - specific domain
 CSRF_TRUSTED_ORIGINS.append('https://induced-intend-expert-designing.trycloudflare.com')
 
-# Disable CSRF for development with tunnels
-CSRF_COOKIE_SECURE = False
-SESSION_COOKIE_SECURE = False
+# Security settings for production behind proxy (Railway, Heroku, etc.)
+# Trust X-Forwarded-Proto header from proxy to detect HTTPS
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# Cookie security (enabled in production)
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 
 # Application definition
 INSTALLED_APPS = [

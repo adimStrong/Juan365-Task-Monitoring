@@ -393,8 +393,8 @@ const TicketDetail = () => {
           </div>
         )}
 
-        {/* Actions */}
-        {(canApprove || canStart || canComplete || canConfirm || isManager) && (
+        {/* Actions - Hidden when ticket is completed (only rollback available via History) */}
+        {ticket.status !== 'completed' && (canApprove || canStart || canComplete || isManager) && (
           <div className="bg-white shadow rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
             <div className="flex flex-wrap gap-2">
@@ -425,7 +425,7 @@ const TicketDetail = () => {
                   Assign
                 </button>
               )}
-              {ticket.status !== 'completed' && ticket.status !== 'rejected' && (
+              {ticket.status !== 'rejected' && (
                 <button
                   onClick={() => setShowCollaboratorModal(true)}
                   disabled={actionLoading}
@@ -452,25 +452,7 @@ const TicketDetail = () => {
                   Mark Complete
                 </button>
               )}
-              {canConfirm && (
-                <button
-                  onClick={() => setShowConfirmModal(true)}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
-                >
-                  Confirm Completion
-                </button>
-              )}
-              {canRequestRevision && (
-                <button
-                  onClick={() => setShowRevisionModal(true)}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
-                >
-                  Request Revision
-                </button>
-              )}
-              {isManager && ticket.status !== 'completed' && (
+              {isManager && (
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   disabled={actionLoading}

@@ -84,7 +84,7 @@ const Dashboard = () => {
     const texts = {
       requested: 'For Dept Approval',
       pending_creative: 'For Creative Approval',
-      approved: 'Approved',
+      approved: 'Not Yet Started',
       rejected: 'Rejected',
       in_progress: 'In Progress',
       completed: 'Completed',
@@ -138,11 +138,11 @@ const Dashboard = () => {
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>}
           />
           <StatCard
-            title="Approved"
+            title="Not Yet Started"
             value={stats?.approved || 0}
             color="bg-cyan-500"
             testId="stat-approved"
-            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             title="In Progress"

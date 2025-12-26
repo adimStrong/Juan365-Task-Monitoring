@@ -313,7 +313,7 @@ const TicketDetail = () => {
     const texts = {
       requested: 'For Dept Approval',
       pending_creative: 'For Creative Approval',
-      approved: 'Approved',
+      approved: 'Not Yet Started',
       rejected: 'Rejected',
       in_progress: 'In Progress',
       completed: 'Completed',

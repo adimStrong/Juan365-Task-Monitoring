@@ -2071,7 +2071,8 @@ class AnalyticsView(APIView):
         # Time to acknowledge metrics
         acknowledge_times = []
         for t in tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
-            if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge:
+            # Check if analytics exists and time_to_acknowledge is set (including 0)
+            if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
                 acknowledge_times.append(t.analytics.time_to_acknowledge)
 
         avg_acknowledge_minutes = round(sum(acknowledge_times) / len(acknowledge_times), 1) if acknowledge_times else 0

@@ -84,8 +84,17 @@ const Analytics = () => {
   };
 
   const formatHours = (hours) => {
-    if (!hours) return '-';
+    if (hours === null || hours === undefined) return '-';
+    if (hours === 0) return '< 1m';
     if (hours < 1) return `${Math.round(hours * 60)}m`;
+    return `${hours}h`;
+  };
+
+  const formatAcknowledgeTime = (hours, minutes) => {
+    // Use minutes for more precision on acknowledge time
+    if (minutes === null || minutes === undefined) return '-';
+    if (minutes === 0) return '< 1m';
+    if (minutes < 60) return `${Math.round(minutes)}m`;
     return `${hours}h`;
   };
 
@@ -266,7 +275,7 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Avg Acknowledge Time</p>
-                    <p className="text-3xl font-bold text-orange-600">{formatHours(analytics.summary.avg_acknowledge_hours)}</p>
+                    <p className="text-3xl font-bold text-orange-600">{formatAcknowledgeTime(analytics.summary.avg_acknowledge_hours, analytics.summary.avg_acknowledge_minutes)}</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

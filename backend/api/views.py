@@ -1951,8 +1951,7 @@ class AnalyticsView(APIView):
                     delta = (t.completed_at - t.started_at).total_seconds()
                     processing_times.append(delta)
 
-            avg_processing_seconds = sum(processing_times) / len(processing_times) if processing_times else None
-            avg_processing_hours = round(avg_processing_seconds / 3600, 1) if avg_processing_seconds else None
+            avg_processing_seconds = round(sum(processing_times) / len(processing_times)) if processing_times else None
 
             # Calculate average approval to completion time
             approval_times = []
@@ -1998,7 +1997,7 @@ class AnalyticsView(APIView):
                 'completed': completed_tickets.count(),
                 'in_progress': user_tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
                 'pending': user_tickets.filter(status__in=[Ticket.Status.REQUESTED, Ticket.Status.APPROVED]).count(),
-                'avg_processing_hours': avg_processing_hours,
+                'avg_processing_seconds': avg_processing_seconds,
                 'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
                 'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0,
                 'total_output': total_user_output,  # Completed quantity output
@@ -2045,8 +2044,8 @@ class AnalyticsView(APIView):
                 delta = (t.completed_at - t.started_at).total_seconds()
                 all_processing_times.append(delta)
 
-        overall_avg_processing_hours = round(
-            (sum(all_processing_times) / len(all_processing_times) / 3600), 1
+        overall_avg_processing_seconds = round(
+            sum(all_processing_times) / len(all_processing_times)
         ) if all_processing_times else None
 
         # Revision statistics
@@ -2107,14 +2106,14 @@ class AnalyticsView(APIView):
                     delta = (t.completed_at - t.started_at).total_seconds()
                     priority_processing_times.append(delta)
 
-            avg_hours = round(sum(priority_processing_times) / len(priority_processing_times) / 3600, 1) if priority_processing_times else 0
+            avg_seconds = round(sum(priority_processing_times) / len(priority_processing_times)) if priority_processing_times else None
 
             priority_stats.append({
                 'priority': priority,
                 'display_name': priority.title(),
                 'total': priority_tickets.count(),
                 'completed': priority_completed.count(),
-                'avg_processing_hours': avg_hours
+                'avg_processing_seconds': avg_seconds
             })
 
         # =====================
@@ -2305,7 +2304,7 @@ class AnalyticsView(APIView):
                 'total_tickets': total_tickets,
                 'completed_tickets': total_completed,
                 'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
-                'avg_processing_hours': overall_avg_processing_hours,
+                'avg_processing_seconds': overall_avg_processing_seconds,
                 'avg_acknowledge_seconds': avg_acknowledge_seconds,  # Now in seconds for precision
                 'tickets_with_revisions': tickets_with_revisions,
                 'revision_rate': revision_rate,

@@ -273,7 +273,7 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Avg Processing Time</p>
-                    <p className="text-3xl font-bold text-purple-600">{formatHours(analytics.summary.avg_processing_hours)}</p>
+                    <p className="text-3xl font-bold text-purple-600">{formatSeconds(analytics.summary.avg_processing_seconds)}</p>
                   </div>
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,7 +345,7 @@ const Analytics = () => {
                       </div>
                       <div className="flex items-center space-x-4 text-sm">
                         <span className="text-gray-500">{stat.total} tickets</span>
-                        <span className="text-gray-500">Avg: {formatHours(stat.avg_processing_hours)}</span>
+                        <span className="text-gray-500">Avg: {formatSeconds(stat.avg_processing_seconds)}</span>
                       </div>
                     </div>
                   ))}
@@ -444,7 +444,7 @@ const Analytics = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
-                          {formatHours(user.avg_processing_hours)}
+                          {formatSeconds(user.avg_processing_seconds)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600">
                           {formatSeconds(user.avg_acknowledge_seconds)}

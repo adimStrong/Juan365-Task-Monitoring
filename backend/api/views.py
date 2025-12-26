@@ -2147,10 +2147,12 @@ class AnalyticsView(APIView):
             stat['display_name'] = criteria_display_names.get(stat['criteria'], stat['criteria'].title())
 
         # For old tickets without criteria, count them as "video" (default)
-        old_tickets_count = tickets.filter(criteria='').count()
-        old_tickets_completed = tickets.filter(criteria='', status=Ticket.Status.COMPLETED).count()
-        old_tickets_quantity = tickets.filter(criteria='').aggregate(total=Sum('quantity'))['total'] or 0
-        old_tickets_completed_qty = tickets.filter(criteria='', status=Ticket.Status.COMPLETED).aggregate(total=Sum('quantity'))['total'] or 0
+        # EXCLUDE ads/telegram_channel as they use product_items instead of ticket.quantity
+        old_tickets_qs = tickets.filter(criteria='').exclude(request_type__in=['ads', 'telegram_channel'])
+        old_tickets_count = old_tickets_qs.count()
+        old_tickets_completed = old_tickets_qs.filter(status=Ticket.Status.COMPLETED).count()
+        old_tickets_quantity = old_tickets_qs.aggregate(total=Sum('quantity'))['total'] or 0
+        old_tickets_completed_qty = old_tickets_qs.filter(status=Ticket.Status.COMPLETED).aggregate(total=Sum('quantity'))['total'] or 0
 
         if old_tickets_count > 0:
             # Check if video already exists in criteria_stats

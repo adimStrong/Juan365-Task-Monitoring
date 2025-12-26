@@ -51,19 +51,19 @@ const CreateTicket = () => {
     file_format: '',
   });
 
-  // Check if user is in Social Media department
-  const isSocialMediaUser = user?.user_department_info?.name?.toLowerCase().includes('social media');
+  // Check if user has a department assigned
+  const hasUserDepartment = !!user?.user_department;
 
   useEffect(() => {
     fetchDepartmentsAndProducts();
   }, []);
 
-  // Auto-select user's department for Social Media users
+  // Auto-select user's department for non-admin users
   useEffect(() => {
-    if (isSocialMediaUser && user?.user_department && !formData.target_department) {
+    if (!isAdmin && hasUserDepartment && !formData.target_department) {
       setFormData((prev) => ({ ...prev, target_department: user.user_department }));
     }
-  }, [isSocialMediaUser, user, formData.target_department]);
+  }, [isAdmin, hasUserDepartment, user, formData.target_department]);
 
   // Reset file_format when request_type changes away from socmed_posting
   useEffect(() => {
@@ -176,12 +176,13 @@ const CreateTicket = () => {
     }
   };
 
-  // Filter departments for Social Media users (only show their department unless admin)
+  // Filter departments - non-admin users can only see their own department
   const getFilteredDepartments = () => {
     if (isAdmin) {
       return departments;
     }
-    if (isSocialMediaUser) {
+    // Non-admin users can only select their own department
+    if (hasUserDepartment) {
       return departments.filter((dept) => dept.id === user?.user_department);
     }
     return departments;
@@ -327,7 +328,7 @@ const CreateTicket = () => {
                 name="target_department"
                 value={formData.target_department}
                 onChange={handleChange}
-                disabled={dropdownLoading || (isSocialMediaUser && !isAdmin)}
+                disabled={dropdownLoading || (hasUserDepartment && !isAdmin)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
               >
                 <option value="">{dropdownLoading ? 'Loading...' : 'Select Department'}</option>
@@ -337,9 +338,9 @@ const CreateTicket = () => {
                   </option>
                 ))}
               </select>
-              {isSocialMediaUser && !isAdmin && (
+              {hasUserDepartment && !isAdmin && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Social Media users can only submit to their own department
+                  You can only submit tickets to your own department
                 </p>
               )}
             </div>

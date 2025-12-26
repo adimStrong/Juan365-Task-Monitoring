@@ -756,6 +756,15 @@ class TicketViewSet(viewsets.ModelViewSet):
         from .models import Department, TicketAnalytics
 
         requester = self.request.user
+
+        # Validate department restriction: non-admin users can only submit to their own department
+        target_department_id = serializer.validated_data.get('target_department')
+        if target_department_id and not requester.is_admin:
+            user_dept = requester.user_department
+            if user_dept and target_department_id.id != user_dept.id:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only submit tickets to your own department.")
+
         ticket = serializer.save(requester=requester)
 
         # Get Creative department info

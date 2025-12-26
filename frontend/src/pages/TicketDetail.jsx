@@ -633,40 +633,78 @@ const TicketDetail = () => {
               </h3>
 
               {ticket.attachments?.length > 0 ? (
-                <div className="space-y-3 mb-6">
-                  {ticket.attachments.map((att) => (
-                    <div key={att.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{att.file_name}</p>
-                          <p className="text-xs text-gray-500">
-                            Uploaded by {att.user?.first_name || att.user?.username} on {formatDate(att.uploaded_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-6">
+                  {ticket.attachments.map((att) => {
+                    const isImage = att.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
+                    const isVideo = att.file_name?.match(/\.(mp4|webm|mov|avi)$/i);
+                    const isPdf = att.file_name?.match(/\.pdf$/i);
+                    const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://juan365-task-monitoring-production.up.railway.app';
+                    const fileUrl = att.file?.startsWith('http') ? att.file : `${apiBaseUrl}${att.file}`;
+
+                    return (
+                      <div key={att.id} className="group relative">
                         <a
-                          href={`http://localhost:8000${att.file}`}
+                          href={fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          className="block aspect-square rounded-lg overflow-hidden bg-gray-100 hover:ring-2 hover:ring-blue-500 transition-all"
                         >
-                          Download
+                          {isImage ? (
+                            <img
+                              src={fileUrl}
+                              alt={att.file_name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={`w-full h-full flex flex-col items-center justify-center ${isImage ? 'hidden' : 'flex'}`}
+                          >
+                            {isVideo ? (
+                              <svg className="w-12 h-12 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            ) : isPdf ? (
+                              <svg className="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            )}
+                            <span className="text-xs text-gray-500 mt-1 px-2 text-center truncate max-w-full">
+                              {att.file_name?.split('.').pop()?.toUpperCase()}
+                            </span>
+                          </div>
                         </a>
+                        {/* Overlay with file name and actions */}
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-xs text-white truncate" title={att.file_name}>
+                            {att.file_name}
+                          </p>
+                        </div>
+                        {/* Delete button */}
                         {(att.user?.id === user?.id || isManager) && (
                           <button
-                            onClick={() => handleDeleteAttachment(att.id)}
-                            className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleDeleteAttachment(att.id);
+                            }}
+                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            title="Delete attachment"
                           >
-                            Delete
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                           </button>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500 mb-6">No attachments yet.</p>

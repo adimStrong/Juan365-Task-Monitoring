@@ -677,7 +677,21 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Ticket.objects.select_related('requester', 'assigned_to', 'approver')
+        # Optimize queries with select_related for foreign keys and annotate counts
+        queryset = Ticket.objects.select_related(
+            'requester', 'requester__user_department',
+            'assigned_to', 'assigned_to__user_department',
+            'approver', 'approver__user_department',
+            'pending_approver', 'pending_approver__user_department',
+            'dept_approver',
+            'target_department',
+            'ticket_product',
+            'deleted_by'
+        ).annotate(
+            # Annotate counts to avoid N+1 queries in serializers
+            comment_count_annotated=Count('comments', distinct=True),
+            attachment_count_annotated=Count('attachments', distinct=True)
+        )
 
         # Filter out deleted tickets by default (unless viewing trash)
         include_deleted = self.request.query_params.get('include_deleted', 'false').lower() == 'true'
@@ -1899,7 +1913,7 @@ class AnalyticsView(APIView):
 
         # User performance metrics
         user_stats = []
-        users_with_tickets = User.objects.filter(
+        users_with_tickets = User.objects.select_related('user_department').filter(
             Q(assigned_tickets__isnull=False) | Q(requested_tickets__isnull=False)
         ).distinct()
 
@@ -1932,7 +1946,7 @@ class AnalyticsView(APIView):
                 'username': user.username,
                 'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
                 'role': user.role,
-                'department': user.department,
+                'department': user.user_department.name if user.user_department else user.department,
                 'total_assigned': user_tickets.count(),
                 'completed': completed_tickets.count(),
                 'in_progress': user_tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
@@ -1945,15 +1959,19 @@ class AnalyticsView(APIView):
         # Sort by total assigned descending
         user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
 
-        # Product breakdown
-        product_stats = tickets.exclude(product='').values('product').annotate(
+        # Product breakdown (using ticket_product FK)
+        product_stats = tickets.filter(ticket_product__isnull=False).values(
+            product=F('ticket_product__name')
+        ).annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
             in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
         ).order_by('-count')
 
-        # Department breakdown
-        department_stats = tickets.exclude(department='').values('department').annotate(
+        # Department breakdown (using target_department FK)
+        department_stats = tickets.filter(target_department__isnull=False).values(
+            department=F('target_department__name')
+        ).annotate(
             count=Count('id'),
             completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
             in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))

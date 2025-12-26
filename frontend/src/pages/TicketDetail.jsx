@@ -753,6 +753,20 @@ const TicketDetail = () => {
                     {ticket.approver?.first_name || ticket.approver?.username || '-'}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-sm text-gray-500">Department</dt>
+                  <dd className="text-sm font-medium text-gray-900">
+                    {ticket.target_department?.name || '-'}
+                  </dd>
+                </div>
+                {ticket.ticket_product && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Product</dt>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {ticket.ticket_product.name}
+                    </dd>
+                  </div>
+                )}
                 {ticket.request_type_display && (
                   <div>
                     <dt className="text-sm text-gray-500">Request Type</dt>

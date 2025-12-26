@@ -155,16 +155,18 @@ class Ticket(models.Model):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.REQUESTED
+        default=Status.REQUESTED,
+        db_index=True  # Indexed for filtering
     )
     priority = models.CharField(
         max_length=20,
         choices=Priority.choices,
-        default=Priority.MEDIUM
+        default=Priority.MEDIUM,
+        db_index=True  # Indexed for filtering
     )
 
-    deadline = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    deadline = models.DateTimeField(null=True, blank=True, db_index=True)  # Indexed for overdue queries
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # Indexed for date range queries
     updated_at = models.DateTimeField(auto_now=True)
 
     # Status timestamps for analytics
@@ -236,7 +238,7 @@ class Ticket(models.Model):
     confirmed_at = models.DateTimeField(null=True, blank=True)
 
     # Soft delete fields
-    is_deleted = models.BooleanField(default=False, help_text='Soft delete flag')
+    is_deleted = models.BooleanField(default=False, db_index=True, help_text='Soft delete flag')
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(
         'User',

@@ -207,6 +207,7 @@ class TicketListSerializer(serializers.ModelSerializer):
     ticket_product = ProductMinimalSerializer(read_only=True)
     target_department = DepartmentMinimalSerializer(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    # Use annotated counts from queryset to avoid N+1 queries
     comment_count = serializers.SerializerMethodField()
     attachment_count = serializers.SerializerMethodField()
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
@@ -222,10 +223,12 @@ class TicketListSerializer(serializers.ModelSerializer):
                   'revision_count']
 
     def get_comment_count(self, obj):
-        return obj.comments.count()
+        # Use annotated count if available, otherwise fallback to query
+        return getattr(obj, 'comment_count_annotated', obj.comments.count())
 
     def get_attachment_count(self, obj):
-        return obj.attachments.count()
+        # Use annotated count if available, otherwise fallback to query
+        return getattr(obj, 'attachment_count_annotated', obj.attachments.count())
 
 
 class TicketDetailSerializer(serializers.ModelSerializer):

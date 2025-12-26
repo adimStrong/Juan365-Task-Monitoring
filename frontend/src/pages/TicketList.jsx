@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,8 @@ const TicketList = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
   const [previewTicketId, setPreviewTicketId] = useState(null);
+  const [localSearch, setLocalSearch] = useState(''); // Local search state for debouncing
+  const searchDebounceRef = useRef(null);
 
   // Filters from URL
   const statusFilter = searchParams.get('status') || '';
@@ -21,6 +23,36 @@ const TicketList = () => {
   const searchQuery = searchParams.get('search') || '';
   const dateFrom = searchParams.get('date_from') || '';
   const dateTo = searchParams.get('date_to') || '';
+
+  // Sync local search with URL on mount
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    // Set new timeout for 300ms debounce
+    searchDebounceRef.current = setTimeout(() => {
+      if (localSearch !== searchQuery) {
+        if (localSearch) {
+          searchParams.set('search', localSearch);
+        } else {
+          searchParams.delete('search');
+        }
+        setSearchParams(searchParams);
+      }
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [localSearch]);
 
   useEffect(() => {
     fetchTickets();
@@ -142,8 +174,8 @@ const TicketList = () => {
               <input
                 type="text"
                 placeholder="Search tickets..."
-                value={searchQuery}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>

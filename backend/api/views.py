@@ -53,15 +53,25 @@ def log_activity(user, ticket, action, details=''):
     )
 
 
-def calculate_deadline_from_priority(priority, file_format):
+def calculate_deadline_from_priority(priority, file_format=None, criteria=None):
     """
-    Calculate deadline based on priority and file format.
-    - Urgent: 3hrs for video, 2hrs for still
+    Calculate deadline based on priority and media type (video vs image/still).
+    - Urgent: 3hrs for video, 2hrs for still/image
     - High: 24hrs
     - Medium: 72hrs
     - Low: 168hrs (7 days)
+
+    Video detection:
+    1. First checks criteria field ('video' = video)
+    2. Falls back to file_format ('video_landscape', 'video_portrait' = video)
+    3. Defaults to still/image (2 hours for urgent)
     """
-    is_video = file_format in ['video_landscape', 'video_portrait']
+    # Check criteria first (new field), then fall back to file_format
+    is_video = False
+    if criteria:
+        is_video = criteria == 'video'
+    elif file_format:
+        is_video = file_format in ['video_landscape', 'video_portrait']
 
     hours_map = {
         'urgent': 3 if is_video else 2,
@@ -1056,9 +1066,14 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.assigned_to = assigned_user
         ticket.assigned_at = timezone.now()
 
-        # Auto-calculate deadline based on priority and file format
+        # Auto-calculate deadline based on priority and media type (video vs image)
+        # Uses criteria field first, falls back to file_format
         # Deadline timer starts when ticket is assigned
-        ticket.deadline = calculate_deadline_from_priority(ticket.priority, ticket.file_format)
+        ticket.deadline = calculate_deadline_from_priority(
+            ticket.priority,
+            file_format=ticket.file_format,
+            criteria=ticket.criteria
+        )
 
         ticket.save()
 

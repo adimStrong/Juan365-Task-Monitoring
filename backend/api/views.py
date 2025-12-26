@@ -757,10 +757,9 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         requester = self.request.user
 
-        # Validate department restriction: only admins and managers can submit to any department
+        # Validate department restriction: only admins can submit to any department
         target_department_id = serializer.validated_data.get('target_department')
-        can_select_any_department = requester.is_admin or requester.role == 'manager'
-        if target_department_id and not can_select_any_department:
+        if target_department_id and not requester.is_admin:
             user_dept = requester.user_department
             if user_dept and target_department_id.id != user_dept.id:
                 from rest_framework.exceptions import PermissionDenied

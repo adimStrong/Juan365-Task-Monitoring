@@ -53,9 +53,8 @@ const CreateTicket = () => {
 
   // Check if user has a department assigned
   const hasUserDepartment = !!user?.user_department;
-  // Check if user is a manager (managers can select any department like admins)
-  const isManager = user?.role === 'manager';
-  const canSelectAnyDepartment = isAdmin || isManager;
+  // Only admins can select any department
+  const canSelectAnyDepartment = isAdmin;
 
   useEffect(() => {
     fetchDepartmentsAndProducts();

@@ -27,4 +27,7 @@ python-telegram-bot>=21.0
 python-dotenv>=1.0
 pillow>=10.0
 requests>=2.31
-# Trigger deployment
+
+# Cloud Storage (Cloudinary)
+cloudinary>=1.36
+django-cloudinary-storage>=0.3

@@ -1782,9 +1782,9 @@ class DashboardView(APIView):
         status_data = [
             {'name': 'Requested', 'value': stats['pending_approval'], 'color': '#3B82F6'},
             {'name': 'Pending Creative', 'value': stats['pending_creative'], 'color': '#8B5CF6'},
-            {'name': 'Approved', 'value': stats['approved'], 'color': '#10B981'},
+            {'name': 'Not Yet Started', 'value': stats['approved'], 'color': '#06B6D4'},
             {'name': 'In Progress', 'value': stats['in_progress'], 'color': '#F59E0B'},
-            {'name': 'Completed', 'value': stats['completed'], 'color': '#6B7280'},
+            {'name': 'Completed', 'value': stats['completed'], 'color': '#10B981'},
             {'name': 'Rejected', 'value': stats['rejected'], 'color': '#EF4444'},
         ]
 

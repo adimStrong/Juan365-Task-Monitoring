@@ -1863,8 +1863,17 @@ class AnalyticsView(APIView):
     permission_classes = [IsManagerUser]
 
     def get(self, request):
-        from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField
+        from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField, Min, Max
         from django.db.models.functions import Coalesce
+
+        # Get available date range (min/max dates with data)
+        all_tickets = Ticket.objects.all()
+        date_range = all_tickets.aggregate(
+            min_date=Min('created_at'),
+            max_date=Max('created_at')
+        )
+        min_date = date_range['min_date'].date().isoformat() if date_range['min_date'] else None
+        max_date = date_range['max_date'].date().isoformat() if date_range['max_date'] else None
 
         # Get date range filters
         date_from = request.query_params.get('date_from')
@@ -2008,6 +2017,10 @@ class AnalyticsView(APIView):
             })
 
         return Response({
+            'date_range': {
+                'min_date': min_date,
+                'max_date': max_date,
+            },
             'summary': {
                 'total_tickets': total_tickets,
                 'completed_tickets': total_completed,

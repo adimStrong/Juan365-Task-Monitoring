@@ -12,6 +12,8 @@ const Analytics = () => {
   const [error, setError] = useState(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [minDate, setMinDate] = useState('');
+  const [maxDate, setMaxDate] = useState('');
 
   // Redirect non-managers
   useEffect(() => {
@@ -36,6 +38,12 @@ const Analytics = () => {
 
       const response = await analyticsAPI.getAnalytics(params);
       setAnalytics(response.data);
+
+      // Set min/max date constraints from API response
+      if (response.data.date_range) {
+        setMinDate(response.data.date_range.min_date || '');
+        setMaxDate(response.data.date_range.max_date || '');
+      }
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
       setError('Failed to load analytics data');
@@ -85,7 +93,10 @@ const Analytics = () => {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min={minDate}
+                max={dateTo || maxDate}
+                disabled={!minDate}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
             <div>
@@ -94,12 +105,16 @@ const Analytics = () => {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min={dateFrom || minDate}
+                max={maxDate}
+                disabled={!maxDate}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              disabled={!minDate}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Apply Filter
             </button>
@@ -113,6 +128,11 @@ const Analytics = () => {
               </button>
             )}
           </form>
+          {minDate && maxDate && (
+            <p className="mt-2 text-xs text-gray-500">
+              Data available from <span className="font-medium">{minDate}</span> to <span className="font-medium">{maxDate}</span>
+            </p>
+          )}
         </div>
 
         {loading ? (

@@ -1,2 +1,2 @@
-web: gunicorn ticketing.wsgi --log-file -
+web: gunicorn -k gevent -w 4 --timeout 120 ticketing.wsgi --log-file -
 release: python manage.py migrate --noinput && python manage.py collectstatic --noinput

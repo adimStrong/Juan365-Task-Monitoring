@@ -121,6 +121,9 @@ const TicketList = () => {
     e.stopPropagation(); // Prevent row click
     const ticketId = ticket.id;
 
+    // Prevent double-clicks - check if already processing
+    if (actionLoading === ticketId) return;
+
     if (action === 'reject') {
       setRejectModal({ show: true, ticketId });
       setRejectReason('');
@@ -133,6 +136,7 @@ const TicketList = () => {
       return;
     }
 
+    // Set loading IMMEDIATELY to prevent double-clicks
     setActionLoading(ticketId);
     try {
       if (action === 'approve') {
@@ -606,7 +610,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'approve', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Approve"
                                 >
                                   {isLoading ? '...' : '✓'}
@@ -616,7 +620,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'reject', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Reject"
                                 >
                                   {isLoading ? '...' : '✗'}
@@ -626,7 +630,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'assign', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Assign"
                                 >
                                   {isLoading ? '...' : 'Assign'}
@@ -636,7 +640,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'start', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Start Editing"
                                 >
                                   {isLoading ? '...' : 'Start'}
@@ -646,7 +650,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'complete', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Mark Complete"
                                 >
                                   {isLoading ? '...' : 'Done'}
@@ -656,7 +660,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'revision', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded disabled:opacity-50"
+                                  className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Request Revision"
                                 >
                                   {isLoading ? '...' : 'Revise'}

@@ -5,8 +5,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Count
+from django.core.cache import cache
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
 from datetime import timedelta
 from django.utils import timezone
+from django.conf import settings
 import logging
 
 from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product
@@ -593,6 +597,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
 
+    # Cache list for 1 hour (departments rarely change)
+    @method_decorator(cache_page(3600))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = Department.objects.all()
 
@@ -651,6 +660,11 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
+
+    # Cache list for 1 hour (products rarely change)
+    @method_decorator(cache_page(3600))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         queryset = Product.objects.all()

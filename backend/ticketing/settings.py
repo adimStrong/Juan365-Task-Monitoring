@@ -163,6 +163,45 @@ else:
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ======================
+# CACHING (Redis)
+# ======================
+REDIS_URL = os.environ.get('REDIS_URL', '')
+
+if REDIS_URL:
+    # Production: Use Redis for caching
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            },
+            'KEY_PREFIX': 'ticketing',
+            'TIMEOUT': 300,  # 5 minutes default
+        }
+    }
+    # Use Redis for sessions too
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
+else:
+    # Development: Use local memory cache
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
+
+# Cache timeouts (seconds)
+CACHE_TTL_SHORT = 60       # 1 minute - for frequently changing data
+CACHE_TTL_MEDIUM = 300     # 5 minutes - for moderately changing data
+CACHE_TTL_LONG = 3600      # 1 hour - for rarely changing data
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

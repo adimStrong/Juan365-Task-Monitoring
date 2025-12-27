@@ -14,11 +14,14 @@ dj-database-url>=2.1
 # Production server
 gunicorn>=21.0
 whitenoise>=6.6
+gevent>=24.0
 
-# Celery for background tasks (optional)
-# celery>=5.3
-# redis>=5.0
-# django-celery-beat>=2.5
+# Redis for caching
+redis>=5.0
+django-redis>=5.4
+
+# Database connection pooling
+django-db-connection-pool>=1.2
 
 # Telegram notifications
 python-telegram-bot>=21.0

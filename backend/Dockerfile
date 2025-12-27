@@ -15,5 +15,5 @@ RUN python manage.py collectstatic --noinput
 # Expose port
 EXPOSE 8000
 
-# Run gunicorn
-CMD python manage.py migrate --noinput && gunicorn ticketing.wsgi:application --bind 0.0.0.0:8000
+# Run gunicorn with gevent workers for better concurrency
+CMD python manage.py migrate --noinput && gunicorn -k gevent -w 4 --timeout 120 ticketing.wsgi:application --bind 0.0.0.0:8000

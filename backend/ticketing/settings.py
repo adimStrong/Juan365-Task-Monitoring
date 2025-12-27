@@ -1,6 +1,7 @@
 """
 Django settings for ticketing project.
 Supports both local development (SQLite) and production (PostgreSQL)
+Updated: 2025-12-27 - Gevent worker fix
 """
 
 from pathlib import Path

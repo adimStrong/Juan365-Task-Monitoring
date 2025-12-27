@@ -199,7 +199,9 @@ const TicketList = () => {
       toast.success('Ticket assigned!');
       setAssignModal({ show: false, ticketId: null });
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to assign');
+      console.error('Assign error:', error.response?.data || error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.assigned_to?.[0] || error.response?.data?.detail || 'Failed to assign';
+      toast.error(errorMsg);
     } finally {
       setActionLoading(null);
     }

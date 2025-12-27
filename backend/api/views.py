@@ -2001,8 +2001,8 @@ class AnalyticsView(APIView):
         from .models import TicketProductItem, TicketAnalytics
 
         try:
-            # Get available date range (min/max dates with data)
-            all_tickets = Ticket.objects.all()
+            # Get available date range (min/max dates with data) - exclude deleted
+            all_tickets = Ticket.objects.filter(is_deleted=False)
             date_range = all_tickets.aggregate(
                 min_date=Min('created_at'),
                 max_date=Max('created_at')
@@ -2014,8 +2014,8 @@ class AnalyticsView(APIView):
             date_from = request.query_params.get('date_from')
             date_to = request.query_params.get('date_to')
 
-            # Prefetch analytics to avoid N+1 queries
-            tickets = Ticket.objects.select_related('analytics', 'assigned_to', 'target_department', 'ticket_product').all()
+            # Prefetch analytics to avoid N+1 queries - exclude deleted tickets
+            tickets = Ticket.objects.select_related('analytics', 'assigned_to', 'target_department', 'ticket_product').filter(is_deleted=False)
             if date_from:
                 tickets = tickets.filter(created_at__date__gte=date_from)
             if date_to:

@@ -21,6 +21,13 @@ const TicketList = () => {
   const [localSearch, setLocalSearch] = useState(''); // Local search state for debouncing
   const searchDebounceRef = useRef(null);
 
+  // Inline action states
+  const [actionLoading, setActionLoading] = useState(null); // ticketId being processed
+  const [rejectModal, setRejectModal] = useState({ show: false, ticketId: null });
+  const [rejectReason, setRejectReason] = useState('');
+  const [assignModal, setAssignModal] = useState({ show: false, ticketId: null });
+  const [selectedAssignees, setSelectedAssignees] = useState([]);
+
   // Filters from URL
   const statusFilter = searchParams.get('status') || '';
   const priorityFilter = searchParams.get('priority') || '';
@@ -91,6 +98,116 @@ const TicketList = () => {
       // If ticket was moved (e.g., rejected), remove it from list
       setTickets(prevTickets => prevTickets.filter(t => t.id !== ticketId));
     }
+  };
+
+  // Permission helper for inline actions
+  const getTicketPermissions = (ticket) => {
+    const isRequester = user?.id === ticket.requester?.id;
+    const isAssigned = user?.id === ticket.assigned_to?.id;
+    const isCollaborator = ticket.collaborators?.some(c => c.user?.id === user?.id);
+
+    return {
+      canApprove: isManager && ['requested', 'pending_creative'].includes(ticket.status),
+      canReject: isManager && ['requested', 'pending_creative'].includes(ticket.status),
+      canAssign: isManager && ticket.status === 'approved',
+      canStart: (isAssigned || isCollaborator) && ticket.status === 'approved',
+      canComplete: (isAssigned || isCollaborator || isManager) && ticket.status === 'in_progress',
+      canRequestRevision: (isRequester || isManager) && ticket.status === 'completed' && !ticket.confirmed_by_requester,
+    };
+  };
+
+  // Inline action handler
+  const handleInlineAction = async (e, action, ticket) => {
+    e.stopPropagation(); // Prevent row click
+    const ticketId = ticket.id;
+
+    if (action === 'reject') {
+      setRejectModal({ show: true, ticketId });
+      setRejectReason('');
+      return;
+    }
+
+    if (action === 'assign') {
+      setAssignModal({ show: true, ticketId });
+      setSelectedAssignees([]);
+      return;
+    }
+
+    setActionLoading(ticketId);
+    try {
+      if (action === 'approve') {
+        await ticketsAPI.approve(ticketId);
+      } else if (action === 'start') {
+        await ticketsAPI.start(ticketId);
+      } else if (action === 'complete') {
+        await ticketsAPI.complete(ticketId);
+      } else if (action === 'revision') {
+        await ticketsAPI.requestRevision(ticketId, { reason: 'Revision requested' });
+      }
+
+      // Refresh the ticket
+      const response = await ticketsAPI.get(ticketId);
+      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      toast.success(`Ticket ${action} successful!`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || `Failed to ${action}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle reject submit
+  const handleRejectSubmit = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a reason');
+      return;
+    }
+    const ticketId = rejectModal.ticketId;
+    setActionLoading(ticketId);
+    try {
+      await ticketsAPI.reject(ticketId, { reason: rejectReason });
+      // Remove from list since rejected tickets go to trash
+      setTickets(prev => prev.filter(t => t.id !== ticketId));
+      toast.success('Ticket rejected!');
+      setRejectModal({ show: false, ticketId: null });
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle assign submit
+  const handleAssignSubmit = async () => {
+    if (selectedAssignees.length === 0) {
+      toast.error('Please select at least one person');
+      return;
+    }
+    const ticketId = assignModal.ticketId;
+    setActionLoading(ticketId);
+    try {
+      // First user is assigned_to, rest are collaborators
+      await ticketsAPI.assign(ticketId, {
+        user_id: selectedAssignees[0],
+        collaborator_ids: selectedAssignees.slice(1),
+      });
+      const response = await ticketsAPI.get(ticketId);
+      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      toast.success('Ticket assigned!');
+      setAssignModal({ show: false, ticketId: null });
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to assign');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Get Creative department members for assign
+  const getCreativeMembers = () => {
+    return users.filter(u =>
+      u.is_approved && !u.is_locked &&
+      u.departments?.some(d => d.name?.toLowerCase() === 'creative')
+    );
   };
 
   // Load view preference from localStorage
@@ -334,7 +451,7 @@ const TicketList = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created'].map((h) => (
+                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created', 'Actions'].map((h) => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -342,7 +459,7 @@ const TicketList = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {[...Array(6)].map((_, i) => (
                     <tr key={i}>
-                      {[...Array(6)].map((_, j) => (
+                      {[...Array(7)].map((_, j) => (
                         <td key={j} className="px-6 py-4">
                           <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
                         </td>
@@ -419,6 +536,9 @@ const TicketList = () => {
                     <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
+                    <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -468,6 +588,82 @@ const TicketList = () => {
                       <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(ticket.created_at)}
                       </td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
+                        {(() => {
+                          const perms = getTicketPermissions(ticket);
+                          const isLoading = actionLoading === ticket.id;
+                          const hasAction = perms.canApprove || perms.canReject || perms.canAssign || perms.canStart || perms.canComplete || perms.canRequestRevision;
+
+                          if (!hasAction) {
+                            return <span className="text-gray-400 text-xs">-</span>;
+                          }
+
+                          return (
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                              {perms.canApprove && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'approve', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50"
+                                  title="Approve"
+                                >
+                                  {isLoading ? '...' : '✓'}
+                                </button>
+                              )}
+                              {perms.canReject && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'reject', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50"
+                                  title="Reject"
+                                >
+                                  {isLoading ? '...' : '✗'}
+                                </button>
+                              )}
+                              {perms.canAssign && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'assign', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded disabled:opacity-50"
+                                  title="Assign"
+                                >
+                                  {isLoading ? '...' : 'Assign'}
+                                </button>
+                              )}
+                              {perms.canStart && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'start', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded disabled:opacity-50"
+                                  title="Start Editing"
+                                >
+                                  {isLoading ? '...' : 'Start'}
+                                </button>
+                              )}
+                              {perms.canComplete && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'complete', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50"
+                                  title="Mark Complete"
+                                >
+                                  {isLoading ? '...' : 'Done'}
+                                </button>
+                              )}
+                              {perms.canRequestRevision && (
+                                <button
+                                  onClick={(e) => handleInlineAction(e, 'revision', ticket)}
+                                  disabled={isLoading}
+                                  className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded disabled:opacity-50"
+                                  title="Request Revision"
+                                >
+                                  {isLoading ? '...' : 'Revise'}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -487,6 +683,102 @@ const TicketList = () => {
           users={users}
           onAction={handleTicketAction}
         />
+      )}
+
+      {/* Reject Modal */}
+      {rejectModal.show && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setRejectModal({ show: false, ticketId: null })} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Ticket</h3>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                rows={3}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setRejectModal({ show: false, ticketId: null })}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRejectSubmit}
+                  disabled={actionLoading === rejectModal.ticketId}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionLoading === rejectModal.ticketId ? 'Rejecting...' : 'Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Modal */}
+      {assignModal.show && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setAssignModal({ show: false, ticketId: null })} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
+              <p className="text-sm text-gray-500 mb-3">Select Creative team members:</p>
+              <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md">
+                {getCreativeMembers().length === 0 ? (
+                  <p className="text-sm text-gray-500 p-3">No Creative members found</p>
+                ) : (
+                  getCreativeMembers().map((member) => (
+                    <label
+                      key={member.id}
+                      className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignees.includes(member.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAssignees([...selectedAssignees, member.id]);
+                          } else {
+                            setSelectedAssignees(selectedAssignees.filter(id => id !== member.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="ml-3 text-sm text-gray-700">
+                        {member.first_name || member.username}
+                        {member.role && <span className="text-gray-400 ml-1">({member.role})</span>}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {selectedAssignees.length > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {selectedAssignees.length} selected
+                </p>
+              )}
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setAssignModal({ show: false, ticketId: null })}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssignSubmit}
+                  disabled={actionLoading === assignModal.ticketId || selectedAssignees.length === 0}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {actionLoading === assignModal.ticketId ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

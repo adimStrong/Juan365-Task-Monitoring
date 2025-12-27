@@ -269,11 +269,12 @@ const Analytics = () => {
 
             {/* Summary Cards - Row 2 (Time metrics) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Avg Time Per Creative */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Avg Processing Time</p>
-                    <p className="text-3xl font-bold text-purple-600">{formatSeconds(analytics.summary.avg_processing_seconds)}</p>
+                    <p className="text-sm text-gray-500">Avg Time Per Creative</p>
+                    <p className="text-3xl font-bold text-purple-600">{formatSeconds(analytics.summary.avg_time_per_creative_seconds)}</p>
                   </div>
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,10 +283,47 @@ const Analytics = () => {
                   </div>
                 </div>
                 <div className="mt-2 text-sm text-gray-500">
-                  From start to completion
+                  Time per unit produced
                 </div>
               </div>
 
+              {/* Avg Video Creation Time */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Avg Video Creation Time</p>
+                    <p className="text-3xl font-bold text-blue-600">{formatSeconds(analytics.summary.avg_video_creation_seconds)}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  Per video creative
+                </div>
+              </div>
+
+              {/* Avg Image Creation Time */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Avg Image Creation Time</p>
+                    <p className="text-3xl font-bold text-pink-600">{formatSeconds(analytics.summary.avg_image_creation_seconds)}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  Per image creative
+                </div>
+              </div>
+
+              {/* Avg Acknowledge Time */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -388,7 +426,7 @@ const Analytics = () => {
                         Completion Rate
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Processing
+                        Ticket Processing Time
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Avg Ack Time
@@ -396,6 +434,56 @@ const Analytics = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
+                    {/* Summary Row */}
+                    {analytics.user_totals && (
+                      <tr className="bg-blue-50 font-semibold">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                              Σ
+                            </div>
+                            <div className="ml-3">
+                              <div className="text-sm font-bold text-gray-900">TEAM TOTAL</div>
+                              <div className="text-xs text-gray-500">Summary</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                            All
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
+                          {analytics.user_totals.total_assigned}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-bold">
+                          {analytics.user_totals.assigned_output || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-bold">
+                          {analytics.user_totals.completed}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-bold">
+                          {analytics.user_totals.total_output || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-yellow-600 font-bold">
+                          {analytics.user_totals.in_progress}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <span className={`text-sm font-bold ${
+                            analytics.user_totals.completion_rate >= 80 ? 'text-green-600' :
+                            analytics.user_totals.completion_rate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {analytics.user_totals.completion_rate}%
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
+                          {formatSeconds(analytics.summary.avg_processing_seconds)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600 font-bold">
+                          {formatSeconds(analytics.summary.avg_acknowledge_seconds)}
+                        </td>
+                      </tr>
+                    )}
                     {analytics.user_performance.filter(u => u.total_assigned > 0).map((user) => (
                       <tr key={user.user_id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">

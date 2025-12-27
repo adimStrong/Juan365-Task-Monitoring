@@ -2203,6 +2203,136 @@ class AnalyticsView(APIView):
             avg_quantity_per_ticket = round(total_quantity_produced / total_completed, 1) if total_completed > 0 else 0
 
             # =====================
+            # NEW: Time Per Creative Metrics
+            # =====================
+            total_processing_seconds = sum(all_processing_times) if all_processing_times else 0
+
+            # Avg Time Per Creative = total processing time / total quantity produced
+            avg_time_per_creative_seconds = round(
+                total_processing_seconds / total_quantity_produced
+            ) if total_quantity_produced > 0 else None
+
+            # =====================
+            # Video Creation Time
+            # =====================
+            # Video tickets: criteria='video' OR old tickets (no criteria - default to video)
+            video_completed_tickets = [
+                t for t in completed_list_all
+                if (t.criteria == 'video' or not t.criteria) and t.request_type not in ['ads', 'telegram_channel']
+            ]
+            video_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in video_completed_tickets
+                if t.started_at and t.completed_at
+            ]
+            video_regular_quantity = sum(t.quantity or 0 for t in video_completed_tickets)
+
+            # Add Ads VID products processing time and quantity
+            ads_vid_completed_items = [
+                p for p in product_items_list
+                if p.product and 'VID' in (p.product.name or '').upper()
+                and p.ticket.status == Ticket.Status.COMPLETED
+            ]
+            ads_vid_quantity = sum(p.quantity or 0 for p in ads_vid_completed_items)
+            # Get processing times from parent tickets of VID items
+            ads_vid_ticket_ids = set(p.ticket_id for p in ads_vid_completed_items)
+            ads_vid_tickets = [t for t in completed_list_all if t.id in ads_vid_ticket_ids]
+            ads_vid_processing = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in ads_vid_tickets
+                if t.started_at and t.completed_at
+            ]
+
+            # Add Telegram video items
+            telegram_video_items = [
+                p for p in telegram_items
+                if (p.criteria == 'video' or (not p.criteria and p.ticket.criteria == 'video') or (not p.criteria and not p.ticket.criteria))
+                and p.ticket.status == Ticket.Status.COMPLETED
+            ]
+            telegram_video_quantity = sum(p.quantity or 0 for p in telegram_video_items)
+            telegram_video_ticket_ids = set(p.ticket_id for p in telegram_video_items)
+            telegram_video_tickets = [t for t in completed_list_all if t.id in telegram_video_ticket_ids]
+            telegram_video_processing = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in telegram_video_tickets
+                if t.started_at and t.completed_at
+            ]
+
+            total_video_processing = sum(video_processing_times) + sum(ads_vid_processing) + sum(telegram_video_processing)
+            total_video_quantity = video_regular_quantity + ads_vid_quantity + telegram_video_quantity
+
+            avg_video_creation_seconds = round(
+                total_video_processing / total_video_quantity
+            ) if total_video_quantity > 0 else None
+
+            # =====================
+            # Image Creation Time
+            # =====================
+            # Image tickets: criteria='image'
+            image_completed_tickets = [
+                t for t in completed_list_all
+                if t.criteria == 'image' and t.request_type not in ['ads', 'telegram_channel']
+            ]
+            image_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in image_completed_tickets
+                if t.started_at and t.completed_at
+            ]
+            image_regular_quantity = sum(t.quantity or 0 for t in image_completed_tickets)
+
+            # Add Ads STATIC products processing time and quantity
+            ads_static_completed_items = [
+                p for p in product_items_list
+                if p.product and 'STATIC' in (p.product.name or '').upper()
+                and p.ticket.status == Ticket.Status.COMPLETED
+            ]
+            ads_static_quantity = sum(p.quantity or 0 for p in ads_static_completed_items)
+            ads_static_ticket_ids = set(p.ticket_id for p in ads_static_completed_items)
+            ads_static_tickets = [t for t in completed_list_all if t.id in ads_static_ticket_ids]
+            ads_static_processing = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in ads_static_tickets
+                if t.started_at and t.completed_at
+            ]
+
+            # Add Telegram image items
+            telegram_image_items = [
+                p for p in telegram_items
+                if p.criteria == 'image' or (not p.criteria and p.ticket.criteria == 'image')
+            ]
+            telegram_image_items_completed = [p for p in telegram_image_items if p.ticket.status == Ticket.Status.COMPLETED]
+            telegram_image_quantity = sum(p.quantity or 0 for p in telegram_image_items_completed)
+            telegram_image_ticket_ids = set(p.ticket_id for p in telegram_image_items_completed)
+            telegram_image_tickets = [t for t in completed_list_all if t.id in telegram_image_ticket_ids]
+            telegram_image_processing = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in telegram_image_tickets
+                if t.started_at and t.completed_at
+            ]
+
+            total_image_processing = sum(image_processing_times) + sum(ads_static_processing) + sum(telegram_image_processing)
+            total_image_quantity = image_regular_quantity + ads_static_quantity + telegram_image_quantity
+
+            avg_image_creation_seconds = round(
+                total_image_processing / total_image_quantity
+            ) if total_image_quantity > 0 else None
+
+            # =====================
+            # User Performance Totals (for summary row)
+            # =====================
+            user_totals = {
+                'total_assigned': sum(u['total_assigned'] for u in user_stats),
+                'assigned_output': sum(u['assigned_output'] for u in user_stats),
+                'completed': sum(u['completed'] for u in user_stats),
+                'total_output': sum(u['total_output'] for u in user_stats),
+                'in_progress': sum(u['in_progress'] for u in user_stats),
+            }
+            # Overall completion rate
+            user_totals['completion_rate'] = round(
+                user_totals['completed'] / user_totals['total_assigned'] * 100, 1
+            ) if user_totals['total_assigned'] > 0 else 0
+
+            # =====================
             # Criteria Breakdown
             # =====================
             criteria_stats = list(tickets.exclude(criteria='').exclude(
@@ -2364,8 +2494,13 @@ class AnalyticsView(APIView):
                     'revision_rate': revision_rate,
                     'total_quantity_produced': total_quantity_produced,
                     'avg_quantity_per_ticket': avg_quantity_per_ticket,
+                    # NEW: Time per creative metrics
+                    'avg_time_per_creative_seconds': avg_time_per_creative_seconds,
+                    'avg_video_creation_seconds': avg_video_creation_seconds,
+                    'avg_image_creation_seconds': avg_image_creation_seconds,
                 },
                 'user_performance': user_stats,
+                'user_totals': user_totals,  # NEW: For summary row
                 'by_product': list(product_stats),
                 'by_department': list(department_stats),
                 'by_request_type': list(request_type_stats),

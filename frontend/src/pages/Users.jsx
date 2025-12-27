@@ -442,12 +442,12 @@ const Users = () => {
                             className={`text-xs rounded-full px-2 sm:px-3 py-1 border-0 ${getRoleColor(user.role)} cursor-pointer`}
                           >
                             <option value="member">Member</option>
-                            <option value="manager">Manager</option>
+                            <option value="manager">Approver</option>
                             <option value="admin">Admin</option>
                           </select>
                         ) : (
                           <span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(user.role)}`}>
-                            {user.role}
+                            {user.role === 'manager' ? 'Approver' : user.role}
                           </span>
                         )}
                       </td>
@@ -669,7 +669,7 @@ const Users = () => {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="member">Member</option>
-                    <option value="manager">Manager</option>
+                    <option value="manager">Approver</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>

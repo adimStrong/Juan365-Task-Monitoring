@@ -415,7 +415,7 @@ const Analytics = () => {
                             user.role === 'manager' ? 'bg-purple-100 text-purple-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {user.role}
+                            {user.role === 'manager' ? 'Approver' : user.role}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">

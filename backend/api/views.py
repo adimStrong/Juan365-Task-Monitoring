@@ -1116,10 +1116,11 @@ class TicketViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Only the assigned person can start (not even managers)
-        if ticket.assigned_to != request.user:
+        # Check if user is assigned or a collaborator
+        is_collaborator = ticket.collaborators.filter(user=request.user).exists()
+        if ticket.assigned_to != request.user and not is_collaborator:
             return Response(
-                {'error': 'Only the assigned user can start this ticket'},
+                {'error': 'Only assigned users or collaborators can start this ticket'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -1164,9 +1165,11 @@ class TicketViewSet(viewsets.ModelViewSet):
         """Mark ticket as completed"""
         ticket = self.get_object()
 
-        if ticket.assigned_to != request.user and not request.user.is_manager:
+        # Check if user is assigned, collaborator, or manager
+        is_collaborator = ticket.collaborators.filter(user=request.user).exists()
+        if ticket.assigned_to != request.user and not is_collaborator and not request.user.is_manager:
             return Response(
-                {'error': 'Only assigned user can complete this ticket'},
+                {'error': 'Only assigned users or collaborators can complete this ticket'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

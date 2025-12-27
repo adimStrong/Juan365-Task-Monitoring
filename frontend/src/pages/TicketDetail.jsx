@@ -337,16 +337,17 @@ const TicketDetail = () => {
   if (!ticket) return null;
 
   const canApprove = isManager && ['requested', 'pending_creative'].includes(ticket.status);
-  // Only the assigned person can start editing (must be assigned first)
-  const canStart = ticket.assigned_to?.id === user?.id &&
+  // Check if user is a collaborator
+  const isCollaborator = ticket.collaborators?.some(c => c.user?.id === user?.id);
+  // Assigned person OR collaborators can start editing
+  const canStart = (ticket.assigned_to?.id === user?.id || isCollaborator) &&
                    ticket.status === 'approved';
-  const canComplete = (ticket.assigned_to?.id === user?.id || isManager) &&
+  // Assigned person, collaborators, OR managers can complete
+  const canComplete = (ticket.assigned_to?.id === user?.id || isCollaborator || isManager) &&
                       ticket.status === 'in_progress';
   const canConfirm = ticket.requester?.id === user?.id &&
                      ticket.status === 'completed' &&
                      !ticket.confirmed_by_requester;
-  // Can request revision: requester or collaborator, ticket is completed, not yet confirmed
-  const isCollaborator = ticket.collaborators?.some(c => c.user?.id === user?.id);
   const canRequestRevision = (ticket.requester?.id === user?.id || isCollaborator || isManager) &&
                              ticket.status === 'completed' &&
                              !ticket.confirmed_by_requester;

@@ -33,6 +33,11 @@ const TicketDetail = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [rollbackLoading, setRollbackLoading] = useState(false);
+  // Scheduled task fields
+  const [scheduledStart, setScheduledStart] = useState('');
+
+  // Check if this is a scheduled task type
+  const isScheduledTask = ticket?.request_type && ['videoshoot', 'photoshoot', 'live_production'].includes(ticket.request_type);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionComments, setRevisionComments] = useState('');
 
@@ -73,7 +78,9 @@ const TicketDetail = () => {
         case 'assign':
           // First user becomes main assignee, rest become collaborators
           if (assignUserIds.length > 0) {
-            response = await ticketsAPI.assign(id, assignUserIds[0]);
+            // Pass scheduled start time for scheduled task types (end time auto-set on complete)
+            const schedStart = scheduledStart || null;
+            response = await ticketsAPI.assign(id, assignUserIds[0], schedStart, null);
             // Add remaining users as collaborators
             for (let i = 1; i < assignUserIds.length; i++) {
               try {
@@ -85,11 +92,13 @@ const TicketDetail = () => {
           }
           setShowAssignModal(false);
           setAssignUserIds([]);
+          setScheduledStart('');
           break;
         case 'start':
           response = await ticketsAPI.start(id);
           break;
         case 'complete':
+          // For scheduled tasks, backend auto-sets actual_end to current time
           response = await ticketsAPI.complete(id);
           break;
         default:
@@ -438,15 +447,7 @@ const TicketDetail = () => {
                   Assign
                 </button>
               )}
-              {ticket.status !== 'rejected' && (
-                <button
-                  onClick={() => setShowCollaboratorModal(true)}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  Add Collaborator
-                </button>
-              )}
+              {/* Add Collaborator button removed - use multi-select assign instead */}
               {canStart && (
                 <button
                   onClick={() => handleAction('start')}
@@ -738,7 +739,9 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm text-gray-500">Assigned To</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {ticket.assigned_to?.first_name || ticket.assigned_to?.username || 'Unassigned'}
+                    {ticket.assigned_to
+                      ? `${(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} ${((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'}`
+                      : 'Unassigned'}
                   </dd>
                 </div>
                 <div>
@@ -827,14 +830,26 @@ const TicketDetail = () => {
               </dl>
             </div>
 
-            {/* Collaborators */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Collaborators ({ticket.collaborators?.length || 0})
-              </h3>
-              {ticket.collaborators?.length > 0 ? (
+            {/* Assigned Team - shows both main assignee and additional assignees */}
+            {(ticket.assigned_to || ticket.collaborators?.length > 0) && (
+              <div className="bg-white shadow rounded-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Assigned Team ({(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} {((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'})
+                </h3>
                 <div className="space-y-2">
-                  {ticket.collaborators.map((collab) => (
+                  {/* Main assignee */}
+                  {ticket.assigned_to && (
+                    <div className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {ticket.assigned_to.first_name || ticket.assigned_to.username}
+                        </p>
+                        <p className="text-xs text-gray-500">@{ticket.assigned_to.username}</p>
+                      </div>
+                    </div>
+                  )}
+                  {/* Additional assignees (collaborators) */}
+                  {ticket.collaborators?.map((collab) => (
                     <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
@@ -842,7 +857,7 @@ const TicketDetail = () => {
                         </p>
                         <p className="text-xs text-gray-500">@{collab.user?.username}</p>
                       </div>
-                      {(isManager || user?.id === collab.added_by?.id) && ticket.status !== 'completed' && (
+                      {isManager && ticket.status !== 'completed' && (
                         <button
                           onClick={() => handleRemoveCollaborator(collab.user?.id)}
                           className="text-red-500 hover:text-red-700 text-sm"
@@ -853,10 +868,8 @@ const TicketDetail = () => {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">No collaborators added yet.</p>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* History & Rollback (Managers only) */}
             {isManager && (
@@ -1002,7 +1015,7 @@ const TicketDetail = () => {
             {(() => {
               const creativeUsers = users?.filter(u => u.user_department_info?.is_creative) || [];
               return creativeUsers.length > 0 ? (
-                <div className="overflow-y-auto max-h-60 border border-gray-200 rounded-md">
+                <div className="overflow-y-auto max-h-48 border border-gray-200 rounded-md">
                   {creativeUsers.map((u) => (
                     <label
                       key={u.id}
@@ -1035,6 +1048,23 @@ const TicketDetail = () => {
                 <p className="text-gray-500 text-sm">No Creative department members available.</p>
               );
             })()}
+
+            {/* Scheduled task datetime picker - only start time */}
+            {isScheduledTask && (
+              <div className="mt-4 space-y-3 border-t pt-4">
+                <p className="text-sm font-medium text-gray-700">Schedule Start Time</p>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">When does the {ticket?.request_type?.replace('_', ' ')} start?</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledStart}
+                    onChange={(e) => setScheduledStart(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">End time will be recorded automatically when marked complete.</p>
+              </div>
+            )}
             <div className="mt-4 flex justify-end space-x-2">
               <button
                 onClick={() => {
@@ -1056,6 +1086,7 @@ const TicketDetail = () => {
           </div>
         </div>
       )}
+
 
       {/* Confirm Completion Modal */}
       {showConfirmModal && (
@@ -1084,57 +1115,7 @@ const TicketDetail = () => {
         </div>
       )}
 
-      {/* Add Collaborator Modal */}
-      {showCollaboratorModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Collaborator</h3>
-            <p className="text-gray-600 text-sm mb-4">
-              Add a team member to collaborate on this ticket. They will be notified and can work on this task.
-            </p>
-            {users && users.length > 0 ? (
-              <select
-                value={collaboratorUserId}
-                onChange={(e) => setCollaboratorUserId(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="">Select a collaborator...</option>
-                {users
-                  .filter(u =>
-                    u.id !== ticket?.assigned_to?.id &&
-                    u.id !== ticket?.requester?.id &&
-                    !ticket?.collaborators?.some(c => c.user?.id === u.id)
-                  )
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.first_name || u.username} (@{u.username})
-                    </option>
-                  ))}
-              </select>
-            ) : (
-              <p className="text-gray-500 text-sm">No users available.</p>
-            )}
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => {
-                  setShowCollaboratorModal(false);
-                  setCollaboratorUserId('');
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddCollaborator}
-                disabled={actionLoading || !collaboratorUserId}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {actionLoading ? 'Adding...' : 'Add Collaborator'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Add Collaborator Modal - Removed, use multi-select assign instead */}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

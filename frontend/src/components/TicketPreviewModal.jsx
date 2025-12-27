@@ -201,7 +201,9 @@ const TicketPreviewModal = ({ ticketId, onClose, currentUser, isManager, users, 
                   <div>
                     <dt className="text-xs text-gray-500">Assigned To</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {ticket.assigned_to?.first_name || ticket.assigned_to?.username || 'Unassigned'}
+                      {ticket.assigned_to
+                        ? `${(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} ${((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'}`
+                        : 'Unassigned'}
                     </dd>
                   </div>
                   <div>

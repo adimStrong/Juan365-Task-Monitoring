@@ -96,14 +96,21 @@ export const ticketsAPI = {
   reject: (id, reason = '') =>
     api.post(`/tickets/${id}/reject/`, { reason }),
 
-  assign: (id, userId) =>
-    api.post(`/tickets/${id}/assign/`, { assigned_to: userId }),
+  assign: (id, userId, scheduledStart = null, scheduledEnd = null) => {
+    const data = { assigned_to: userId };
+    if (scheduledStart) data.scheduled_start = scheduledStart;
+    if (scheduledEnd) data.scheduled_end = scheduledEnd;
+    return api.post(`/tickets/${id}/assign/`, data);
+  },
 
   start: (id) =>
     api.post(`/tickets/${id}/start/`),
 
-  complete: (id) =>
-    api.post(`/tickets/${id}/complete/`),
+  complete: (id, actualEnd = null) => {
+    const data = {};
+    if (actualEnd) data.actual_end = actualEnd;
+    return api.post(`/tickets/${id}/complete/`, data);
+  },
 
   // Comments
   getComments: (id) =>

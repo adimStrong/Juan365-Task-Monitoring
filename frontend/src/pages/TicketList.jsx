@@ -653,7 +653,9 @@ const TicketList = () => {
                       </td>
                       <td className="hidden md:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {ticket.assigned_to?.first_name || ticket.assigned_to?.username || '-'}
+                          {ticket.assigned_to
+                            ? `${(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} ${((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'}`
+                            : '-'}
                         </div>
                       </td>
                       <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">

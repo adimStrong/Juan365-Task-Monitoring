@@ -743,7 +743,8 @@ class TicketViewSet(viewsets.ModelViewSet):
             'ticket_product',
             'deleted_by'
         ).prefetch_related(
-            'product_items', 'product_items__product'  # For Ads/Telegram multi-product support
+            'product_items', 'product_items__product',  # For Ads/Telegram multi-product support
+            'collaborators', 'collaborators__user'  # For user count display
         ).annotate(
             # Annotate counts to avoid N+1 queries in serializers
             comment_count_annotated=Count('comments', distinct=True),
@@ -838,13 +839,17 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket = serializer.save(requester=requester)
 
-        # Get Creative department info
-        try:
-            creative_dept = Department.objects.get(is_creative=True)
-            creative_manager = creative_dept.manager
-        except Department.DoesNotExist:
-            creative_dept = None
-            creative_manager = None
+        # Auto-set criteria based on request_type for scheduled tasks
+        if ticket.request_type == 'videoshoot':
+            ticket.criteria = 'video'
+        elif ticket.request_type == 'photoshoot':
+            ticket.criteria = 'image'
+        elif ticket.request_type == 'live_production':
+            ticket.criteria = 'video'  # Live production is typically video
+
+        # Get Creative department info (use filter().first() to handle multiple or none)
+        creative_dept = Department.objects.filter(is_creative=True).first()
+        creative_manager = creative_dept.manager if creative_dept else None
 
         # Check requester's department relationship
         requester_dept = requester.user_department
@@ -919,13 +924,9 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = self.get_object()
         user = request.user
 
-        # Get Creative department info
-        try:
-            creative_dept = Department.objects.get(is_creative=True)
-            creative_manager = creative_dept.manager
-        except Department.DoesNotExist:
-            creative_dept = None
-            creative_manager = None
+        # Get Creative department info (use filter().first() to handle multiple or none)
+        creative_dept = Department.objects.filter(is_creative=True).first()
+        creative_manager = creative_dept.manager if creative_dept else None
 
         # Check if user is in Creative department
         user_dept = user.user_department
@@ -1106,14 +1107,24 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.assigned_to = assigned_user
         ticket.assigned_at = timezone.now()
 
-        # Auto-calculate deadline based on priority and media type (video vs image)
-        # Uses criteria field first, falls back to file_format
-        # Deadline timer starts when ticket is assigned
-        ticket.deadline = calculate_deadline_from_priority(
-            ticket.priority,
-            file_format=ticket.file_format,
-            criteria=ticket.criteria
-        )
+        # Check if this is a scheduled task (videoshoot, photoshoot, live_production)
+        scheduled_request_types = ['videoshoot', 'photoshoot', 'live_production']
+        if ticket.request_type in scheduled_request_types:
+            # For scheduled tasks, only set scheduled_start
+            # scheduled_end and actual_end are auto-set when marked complete
+            scheduled_start = serializer.validated_data.get('scheduled_start')
+            if scheduled_start:
+                ticket.scheduled_start = scheduled_start
+            # No auto-deadline for scheduled tasks - end time determined on completion
+        else:
+            # Auto-calculate deadline based on priority and media type (video vs image)
+            # Uses criteria field first, falls back to file_format
+            # Deadline timer starts when ticket is assigned
+            ticket.deadline = calculate_deadline_from_priority(
+                ticket.priority,
+                file_format=ticket.file_format,
+                criteria=ticket.criteria
+            )
 
         ticket.save()
 
@@ -1122,15 +1133,22 @@ class TicketViewSet(viewsets.ModelViewSet):
             ticket.analytics.assigned_at = timezone.now()
             ticket.analytics.save()
 
-        # Log activity with deadline info
-        deadline_info = ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'N/A'
-        log_activity(request.user, ticket, ActivityLog.ActionType.ASSIGNED,
-                    f'Assigned to {ticket.assigned_to.username}. Deadline: {deadline_info}')
+        # Log activity with deadline/schedule info
+        if ticket.request_type in scheduled_request_types:
+            schedule_info = ticket.scheduled_start.strftime('%Y-%m-%d %H:%M') if ticket.scheduled_start else 'N/A'
+            log_activity(request.user, ticket, ActivityLog.ActionType.ASSIGNED,
+                        f'Assigned to {ticket.assigned_to.username}. Scheduled: {schedule_info}')
+            message = f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you. Scheduled: {schedule_info}'
+        else:
+            deadline_info = ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'N/A'
+            log_activity(request.user, ticket, ActivityLog.ActionType.ASSIGNED,
+                        f'Assigned to {ticket.assigned_to.username}. Deadline: {deadline_info}')
+            message = f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you. Deadline: {deadline_info}'
 
         Notification.objects.create(
             user=ticket.assigned_to,
             ticket=ticket,
-            message=f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you. Deadline: {deadline_info}',
+            message=message,
             notification_type=Notification.NotificationType.ASSIGNED
         )
         # Send Telegram notification
@@ -1221,6 +1239,14 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.status = Ticket.Status.COMPLETED
         ticket.completed_at = timezone.now()
+
+        # For scheduled tasks (videoshoot, photoshoot, live_production),
+        # auto-set actual_end and scheduled_end to current time
+        scheduled_types = ['videoshoot', 'photoshoot', 'live_production']
+        if ticket.request_type in scheduled_types:
+            ticket.actual_end = timezone.now()
+            ticket.scheduled_end = timezone.now()
+
         ticket.save()
 
         # Update analytics
@@ -1982,11 +2008,27 @@ class AnalyticsView(APIView):
             # Cache tickets list to avoid re-querying
             tickets_list = list(tickets)
             tickets_by_user = {}
+
+            # Create a dict mapping ticket_id to ticket for quick lookup
+            tickets_dict = {t.id: t for t in tickets_list}
+
+            # Add assigned_to tickets
             for t in tickets_list:
                 if t.assigned_to_id:
                     if t.assigned_to_id not in tickets_by_user:
-                        tickets_by_user[t.assigned_to_id] = []
-                    tickets_by_user[t.assigned_to_id].append(t)
+                        tickets_by_user[t.assigned_to_id] = set()
+                    tickets_by_user[t.assigned_to_id].add(t.id)
+
+            # Add collaborator tickets (collaborators get same credit as assigned_to)
+            from api.models import TicketCollaborator
+            collaborators = TicketCollaborator.objects.filter(
+                ticket_id__in=[t.id for t in tickets_list]
+            ).values('user_id', 'ticket_id')
+            for collab in collaborators:
+                user_id = collab['user_id']
+                if user_id not in tickets_by_user:
+                    tickets_by_user[user_id] = set()
+                tickets_by_user[user_id].add(collab['ticket_id'])
 
             # User performance metrics - optimized with pre-grouped data
             user_stats = []
@@ -1995,7 +2037,9 @@ class AnalyticsView(APIView):
             )
 
             for user in users_with_tickets:
-                user_tickets_list = tickets_by_user.get(user.id, [])
+                # Convert ticket IDs to ticket objects
+                user_ticket_ids = tickets_by_user.get(user.id, set())
+                user_tickets_list = [tickets_dict[tid] for tid in user_ticket_ids if tid in tickets_dict]
                 completed_list = [t for t in user_tickets_list if t.status == Ticket.Status.COMPLETED]
 
                 # Calculate average processing time (started_at to completed_at)
@@ -2052,6 +2096,48 @@ class AnalyticsView(APIView):
                 in_progress_count = sum(1 for t in user_tickets_list if t.status == Ticket.Status.IN_PROGRESS)
                 pending_count = sum(1 for t in user_tickets_list if t.status in [Ticket.Status.REQUESTED, Ticket.Status.APPROVED])
 
+                # Calculate per-user video creation time
+                user_video_tickets = [
+                    t for t in completed_list
+                    if t.criteria == 'video' or (not t.criteria and t.request_type not in ['ads', 'telegram_channel'])
+                ]
+                user_video_processing = [
+                    (t.completed_at - t.started_at).total_seconds()
+                    for t in user_video_tickets
+                    if t.started_at and t.completed_at
+                ]
+                user_video_qty = sum(t.quantity or 0 for t in user_video_tickets)
+                # Add Ads VID quantities
+                user_ads_vid_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=completed_ids,
+                    product__name__icontains='VID'
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                user_video_qty += user_ads_vid_qty
+                user_avg_video_seconds = round(
+                    sum(user_video_processing) / user_video_qty
+                ) if user_video_qty > 0 and user_video_processing else None
+
+                # Calculate per-user image creation time
+                user_image_tickets = [
+                    t for t in completed_list
+                    if t.criteria == 'image'
+                ]
+                user_image_processing = [
+                    (t.completed_at - t.started_at).total_seconds()
+                    for t in user_image_tickets
+                    if t.started_at and t.completed_at
+                ]
+                user_image_qty = sum(t.quantity or 0 for t in user_image_tickets)
+                # Add Ads STATIC quantities
+                user_ads_static_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=completed_ids,
+                    product__name__icontains='STATIC'
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                user_image_qty += user_ads_static_qty
+                user_avg_image_seconds = round(
+                    sum(user_image_processing) / user_image_qty
+                ) if user_image_qty > 0 and user_image_processing else None
+
                 user_stats.append({
                     'user_id': user.id,
                     'username': user.username,
@@ -2068,6 +2154,8 @@ class AnalyticsView(APIView):
                     'completion_rate': round(len(completed_list) / len(user_tickets_list) * 100, 1) if len(user_tickets_list) > 0 else 0,
                     'total_output': total_user_output,
                     'avg_acknowledge_seconds': avg_ack_seconds,
+                    'avg_video_creation_seconds': user_avg_video_seconds,
+                    'avg_image_creation_seconds': user_avg_image_seconds,
                 })
 
             # Sort by total assigned descending
@@ -2094,10 +2182,57 @@ class AnalyticsView(APIView):
             ).values('dept_name').annotate(
                 count=Count('id'),
                 completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
             ).filter(dept_name__isnull=False).exclude(dept_name='').order_by('-count')
-            # Rename for frontend compatibility
-            department_stats = [{'department': s['dept_name'], **{k: v for k, v in s.items() if k != 'dept_name'}} for s in department_stats]
+
+            # Enhance department_stats with product_items quantities
+            dept_stats_enhanced = []
+            for stat in department_stats:
+                dept_name = stat['dept_name']
+                # Get ticket IDs for this department
+                dept_ticket_ids = [
+                    t.id for t in tickets_list
+                    if (t.target_department and t.target_department.name == dept_name) or
+                       (not t.target_department and t.department == dept_name)
+                ]
+                # Add product_items quantities for Ads/Telegram
+                from api.models import TicketProductItem
+                product_items_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=dept_ticket_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                completed_ticket_ids = [
+                    t.id for t in tickets_list
+                    if t.id in dept_ticket_ids and t.status == Ticket.Status.COMPLETED
+                ]
+                completed_product_items_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=completed_ticket_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                # Exclude Ads/Telegram ticket.quantity to avoid double counting
+                ads_telegram_ticket_qty = sum(
+                    t.quantity or 0 for t in tickets_list
+                    if t.id in dept_ticket_ids and t.request_type in ['ads', 'telegram_channel']
+                )
+                completed_ads_telegram_qty = sum(
+                    t.quantity or 0 for t in tickets_list
+                    if t.id in completed_ticket_ids and t.request_type in ['ads', 'telegram_channel']
+                )
+
+                total_qty = (stat['total_quantity'] or 0) - ads_telegram_ticket_qty + product_items_qty
+                completed_qty = (stat['completed_quantity'] or 0) - completed_ads_telegram_qty + completed_product_items_qty
+
+                dept_stats_enhanced.append({
+                    'department': dept_name,
+                    'count': stat['count'],
+                    'completed': stat['completed'],
+                    'in_progress': stat['in_progress'],
+                    'total_quantity': total_qty,
+                    'completed_quantity': completed_qty
+                })
+            department_stats = dept_stats_enhanced
 
             # Use cached tickets_list for overall stats
             total_completed = sum(1 for t in tickets_list if t.status == Ticket.Status.COMPLETED)
@@ -2349,6 +2484,102 @@ class AnalyticsView(APIView):
                 for s in product_items_stats if s['product__category'] == 'telegram'
             ]
 
+            # =====================
+            # NEW TIME PER CREATIVE METRICS
+            # =====================
+            # Total processing time for all completed tickets
+            total_processing_seconds = sum(all_processing_times) if all_processing_times else 0
+
+            # Avg Time Per Creative = total processing time / total quantity produced
+            avg_time_per_creative_seconds = round(
+                total_processing_seconds / total_quantity_produced
+            ) if total_quantity_produced > 0 else None
+
+            # =====================
+            # VIDEO CREATION TIME
+            # =====================
+            # Get video tickets (criteria='video' or legacy tickets without criteria)
+            video_tickets = [
+                t for t in completed_list_all
+                if t.criteria == 'video' or (not t.criteria and t.request_type not in ['ads', 'telegram_channel'])
+            ]
+            video_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in video_tickets
+                if t.started_at and t.completed_at
+            ]
+            video_processing_total = sum(video_processing_times) if video_processing_times else 0
+
+            # Calculate video quantity (from regular video tickets)
+            regular_video_qty = sum(
+                t.quantity or 0 for t in video_tickets
+            )
+            # Add Ads VID quantities from completed tickets
+            ads_vid_qty_completed = sum(
+                p.quantity or 0 for p in product_items_list
+                if p.product and 'VID' in (p.product.name or '').upper()
+                and p.ticket.status == Ticket.Status.COMPLETED
+            )
+            # Add Telegram video quantities from completed tickets
+            telegram_video_qty_completed = sum(
+                item.quantity or 0 for item in telegram_items
+                if ((item.criteria == 'video') or (not item.criteria and item.ticket.criteria == 'video'))
+                and item.ticket.status == Ticket.Status.COMPLETED
+            )
+            total_video_quantity = regular_video_qty + ads_vid_qty_completed + telegram_video_qty_completed
+
+            avg_video_creation_seconds = round(
+                video_processing_total / total_video_quantity
+            ) if total_video_quantity > 0 else None
+
+            # =====================
+            # IMAGE CREATION TIME
+            # =====================
+            # Get image tickets (criteria='image')
+            image_tickets = [
+                t for t in completed_list_all
+                if t.criteria == 'image'
+            ]
+            image_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in image_tickets
+                if t.started_at and t.completed_at
+            ]
+            image_processing_total = sum(image_processing_times) if image_processing_times else 0
+
+            # Calculate image quantity (from regular image tickets)
+            regular_image_qty = sum(
+                t.quantity or 0 for t in image_tickets
+            )
+            # Add Ads STATIC quantities from completed tickets
+            ads_static_qty_completed = sum(
+                p.quantity or 0 for p in product_items_list
+                if p.product and 'STATIC' in (p.product.name or '').upper()
+                and p.ticket.status == Ticket.Status.COMPLETED
+            )
+            # Add Telegram image quantities from completed tickets
+            telegram_image_qty_completed = sum(
+                item.quantity or 0 for item in telegram_items
+                if ((item.criteria == 'image') or (not item.criteria and item.ticket.criteria == 'image'))
+                and item.ticket.status == Ticket.Status.COMPLETED
+            )
+            total_image_quantity = regular_image_qty + ads_static_qty_completed + telegram_image_qty_completed
+
+            avg_image_creation_seconds = round(
+                image_processing_total / total_image_quantity
+            ) if total_image_quantity > 0 else None
+
+            # =====================
+            # USER TOTALS (for Summary Row)
+            # =====================
+            user_totals = {
+                'total_assigned': sum(u['total_assigned'] for u in user_stats),
+                'assigned_output': sum(u['assigned_output'] for u in user_stats),
+                'completed': sum(u['completed'] for u in user_stats),
+                'total_output': sum(u['total_output'] for u in user_stats),
+                'in_progress': sum(u['in_progress'] for u in user_stats),
+            }
+
             return Response({
                 'date_range': {
                     'min_date': min_date,
@@ -2360,11 +2591,15 @@ class AnalyticsView(APIView):
                     'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
                     'avg_processing_seconds': overall_avg_processing_seconds,
                     'avg_acknowledge_seconds': avg_acknowledge_seconds,
+                    'avg_time_per_creative_seconds': avg_time_per_creative_seconds,
+                    'avg_video_creation_seconds': avg_video_creation_seconds,
+                    'avg_image_creation_seconds': avg_image_creation_seconds,
                     'tickets_with_revisions': tickets_with_revisions,
                     'revision_rate': revision_rate,
                     'total_quantity_produced': total_quantity_produced,
                     'avg_quantity_per_ticket': avg_quantity_per_ticket,
                 },
+                'user_totals': user_totals,
                 'user_performance': user_stats,
                 'by_product': list(product_stats),
                 'by_department': list(department_stats),

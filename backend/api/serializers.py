@@ -224,6 +224,7 @@ class TicketListSerializer(serializers.ModelSerializer):
     pending_approver = UserMinimalSerializer(read_only=True)
     ticket_product = ProductMinimalSerializer(read_only=True)
     target_department = DepartmentMinimalSerializer(read_only=True)
+    collaborators = TicketCollaboratorSerializer(many=True, read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     # Use annotated counts from queryset to avoid N+1 queries
     comment_count = serializers.SerializerMethodField()
@@ -240,7 +241,8 @@ class TicketListSerializer(serializers.ModelSerializer):
                   'comment_count', 'attachment_count', 'ticket_product', 'target_department',
                   'product', 'department', 'is_deleted', 'deleted_at',
                   'request_type', 'request_type_display', 'file_format', 'file_format_display',
-                  'revision_count', 'quantity', 'criteria', 'criteria_display', 'product_items']
+                  'revision_count', 'quantity', 'criteria', 'criteria_display', 'product_items',
+                  'collaborators']
 
     def get_comment_count(self, obj):
         # Use annotated count if available, otherwise fallback to query
@@ -283,6 +285,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at', 'is_overdue', 'is_idle', 'comments',
                   'attachments', 'collaborators', 'confirmed_by_requester', 'confirmed_at',
                   'approved_at', 'rejected_at', 'assigned_at', 'started_at', 'completed_at',
+                  'scheduled_start', 'scheduled_end', 'actual_end',
                   'ticket_product', 'target_department', 'product', 'department',
                   'complexity', 'estimated_hours', 'actual_hours',
                   'is_deleted', 'deleted_at', 'deleted_by',
@@ -389,6 +392,8 @@ class RevisionRequestSerializer(serializers.Serializer):
 class TicketAssignSerializer(serializers.Serializer):
     """Serializer for assigning ticket"""
     assigned_to = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    scheduled_start = serializers.DateTimeField(required=False, allow_null=True)
+    scheduled_end = serializers.DateTimeField(required=False, allow_null=True)
 
 
 class TicketRejectSerializer(serializers.Serializer):

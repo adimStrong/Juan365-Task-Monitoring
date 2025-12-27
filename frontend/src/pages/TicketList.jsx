@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ticketsAPI } from '../services/api';
+import { ticketsAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
 import { TicketListSkeleton } from '../components/Skeleton';
 import TicketCard from '../components/TicketCard';
 import TicketPreviewModal from '../components/TicketPreviewModal';
 
 const TicketList = () => {
-  const { isManager } = useAuth();
+  const { user, isManager } = useAuth();
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
@@ -57,7 +60,38 @@ const TicketList = () => {
 
   useEffect(() => {
     fetchTickets();
+    fetchUsers();
   }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo]);
+
+  // Fetch users for assign modal
+  const fetchUsers = async () => {
+    try {
+      const response = await usersAPI.list();
+      const usersData = response.data;
+      setUsers(Array.isArray(usersData) ? usersData : (usersData.results || []));
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  // Handle action from preview modal - update only that ticket, not full reload
+  const handleTicketAction = async (action, ticketId) => {
+    try {
+      // Fetch updated ticket data
+      const response = await ticketsAPI.get(ticketId);
+      const updatedTicket = response.data;
+
+      // Update only that ticket in the list
+      setTickets(prevTickets =>
+        prevTickets.map(t => t.id === ticketId ? updatedTicket : t)
+      );
+
+      toast.success(`Ticket ${action} successful!`);
+    } catch (error) {
+      // If ticket was moved (e.g., rejected), remove it from list
+      setTickets(prevTickets => prevTickets.filter(t => t.id !== ticketId));
+    }
+  };
 
   // Load view preference from localStorage
   useEffect(() => {
@@ -448,6 +482,10 @@ const TicketList = () => {
         <TicketPreviewModal
           ticketId={previewTicketId}
           onClose={() => setPreviewTicketId(null)}
+          currentUser={user}
+          isManager={isManager}
+          users={users}
+          onAction={handleTicketAction}
         />
       )}
     </Layout>

@@ -2,10 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsAPI } from '../services/api';
 
-const TicketPreviewModal = ({ ticketId, onClose }) => {
+const TicketPreviewModal = ({ ticketId, onClose, currentUser, isManager, users, onAction }) => {
   const navigate = useNavigate();
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [assignUserIds, setAssignUserIds] = useState([]);
 
   useEffect(() => {
     if (ticketId) {
@@ -22,6 +27,74 @@ const TicketPreviewModal = ({ ticketId, onClose }) => {
       console.error('Failed to fetch ticket:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Permission checks
+  const isRequester = currentUser?.id === ticket?.requester?.id;
+  const isAssigned = currentUser?.id === ticket?.assigned_to?.id;
+  const isCollaborator = ticket?.collaborators?.some(c => c.user?.id === currentUser?.id);
+
+  const canApprove = isManager && ['requested', 'pending_creative'].includes(ticket?.status);
+  const canReject = isManager && ['requested', 'pending_creative'].includes(ticket?.status);
+  const canAssign = isManager && ticket?.status === 'approved';
+  const canStart = (isAssigned || isCollaborator) && ticket?.status === 'approved';
+  const canComplete = (isAssigned || isCollaborator || isManager) && ticket?.status === 'in_progress';
+  const canRequestRevision = (isRequester || isManager) && ticket?.status === 'completed' && !ticket?.confirmed_by_requester;
+
+  const hasAnyAction = canApprove || canReject || canAssign || canStart || canComplete || canRequestRevision;
+
+  const handleAction = async (action, data = {}) => {
+    setActionLoading(true);
+    try {
+      let response;
+      switch (action) {
+        case 'approve':
+          response = await ticketsAPI.approve(ticketId);
+          break;
+        case 'reject':
+          response = await ticketsAPI.reject(ticketId, rejectReason);
+          setShowRejectModal(false);
+          setRejectReason('');
+          break;
+        case 'assign':
+          if (assignUserIds.length > 0) {
+            response = await ticketsAPI.assign(ticketId, assignUserIds[0]);
+            // Add remaining users as collaborators
+            for (let i = 1; i < assignUserIds.length; i++) {
+              try {
+                await ticketsAPI.addCollaborator(ticketId, assignUserIds[i]);
+              } catch (collabErr) {
+                console.error('Failed to add collaborator:', collabErr);
+              }
+            }
+          }
+          setShowAssignModal(false);
+          setAssignUserIds([]);
+          break;
+        case 'start':
+          response = await ticketsAPI.start(ticketId);
+          break;
+        case 'complete':
+          response = await ticketsAPI.complete(ticketId);
+          break;
+        case 'request_revision':
+          response = await ticketsAPI.requestRevision(ticketId, 'Revision requested from quick action');
+          break;
+        default:
+          return;
+      }
+      // Refresh ticket data
+      await fetchTicket();
+      // Notify parent to refresh list
+      if (onAction) {
+        onAction(action, ticketId);
+      }
+    } catch (error) {
+      console.error(`Action ${action} failed:`, error);
+      alert(error.response?.data?.error || `Failed to ${action}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -323,6 +396,87 @@ const TicketPreviewModal = ({ ticketId, onClose }) => {
               </div>
             </div>
 
+            {/* Quick Actions */}
+            {hasAnyAction && (
+              <div className="px-6 py-3 border-t bg-blue-50">
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {canApprove && (
+                    <button
+                      onClick={() => handleAction('approve')}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Approve
+                    </button>
+                  )}
+                  {canReject && (
+                    <button
+                      onClick={() => setShowRejectModal(true)}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Reject
+                    </button>
+                  )}
+                  {canAssign && (
+                    <button
+                      onClick={() => setShowAssignModal(true)}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Assign
+                    </button>
+                  )}
+                  {canStart && (
+                    <button
+                      onClick={() => handleAction('start')}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Start
+                    </button>
+                  )}
+                  {canComplete && (
+                    <button
+                      onClick={() => handleAction('complete')}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Complete
+                    </button>
+                  )}
+                  {canRequestRevision && (
+                    <button
+                      onClick={() => handleAction('request_revision')}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 flex items-center text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Revision
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Footer */}
             <div className="px-6 py-4 border-t bg-gray-50 flex justify-between">
               <button
@@ -345,6 +499,111 @@ const TicketPreviewModal = ({ ticketId, onClose }) => {
           </div>
         )}
       </div>
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Ticket</h3>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Enter rejection reason..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 h-24"
+              required
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAction('reject')}
+                disabled={!rejectReason.trim() || actionLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Assign Ticket</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="text-blue-600 font-medium">Note:</span> Select one or more Creative members to assign.
+            </p>
+            {assignUserIds.length > 0 && (
+              <p className="text-xs text-green-600 mb-2">
+                {assignUserIds.length} member{assignUserIds.length > 1 ? 's' : ''} selected
+              </p>
+            )}
+            {(() => {
+              const creativeUsers = users?.filter(u => u.user_department_info?.is_creative) || [];
+              return creativeUsers.length > 0 ? (
+                <div className="overflow-y-auto max-h-60 border border-gray-200 rounded-md">
+                  {creativeUsers.map((u) => (
+                    <label
+                      key={u.id}
+                      className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 ${
+                        assignUserIds.includes(u.id) ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assignUserIds.includes(u.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignUserIds([...assignUserIds, u.id]);
+                          } else {
+                            setAssignUserIds(assignUserIds.filter(id => id !== u.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div className="ml-3 flex-1">
+                        <span className="text-sm font-medium text-gray-900">
+                          {u.first_name || u.username} {u.last_name || ''}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">@{u.username}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No Creative department members available.</p>
+              );
+            })()}
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setAssignUserIds([]);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAction('assign')}
+                disabled={assignUserIds.length === 0 || actionLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Assigning...' : `Assign (${assignUserIds.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

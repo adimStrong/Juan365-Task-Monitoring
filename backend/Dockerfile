@@ -1,13 +1,19 @@
 FROM python:3.11-slim
 
-# Cache bust argument - change date to force rebuild
-ARG CACHE_DATE=2025-12-27
-
 WORKDIR /app
+
+# Install build dependencies for gevent (C extension)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Remove build dependencies to reduce image size
+RUN apt-get purge -y gcc libc-dev && apt-get autoremove -y
 
 # Copy backend project files
 COPY backend/ .

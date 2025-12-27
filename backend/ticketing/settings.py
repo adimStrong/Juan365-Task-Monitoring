@@ -67,6 +67,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.gzip.GZipMiddleware',  # Compress responses (60-80% smaller)
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

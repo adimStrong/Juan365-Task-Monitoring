@@ -2341,3 +2341,15 @@ class AnalyticsView(APIView):
                 {'error': f'Failed to load analytics: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# =====================
+# HEALTH CHECK
+# =====================
+
+class HealthCheckView(APIView):
+    """Health check endpoint for uptime monitoring (keeps Railway warm)"""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"status": "ok"})

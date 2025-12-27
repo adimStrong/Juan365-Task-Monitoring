@@ -992,11 +992,11 @@ const TicketDetail = () => {
           <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Assign Ticket</h3>
             <p className="text-sm text-gray-600 mb-2">
-              <span className="text-blue-600 font-medium">Note:</span> Select one or more Creative members. First selected will be the main assignee.
+              <span className="text-blue-600 font-medium">Note:</span> Select one or more Creative members to assign.
             </p>
             {assignUserIds.length > 0 && (
               <p className="text-xs text-green-600 mb-2">
-                {assignUserIds.length} selected - {users?.find(u => u.id === assignUserIds[0])?.first_name || 'First'} will be main assignee
+                {assignUserIds.length} member{assignUserIds.length > 1 ? 's' : ''} selected
               </p>
             )}
             {(() => {
@@ -1027,9 +1027,6 @@ const TicketDetail = () => {
                           {u.first_name || u.username} {u.last_name || ''}
                         </span>
                         <span className="text-xs text-gray-500 ml-2">@{u.username}</span>
-                        {assignUserIds.length > 0 && assignUserIds[0] === u.id && (
-                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Main</span>
-                        )}
                       </div>
                     </label>
                   ))}

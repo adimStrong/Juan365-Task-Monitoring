@@ -9,7 +9,7 @@ from .views import (
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
     ActivityLogListView, AnalyticsView,
     DepartmentViewSet, ProductViewSet, PublicDepartmentListView,
-    ForgotPasswordView, ResetPasswordView
+    ForgotPasswordView, ResetPasswordView, HealthCheckView
 )
 
 router = DefaultRouter()
@@ -49,4 +49,7 @@ urlpatterns = [
 
     # Analytics
     path('analytics/', AnalyticsView.as_view(), name='analytics'),
+
+    # Health check (for uptime monitoring)
+    path('health/', HealthCheckView.as_view(), name='health-check'),
 ]

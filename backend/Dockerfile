@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Cache bust argument - change date to force rebuild
+ARG CACHE_DATE=2025-12-27
+
 WORKDIR /app
 
 # Install Python dependencies

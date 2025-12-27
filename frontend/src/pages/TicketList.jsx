@@ -35,6 +35,20 @@ const TicketList = () => {
   const dateFrom = searchParams.get('date_from') || '';
   const dateTo = searchParams.get('date_to') || '';
 
+  // Pagination from URL
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = parseInt(searchParams.get('page_size') || '20', 10);
+
+  // Pagination state
+  const [paginationInfo, setPaginationInfo] = useState({
+    count: 0,
+    total_pages: 1,
+    current_page: 1,
+    page_size: 20,
+    next: null,
+    previous: null
+  });
+
   // Sync local search with URL on mount
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -54,6 +68,8 @@ const TicketList = () => {
         } else {
           searchParams.delete('search');
         }
+        // Reset to page 1 when search changes
+        searchParams.set('page', '1');
         setSearchParams(searchParams);
       }
     }, 300);
@@ -68,7 +84,7 @@ const TicketList = () => {
   useEffect(() => {
     fetchTickets();
     fetchUsers();
-  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo]);
+  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, currentPage, pageSize]);
 
   // Fetch users for assign modal
   const fetchUsers = async () => {
@@ -227,7 +243,10 @@ const TicketList = () => {
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = {
+        page: currentPage,
+        page_size: pageSize
+      };
       if (statusFilter) params.status = statusFilter;
       if (priorityFilter) params.priority = priorityFilter;
       if (searchQuery) params.search = searchQuery;
@@ -235,7 +254,31 @@ const TicketList = () => {
       if (dateTo) params.created_before = dateTo;
 
       const response = await ticketsAPI.list(params);
-      setTickets(response.data.results || response.data);
+      const data = response.data;
+
+      // Handle paginated response
+      if (data.results) {
+        setTickets(data.results);
+        setPaginationInfo({
+          count: data.count || 0,
+          total_pages: data.total_pages || 1,
+          current_page: data.current_page || 1,
+          page_size: data.page_size || pageSize,
+          next: data.next,
+          previous: data.previous
+        });
+      } else {
+        // Fallback for non-paginated response
+        setTickets(Array.isArray(data) ? data : []);
+        setPaginationInfo({
+          count: Array.isArray(data) ? data.length : 0,
+          total_pages: 1,
+          current_page: 1,
+          page_size: pageSize,
+          next: null,
+          previous: null
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
     } finally {
@@ -249,11 +292,25 @@ const TicketList = () => {
     } else {
       searchParams.delete(key);
     }
+    // Reset to page 1 when filters change
+    searchParams.set('page', '1');
     setSearchParams(searchParams);
   };
 
   const clearFilters = () => {
     setSearchParams({});
+  };
+
+  // Pagination handlers
+  const handlePageChange = (newPage) => {
+    searchParams.set('page', newPage.toString());
+    setSearchParams(searchParams);
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    searchParams.set('page_size', newSize.toString());
+    searchParams.set('page', '1'); // Reset to page 1 when changing page size
+    setSearchParams(searchParams);
   };
 
   const toggleViewMode = (mode) => {
@@ -442,11 +499,29 @@ const TicketList = () => {
           )}
         </div>
 
-        {/* Results count */}
+        {/* Results count and Page Size Selector */}
         {!loading && (
-          <div className="text-sm text-gray-500">
-            Showing {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
-            {hasActiveFilters && ' (filtered)'}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="text-sm text-gray-500">
+              Showing {tickets.length} of {paginationInfo.count} ticket{paginationInfo.count !== 1 ? 's' : ''}
+              {hasActiveFilters && ' (filtered)'}
+              {paginationInfo.total_pages > 1 && ` • Page ${paginationInfo.current_page} of ${paginationInfo.total_pages}`}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Show:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(parseInt(e.target.value, 10))}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span className="text-sm text-gray-600">per page</span>
+            </div>
           </div>
         )}
 
@@ -674,6 +749,84 @@ const TicketList = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && paginationInfo.total_pages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white shadow rounded-lg px-4 py-3">
+            <div className="text-sm text-gray-600">
+              Page {paginationInfo.current_page} of {paginationInfo.total_pages}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* First Page */}
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={paginationInfo.current_page === 1}
+                className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="First Page"
+              >
+                ««
+              </button>
+              {/* Previous */}
+              <button
+                onClick={() => handlePageChange(paginationInfo.current_page - 1)}
+                disabled={!paginationInfo.previous}
+                className="px-4 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              {/* Page Numbers */}
+              <div className="hidden sm:flex items-center gap-1">
+                {(() => {
+                  const pages = [];
+                  const total = paginationInfo.total_pages;
+                  const current = paginationInfo.current_page;
+                  const maxVisible = 5;
+
+                  let start = Math.max(1, current - Math.floor(maxVisible / 2));
+                  let end = Math.min(total, start + maxVisible - 1);
+
+                  if (end - start + 1 < maxVisible) {
+                    start = Math.max(1, end - maxVisible + 1);
+                  }
+
+                  for (let i = start; i <= end; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        onClick={() => handlePageChange(i)}
+                        className={`px-3 py-1 text-sm font-medium rounded-md ${
+                          i === current
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    );
+                  }
+                  return pages;
+                })()}
+              </div>
+              {/* Next */}
+              <button
+                onClick={() => handlePageChange(paginationInfo.current_page + 1)}
+                disabled={!paginationInfo.next}
+                className="px-4 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+              {/* Last Page */}
+              <button
+                onClick={() => handlePageChange(paginationInfo.total_pages)}
+                disabled={paginationInfo.current_page === paginationInfo.total_pages}
+                className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Last Page"
+              >
+                »»
+              </button>
             </div>
           </div>
         )}

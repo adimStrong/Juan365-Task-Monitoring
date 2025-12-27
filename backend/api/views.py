@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Count
 from django.core.cache import cache
@@ -17,6 +18,29 @@ from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator,
 from notifications import notify_user  # Unified notification (Telegram + Email)
 
 logger = logging.getLogger(__name__)
+
+
+class TicketPagination(PageNumberPagination):
+    """
+    Custom pagination for tickets with configurable page size.
+    Supports ?page_size=10|25|50|100 query parameter.
+    """
+    page_size = 20  # Default
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'current_page': self.page.number,
+            'page_size': self.get_page_size(self.request),
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'results': data
+        })
+
+
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserMinimalSerializer, UserManagementSerializer,
     TicketListSerializer, TicketDetailSerializer, TicketCreateSerializer,
@@ -700,9 +724,11 @@ class TicketViewSet(viewsets.ModelViewSet):
     retrieve: Get ticket details
     update: Update ticket (owner or manager only)
     destroy: Delete ticket (owner or manager only)
+
+    Pagination: Use ?page=1&page_size=20 (max 100)
     """
     permission_classes = [IsAuthenticated]
-    pagination_class = None  # Return all as list for dropdowns
+    pagination_class = TicketPagination
 
     def get_queryset(self):
         user = self.request.user

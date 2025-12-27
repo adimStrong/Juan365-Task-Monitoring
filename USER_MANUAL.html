@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juan365 Creative Ticketing System - User Manual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #fff;
+        }
+        .cover {
+            text-align: center;
+            padding: 60px 20px;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #3B82F6;
+        }
+        .cover h1 {
+            font-size: 2.5em;
+            color: #1E40AF;
+            margin-bottom: 10px;
+        }
+        .cover .subtitle {
+            font-size: 1.3em;
+            color: #6B7280;
+            margin-bottom: 30px;
+        }
+        .cover .version {
+            font-size: 0.9em;
+            color: #9CA3AF;
+        }
+        .toc {
+            background: #F3F4F6;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+        }
+        .toc h2 {
+            color: #1E40AF;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+        .toc ul {
+            list-style: none;
+        }
+        .toc li {
+            padding: 8px 0;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .toc li:last-child {
+            border-bottom: none;
+        }
+        .toc a {
+            color: #3B82F6;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        h2 {
+            color: #1E40AF;
+            font-size: 1.6em;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #E5E7EB;
+        }
+        h3 {
+            color: #1E40AF;
+            font-size: 1.2em;
+            margin: 25px 0 15px 0;
+        }
+        h4 {
+            color: #374151;
+            font-size: 1em;
+            margin: 20px 0 10px 0;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+        .info-box {
+            background: #EFF6FF;
+            border-left: 4px solid #3B82F6;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .warning-box {
+            background: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .success-box {
+            background: #D1FAE5;
+            border-left: 4px solid #10B981;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #E5E7EB;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background: #F3F4F6;
+            font-weight: 600;
+            color: #374151;
+        }
+        tr:nth-child(even) {
+            background: #F9FAFB;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .status-requested { background: #DBEAFE; color: #1E40AF; }
+        .status-pending { background: #E9D5FF; color: #6B21A8; }
+        .status-notstarted { background: #CFFAFE; color: #0E7490; }
+        .status-progress { background: #FEF3C7; color: #92400E; }
+        .status-completed { background: #D1FAE5; color: #065F46; }
+        .status-rejected { background: #F3F4F6; color: #374151; }
+        .status-overdue { background: #FEE2E2; color: #991B1B; }
+        ol, ul {
+            margin: 15px 0 15px 25px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .step {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .step-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #3B82F6;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .step-title {
+            font-weight: 600;
+            color: #1E40AF;
+        }
+        .workflow-diagram {
+            background: #F9FAFB;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.9em;
+            line-height: 2;
+            overflow-x: auto;
+        }
+        .role-card {
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .role-card h4 {
+            margin-top: 0;
+            color: #3B82F6;
+        }
+        .keyboard-shortcut {
+            background: #F3F4F6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .screenshot-placeholder {
+            background: #F3F4F6;
+            border: 2px dashed #D1D5DB;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #6B7280;
+            margin: 20px 0;
+        }
+        @media print {
+            body {
+                padding: 20px;
+            }
+            .toc {
+                page-break-after: always;
+            }
+            h2 {
+                page-break-before: always;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Cover Page -->
+<div class="cover">
+    <h1>Juan365 Creative Ticketing System</h1>
+    <p class="subtitle">User Manual & Guide</p>
+    <p class="version">Version 1.0 | December 2025</p>
+</div>
+
+<!-- Table of Contents -->
+<div class="toc">
+    <h2>Table of Contents</h2>
+    <ul>
+        <li><a href="#introduction">1. Introduction</a></li>
+        <li><a href="#getting-started">2. Getting Started</a></li>
+        <li><a href="#user-roles">3. User Roles & Permissions</a></li>
+        <li><a href="#dashboard">4. Dashboard Overview</a></li>
+        <li><a href="#creating-tickets">5. Creating Tickets</a></li>
+        <li><a href="#ticket-workflow">6. Ticket Workflow</a></li>
+        <li><a href="#managing-tickets">7. Managing Tickets</a></li>
+        <li><a href="#notifications">8. Notifications</a></li>
+        <li><a href="#analytics">9. Analytics (Managers)</a></li>
+        <li><a href="#admin-panel">10. Admin Panel</a></li>
+        <li><a href="#troubleshooting">11. Troubleshooting</a></li>
+        <li><a href="#glossary">12. Glossary</a></li>
+    </ul>
+</div>
+
+<!-- Section 1: Introduction -->
+<h2 id="introduction">1. Introduction</h2>
+
+<p>Welcome to the <strong>Juan365 Creative Ticketing System</strong> - a comprehensive platform designed to streamline creative request management, approval workflows, and team collaboration.</p>
+
+<h3>1.1 Purpose</h3>
+<p>This system enables:</p>
+<ul>
+    <li>Submitting creative requests (social media posts, banners, videos, ads)</li>
+    <li>Two-step approval workflow (Department Manager → Creative Manager)</li>
+    <li>Task assignment and progress tracking</li>
+    <li>Real-time notifications via Telegram</li>
+    <li>Performance analytics and reporting</li>
+</ul>
+
+<h3>1.2 System Requirements</h3>
+<ul>
+    <li>Modern web browser (Chrome, Firefox, Safari, Edge)</li>
+    <li>Internet connection</li>
+    <li>Valid user account (approved by administrator)</li>
+</ul>
+
+<h3>1.3 Accessing the System</h3>
+<div class="info-box">
+    <strong>System URL:</strong> https://juan365-ticketing-frontend.vercel.app
+</div>
+
+<!-- Section 2: Getting Started -->
+<h2 id="getting-started">2. Getting Started</h2>
+
+<h3>2.1 Creating an Account</h3>
+
+<div class="step">
+    <span class="step-number">1</span>
+    <span class="step-title">Go to the Registration Page</span>
+    <p style="margin-top: 10px;">Click "Register" on the login page or navigate to /register</p>
+</div>
+
+<div class="step">
+    <span class="step-number">2</span>
+    <span class="step-title">Fill in Your Information</span>
+    <ul style="margin-top: 10px;">
+        <li><strong>Email:</strong> Your work email address</li>
+        <li><strong>Username:</strong> Unique username for login</li>
+        <li><strong>First Name / Last Name:</strong> Your full name</li>
+        <li><strong>Password:</strong> Minimum 8 characters</li>
+        <li><strong>Department:</strong> Select your department</li>
+    </ul>
+</div>
+
+<div class="step">
+    <span class="step-number">3</span>
+    <span class="step-title">Wait for Approval</span>
+    <p style="margin-top: 10px;">Your account must be approved by an administrator before you can log in.</p>
+</div>
+
+<div class="warning-box">
+    <strong>Note:</strong> After 3 failed login attempts, your account will be locked for 30 minutes.
+</div>
+
+<h3>2.2 Logging In</h3>
+<ol>
+    <li>Enter your email or username</li>
+    <li>Enter your password</li>
+    <li>Click "Sign In"</li>
+</ol>
+
+<h3>2.3 Forgot Password</h3>
+<ol>
+    <li>Click "Forgot Password?" on the login page</li>
+    <li>Enter your registered email</li>
+    <li>Check your email for reset link (valid for 24 hours)</li>
+    <li>Create a new password</li>
+</ol>
+
+<!-- Section 3: User Roles -->
+<h2 id="user-roles">3. User Roles & Permissions</h2>
+
+<p>The system has three user roles with different access levels:</p>
+
+<div class="role-card">
+    <h4>Member</h4>
+    <p>Regular team members who create and track tickets.</p>
+    <ul>
+        <li>Create tickets for their department</li>
+        <li>View and track their own tickets</li>
+        <li>Add comments and attachments</li>
+        <li>Confirm completed work</li>
+    </ul>
+</div>
+
+<div class="role-card">
+    <h4>Manager</h4>
+    <p>Department managers who approve tickets and manage their team.</p>
+    <ul>
+        <li>All Member permissions</li>
+        <li>Approve/reject department tickets</li>
+        <li>Assign tasks to Creative team</li>
+        <li>View team analytics</li>
+        <li>Manage department users</li>
+    </ul>
+</div>
+
+<div class="role-card">
+    <h4>Admin</h4>
+    <p>System administrators with full access.</p>
+    <ul>
+        <li>All Manager permissions</li>
+        <li>Manage all users and departments</li>
+        <li>Create/edit products</li>
+        <li>Access all tickets across departments</li>
+        <li>Permanently delete tickets</li>
+    </ul>
+</div>
+
+<!-- Section 4: Dashboard -->
+<h2 id="dashboard">4. Dashboard Overview</h2>
+
+<p>The dashboard provides a quick overview of your tickets and system status.</p>
+
+<h3>4.1 Status Cards</h3>
+<p>The top section shows ticket counts by status:</p>
+
+<table>
+    <tr>
+        <th>Card</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><strong>Total</strong></td>
+        <td>Total number of active tickets</td>
+    </tr>
+    <tr>
+        <td><strong>Dept Approval</strong></td>
+        <td>Tickets waiting for department manager approval</td>
+    </tr>
+    <tr>
+        <td><strong>Creative Approval</strong></td>
+        <td>Tickets waiting for creative team approval</td>
+    </tr>
+    <tr>
+        <td><strong>Not Yet Started</strong></td>
+        <td>Approved tickets waiting for designer to start</td>
+    </tr>
+    <tr>
+        <td><strong>In Progress</strong></td>
+        <td>Tickets currently being worked on</td>
+    </tr>
+    <tr>
+        <td><strong>Completed</strong></td>
+        <td>Finished tickets</td>
+    </tr>
+    <tr>
+        <td><strong>Rejected</strong></td>
+        <td>Tickets that were rejected</td>
+    </tr>
+    <tr>
+        <td><strong>Overdue</strong></td>
+        <td>Tickets past their deadline</td>
+    </tr>
+</table>
+
+<h3>4.2 Charts</h3>
+<ul>
+    <li><strong>Tickets by Status:</strong> Pie chart showing distribution</li>
+    <li><strong>Tickets by Priority:</strong> Bar chart of priority levels</li>
+    <li><strong>Weekly Trends:</strong> Line chart of created vs completed tickets</li>
+</ul>
+
+<h3>4.3 My Tasks</h3>
+<p>Shows tickets assigned to you that need action.</p>
+
+<!-- Section 5: Creating Tickets -->
+<h2 id="creating-tickets">5. Creating Tickets</h2>
+
+<h3>5.1 Starting a New Ticket</h3>
+<ol>
+    <li>Click <strong>"+ Create New Ticket"</strong> button</li>
+    <li>Fill in the required information</li>
+    <li>Add attachments if needed</li>
+    <li>Click <strong>"Submit Ticket"</strong></li>
+</ol>
+
+<h3>5.2 Ticket Fields</h3>
+
+<table>
+    <tr>
+        <th>Field</th>
+        <th>Required</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>Title</td>
+        <td>Yes</td>
+        <td>Brief description of the request</td>
+    </tr>
+    <tr>
+        <td>Description</td>
+        <td>Yes</td>
+        <td>Detailed requirements and specifications</td>
+    </tr>
+    <tr>
+        <td>Department</td>
+        <td>Yes</td>
+        <td>Target department (auto-filled for non-admins)</td>
+    </tr>
+    <tr>
+        <td>Priority</td>
+        <td>Yes</td>
+        <td>Urgent, High, Medium, or Low</td>
+    </tr>
+    <tr>
+        <td>Request Type</td>
+        <td>Yes</td>
+        <td>Type of creative work needed</td>
+    </tr>
+    <tr>
+        <td>Product</td>
+        <td>No</td>
+        <td>Associated product/brand</td>
+    </tr>
+    <tr>
+        <td>Quantity</td>
+        <td>No</td>
+        <td>Number of outputs needed (max 1000)</td>
+    </tr>
+    <tr>
+        <td>Attachments</td>
+        <td>No</td>
+        <td>Reference files, images, documents</td>
+    </tr>
+</table>
+
+<h3>5.3 Request Types</h3>
+
+<table>
+    <tr>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Special Fields</th>
+    </tr>
+    <tr>
+        <td>Socmed Posting</td>
+        <td>Social media content</td>
+        <td>File Format (Still, GIF, Video)</td>
+    </tr>
+    <tr>
+        <td>Website Banner</td>
+        <td>H5 & Web banners</td>
+        <td>Criteria (Image/Video)</td>
+    </tr>
+    <tr>
+        <td>Photoshoot</td>
+        <td>Photography requests</td>
+        <td>Criteria (Image/Video)</td>
+    </tr>
+    <tr>
+        <td>Videoshoot</td>
+        <td>Video production</td>
+        <td>Criteria (Image/Video)</td>
+    </tr>
+    <tr>
+        <td>Live Production</td>
+        <td>Live event coverage</td>
+        <td>Criteria (Image/Video)</td>
+    </tr>
+    <tr>
+        <td>Ads</td>
+        <td>Advertising content</td>
+        <td>Multi-product selection with quantities</td>
+    </tr>
+    <tr>
+        <td>Telegram Channel</td>
+        <td>Telegram content</td>
+        <td>Telegram products with quantities</td>
+    </tr>
+</table>
+
+<h3>5.4 Priority & Deadlines</h3>
+<p>Deadlines are automatically calculated based on priority:</p>
+
+<table>
+    <tr>
+        <th>Priority</th>
+        <th>Image/Still</th>
+        <th>Video</th>
+    </tr>
+    <tr>
+        <td><span class="status-badge" style="background:#FEE2E2;color:#991B1B;">Urgent</span></td>
+        <td>2 hours</td>
+        <td>3 hours</td>
+    </tr>
+    <tr>
+        <td><span class="status-badge" style="background:#FFEDD5;color:#9A3412;">High</span></td>
+        <td>24 hours</td>
+        <td>24 hours</td>
+    </tr>
+    <tr>
+        <td><span class="status-badge" style="background:#FEF3C7;color:#92400E;">Medium</span></td>
+        <td>72 hours</td>
+        <td>72 hours</td>
+    </tr>
+    <tr>
+        <td><span class="status-badge" style="background:#D1FAE5;color:#065F46;">Low</span></td>
+        <td>7 days</td>
+        <td>7 days</td>
+    </tr>
+</table>
+
+<!-- Section 6: Ticket Workflow -->
+<h2 id="ticket-workflow">6. Ticket Workflow</h2>
+
+<h3>6.1 Status Flow</h3>
+
+<div class="workflow-diagram">
+<pre>
+   REQUESTED          PENDING CREATIVE        NOT YET STARTED        IN PROGRESS         COMPLETED
+       |                     |                      |                     |                   |
+  [Dept Manager]      [Creative Manager]      [Assignment]         [Designer]          [Requester]
+    Approves             Approves              + Assign             Starts               Confirms
+       |                     |                      |                     |                   |
+       v                     v                      v                     v                   v
+  +---------+          +-----------+          +----------+          +----------+        +----------+
+  | For     |   --->   | For       |   --->   | Not Yet  |   --->   | In       |  --->  | Completed|
+  | Dept    |          | Creative  |          | Started  |          | Progress |        |          |
+  | Approval|          | Approval  |          |          |          |          |        |          |
+  +---------+          +-----------+          +----------+          +----------+        +----------+
+       |                     |                                            |
+       v                     v                                            v
+  +---------+          +-----------+                              +------------+
+  | REJECTED|          | REJECTED  |    <-------------------------| REVISION   |
+  +---------+          +-----------+                              | REQUESTED  |
+                                                                  +------------+
+</pre>
+</div>
+
+<h3>6.2 Status Descriptions</h3>
+
+<table>
+    <tr>
+        <th>Status</th>
+        <th>Badge</th>
+        <th>What Happens Next</th>
+    </tr>
+    <tr>
+        <td>For Dept Approval</td>
+        <td><span class="status-badge status-requested">For Dept Approval</span></td>
+        <td>Department manager reviews and approves</td>
+    </tr>
+    <tr>
+        <td>For Creative Approval</td>
+        <td><span class="status-badge status-pending">For Creative Approval</span></td>
+        <td>Creative manager reviews and approves</td>
+    </tr>
+    <tr>
+        <td>Not Yet Started</td>
+        <td><span class="status-badge status-notstarted">Not Yet Started</span></td>
+        <td>Assigned designer clicks "Start Editing"</td>
+    </tr>
+    <tr>
+        <td>In Progress</td>
+        <td><span class="status-badge status-progress">In Progress</span></td>
+        <td>Designer works and clicks "Complete"</td>
+    </tr>
+    <tr>
+        <td>Completed</td>
+        <td><span class="status-badge status-completed">Completed</span></td>
+        <td>Requester confirms or requests revision</td>
+    </tr>
+    <tr>
+        <td>Rejected</td>
+        <td><span class="status-badge status-rejected">Rejected</span></td>
+        <td>Ticket closed - no further action</td>
+    </tr>
+</table>
+
+<h3>6.3 Two-Step Approval</h3>
+
+<div class="info-box">
+    <strong>Step 1 - Department Approval:</strong> Your department manager reviews the request to ensure it's valid and within scope.
+</div>
+
+<div class="info-box">
+    <strong>Step 2 - Creative Approval:</strong> The Creative team manager reviews the request for feasibility and assigns resources.
+</div>
+
+<div class="success-box">
+    <strong>Tip:</strong> Creative team members' tickets skip Step 1 and go directly to Creative Approval.
+</div>
+
+<!-- Section 7: Managing Tickets -->
+<h2 id="managing-tickets">7. Managing Tickets</h2>
+
+<h3>7.1 Viewing Tickets</h3>
+<p>Navigate to <strong>Tickets</strong> in the sidebar to see all tickets you have access to.</p>
+
+<h4>Filtering Options:</h4>
+<ul>
+    <li><strong>Status:</strong> Filter by current status</li>
+    <li><strong>Priority:</strong> Filter by urgency level</li>
+    <li><strong>Search:</strong> Search by title or description</li>
+    <li><strong>Date Range:</strong> Filter by creation date</li>
+</ul>
+
+<h4>View Modes:</h4>
+<ul>
+    <li><strong>Table View:</strong> Traditional list format</li>
+    <li><strong>Card View:</strong> Visual card layout</li>
+</ul>
+
+<h3>7.2 Ticket Details</h3>
+<p>Click on any ticket to view its full details including:</p>
+<ul>
+    <li>Complete description and requirements</li>
+    <li>Attachments and files</li>
+    <li>Comments and discussion</li>
+    <li>Activity history</li>
+    <li>Available actions</li>
+</ul>
+
+<h3>7.3 Adding Comments</h3>
+<ol>
+    <li>Open the ticket details</li>
+    <li>Scroll to the Comments section</li>
+    <li>Type your message</li>
+    <li>Click "Add Comment"</li>
+</ol>
+
+<div class="info-box">
+    <strong>Tip:</strong> Use comments to ask questions, provide updates, or give feedback.
+</div>
+
+<h3>7.4 Uploading Attachments</h3>
+<ol>
+    <li>Open the ticket details</li>
+    <li>Click "Add Attachment" or drag files to the upload area</li>
+    <li>Supported formats: Images, Videos, PDFs, Documents</li>
+</ol>
+
+<h3>7.5 Available Actions by Role</h3>
+
+<table>
+    <tr>
+        <th>Action</th>
+        <th>Who Can Do It</th>
+        <th>When Available</th>
+    </tr>
+    <tr>
+        <td>Approve (Dept)</td>
+        <td>Department Manager</td>
+        <td>Status: Requested</td>
+    </tr>
+    <tr>
+        <td>Approve (Creative)</td>
+        <td>Creative Manager/Admin</td>
+        <td>Status: Pending Creative</td>
+    </tr>
+    <tr>
+        <td>Reject</td>
+        <td>Managers/Admin</td>
+        <td>Before completion</td>
+    </tr>
+    <tr>
+        <td>Assign</td>
+        <td>Creative Manager/Admin</td>
+        <td>After creative approval</td>
+    </tr>
+    <tr>
+        <td>Start Editing</td>
+        <td>Assigned Designer</td>
+        <td>Status: Approved (Not Yet Started)</td>
+    </tr>
+    <tr>
+        <td>Complete</td>
+        <td>Assigned Designer</td>
+        <td>Status: In Progress</td>
+    </tr>
+    <tr>
+        <td>Confirm</td>
+        <td>Requester</td>
+        <td>Status: Completed</td>
+    </tr>
+    <tr>
+        <td>Request Revision</td>
+        <td>Requester</td>
+        <td>Status: Completed</td>
+    </tr>
+    <tr>
+        <td>Rollback</td>
+        <td>Managers</td>
+        <td>From History tab</td>
+    </tr>
+</table>
+
+<h3>7.6 Requesting Revisions</h3>
+<p>If the completed work needs changes:</p>
+<ol>
+    <li>Open the completed ticket</li>
+    <li>Click "Request Revision"</li>
+    <li>Explain what needs to be changed</li>
+    <li>Submit - ticket returns to "In Progress"</li>
+</ol>
+
+<div class="warning-box">
+    <strong>Note:</strong> Revision count is tracked for analytics.
+</div>
+
+<!-- Section 8: Notifications -->
+<h2 id="notifications">8. Notifications</h2>
+
+<h3>8.1 In-App Notifications</h3>
+<p>Click the bell icon in the header to view notifications:</p>
+<ul>
+    <li>New tickets assigned to you</li>
+    <li>Status changes on your tickets</li>
+    <li>New comments on your tickets</li>
+    <li>Deadline reminders</li>
+</ul>
+
+<h3>8.2 Telegram Notifications</h3>
+<p>If configured, you'll receive real-time Telegram alerts for:</p>
+<ul>
+    <li>New ticket requests</li>
+    <li>Approval notifications</li>
+    <li>Assignment notifications</li>
+    <li>Deadline warnings</li>
+</ul>
+
+<div class="info-box">
+    <strong>To enable Telegram:</strong> Contact your administrator to link your Telegram account.
+</div>
+
+<!-- Section 9: Analytics -->
+<h2 id="analytics">9. Analytics (Managers Only)</h2>
+
+<p>Managers and Admins can access the Analytics page for performance insights.</p>
+
+<h3>9.1 Summary Metrics</h3>
+<ul>
+    <li><strong>Total Tickets:</strong> Tickets in date range</li>
+    <li><strong>Completed:</strong> Finished tickets count</li>
+    <li><strong>Completion Rate:</strong> Percentage completed</li>
+    <li><strong>Total Output:</strong> Total quantity produced</li>
+    <li><strong>Avg Output/Ticket:</strong> Average quantity per ticket</li>
+</ul>
+
+<h3>9.2 Team Performance</h3>
+<table>
+    <tr>
+        <th>Metric</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>Assigned</td>
+        <td>Tickets assigned to user</td>
+    </tr>
+    <tr>
+        <td>Assigned Qty</td>
+        <td>Total quantity assigned</td>
+    </tr>
+    <tr>
+        <td>Completed</td>
+        <td>Tickets completed</td>
+    </tr>
+    <tr>
+        <td>Output</td>
+        <td>Total output produced</td>
+    </tr>
+    <tr>
+        <td>Completion Rate</td>
+        <td>Completed / Assigned %</td>
+    </tr>
+    <tr>
+        <td>Avg Processing Time</td>
+        <td>Average time to complete</td>
+    </tr>
+    <tr>
+        <td>Avg Acknowledge Time</td>
+        <td>Time from assign to start</td>
+    </tr>
+</table>
+
+<h3>9.3 Breakdowns</h3>
+<ul>
+    <li><strong>By Priority:</strong> Urgent, High, Medium, Low distribution</li>
+    <li><strong>By Request Type:</strong> All 7 request types with quantities</li>
+    <li><strong>By Criteria:</strong> Image vs Video output</li>
+    <li><strong>Ads Products:</strong> Breakdown by ads product type</li>
+    <li><strong>Telegram Products:</strong> Breakdown by channel</li>
+</ul>
+
+<!-- Section 10: Admin Panel -->
+<h2 id="admin-panel">10. Admin Panel</h2>
+
+<p>Administrators have access to additional management features.</p>
+
+<h3>10.1 User Management</h3>
+<ul>
+    <li>Approve new user registrations</li>
+    <li>Change user roles (Member, Manager, Admin)</li>
+    <li>Assign users to departments</li>
+    <li>Reset user passwords</li>
+    <li>Lock/Unlock accounts</li>
+    <li>Deactivate users</li>
+</ul>
+
+<h3>10.2 Department Management</h3>
+<ul>
+    <li>Create new departments</li>
+    <li>Assign department managers</li>
+    <li>Mark departments as Creative team</li>
+    <li>Activate/Deactivate departments</li>
+</ul>
+
+<h3>10.3 Product Management</h3>
+<ul>
+    <li>Add new products</li>
+    <li>Set product categories (General, Ads, Telegram)</li>
+    <li>Activate/Deactivate products</li>
+</ul>
+
+<h3>10.4 Trash Management</h3>
+<ul>
+    <li>View deleted tickets</li>
+    <li>Restore deleted tickets</li>
+    <li>Permanently delete tickets</li>
+</ul>
+
+<!-- Section 11: Troubleshooting -->
+<h2 id="troubleshooting">11. Troubleshooting</h2>
+
+<h3>11.1 Common Issues</h3>
+
+<h4>Can't log in?</h4>
+<ul>
+    <li>Check if your account is approved</li>
+    <li>Verify email/username and password</li>
+    <li>Account may be locked after 3 failed attempts (wait 30 minutes)</li>
+    <li>Use "Forgot Password" to reset</li>
+</ul>
+
+<h4>Can't see my tickets?</h4>
+<ul>
+    <li>Check your filter settings</li>
+    <li>Clear the search box</li>
+    <li>You may only see tickets related to your department</li>
+</ul>
+
+<h4>Can't approve/assign tickets?</h4>
+<ul>
+    <li>Verify you have the correct role (Manager/Admin)</li>
+    <li>Check if ticket is in the correct status</li>
+    <li>Only Creative department managers can assign</li>
+</ul>
+
+<h4>Attachments not uploading?</h4>
+<ul>
+    <li>Check file size (max 10MB recommended)</li>
+    <li>Verify file format is supported</li>
+    <li>Try a different browser</li>
+</ul>
+
+<h3>11.2 Getting Help</h3>
+<p>Contact your system administrator for:</p>
+<ul>
+    <li>Account issues</li>
+    <li>Permission changes</li>
+    <li>Technical problems</li>
+    <li>Feature requests</li>
+</ul>
+
+<!-- Section 12: Glossary -->
+<h2 id="glossary">12. Glossary</h2>
+
+<table>
+    <tr>
+        <th>Term</th>
+        <th>Definition</th>
+    </tr>
+    <tr>
+        <td><strong>Ticket</strong></td>
+        <td>A creative request submitted through the system</td>
+    </tr>
+    <tr>
+        <td><strong>Requester</strong></td>
+        <td>The person who created the ticket</td>
+    </tr>
+    <tr>
+        <td><strong>Assignee</strong></td>
+        <td>The designer assigned to work on the ticket</td>
+    </tr>
+    <tr>
+        <td><strong>Approver</strong></td>
+        <td>Manager who approves/rejects tickets</td>
+    </tr>
+    <tr>
+        <td><strong>Deadline</strong></td>
+        <td>Due date/time for ticket completion</td>
+    </tr>
+    <tr>
+        <td><strong>Overdue</strong></td>
+        <td>Ticket past its deadline</td>
+    </tr>
+    <tr>
+        <td><strong>Revision</strong></td>
+        <td>Request to modify completed work</td>
+    </tr>
+    <tr>
+        <td><strong>Rollback</strong></td>
+        <td>Restore ticket to a previous state</td>
+    </tr>
+    <tr>
+        <td><strong>Criteria</strong></td>
+        <td>Output type: Image or Video</td>
+    </tr>
+    <tr>
+        <td><strong>Quantity</strong></td>
+        <td>Number of creative outputs needed</td>
+    </tr>
+    <tr>
+        <td><strong>Product Items</strong></td>
+        <td>Multiple products selected for Ads/Telegram requests</td>
+    </tr>
+    <tr>
+        <td><strong>Acknowledge</strong></td>
+        <td>When designer clicks "Start Editing"</td>
+    </tr>
+</table>
+
+<hr style="margin: 40px 0;">
+
+<div style="text-align: center; color: #6B7280; font-size: 0.9em;">
+    <p><strong>Juan365 Creative Ticketing System</strong></p>
+    <p>User Manual v1.0 | December 2025</p>
+    <p>For support, contact your system administrator</p>
+</div>
+
+</body>
+</html>

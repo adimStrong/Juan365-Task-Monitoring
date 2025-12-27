@@ -6,8 +6,6 @@ import { ToastProvider } from './context/ToastContext';
 // Eager load auth pages (needed immediately)
 import Login from './pages/Login';
 import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 
 // Lazy load protected pages (code splitting)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -74,22 +72,6 @@ function AppRoutes() {
         element={
           <PublicRoute>
             <Register />
-          </PublicRoute>
-        }
-      />
-      <Route
-        path="/forgot-password"
-        element={
-          <PublicRoute>
-            <ForgotPassword />
-          </PublicRoute>
-        }
-      />
-      <Route
-        path="/reset-password"
-        element={
-          <PublicRoute>
-            <ResetPassword />
           </PublicRoute>
         }
       />

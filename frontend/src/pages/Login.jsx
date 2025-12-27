@@ -92,16 +92,16 @@ const Login = () => {
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <Link to="/forgot-password" className="text-blue-600 hover:text-blue-800 font-medium">
-              Forgot password?
-            </Link>
-            <span className="text-gray-600">
+          <div className="text-sm text-center space-y-2">
+            <p className="text-gray-500">
+              Forgot password or account locked? <span className="font-medium text-gray-700">Contact Admin</span>
+            </p>
+            <p className="text-gray-600">
               Don't have an account?{' '}
               <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
                 Create account
               </Link>
-            </span>
+            </p>
           </div>
         </form>
       </div>

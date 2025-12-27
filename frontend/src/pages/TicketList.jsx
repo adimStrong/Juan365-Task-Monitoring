@@ -204,10 +204,7 @@ const TicketList = () => {
 
   // Get Creative department members for assign
   const getCreativeMembers = () => {
-    return users.filter(u =>
-      u.is_approved && !u.is_locked &&
-      u.departments?.some(d => d.name?.toLowerCase() === 'creative')
-    );
+    return users.filter(u => u.user_department_info?.is_creative) || [];
   };
 
   // Load view preference from localStorage

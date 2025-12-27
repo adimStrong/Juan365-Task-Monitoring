@@ -186,11 +186,14 @@ const TicketList = () => {
     const ticketId = assignModal.ticketId;
     setActionLoading(ticketId);
     try {
-      // First user is assigned_to, rest are collaborators
-      await ticketsAPI.assign(ticketId, {
-        user_id: selectedAssignees[0],
-        collaborator_ids: selectedAssignees.slice(1),
-      });
+      // First user is assigned_to
+      await ticketsAPI.assign(ticketId, selectedAssignees[0]);
+
+      // Add remaining users as collaborators
+      for (const odIds of selectedAssignees.slice(1)) {
+        await ticketsAPI.addCollaborator(ticketId, odIds);
+      }
+
       const response = await ticketsAPI.get(ticketId);
       setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
       toast.success('Ticket assigned!');

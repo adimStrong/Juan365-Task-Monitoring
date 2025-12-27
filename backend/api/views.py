@@ -1241,11 +1241,27 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.completed_at = timezone.now()
 
         # For scheduled tasks (videoshoot, photoshoot, live_production),
-        # auto-set actual_end and scheduled_end to current time
+        # use provided actual_end or default to current time
         scheduled_types = ['videoshoot', 'photoshoot', 'live_production']
         if ticket.request_type in scheduled_types:
-            ticket.actual_end = timezone.now()
-            ticket.scheduled_end = timezone.now()
+            # Check if actual_end was provided in request
+            actual_end_str = request.data.get('actual_end')
+            if actual_end_str:
+                from django.utils.dateparse import parse_datetime
+                parsed_end = parse_datetime(actual_end_str)
+                if parsed_end:
+                    # Make timezone aware if naive
+                    if parsed_end.tzinfo is None:
+                        from django.utils import timezone as tz
+                        parsed_end = tz.make_aware(parsed_end)
+                    ticket.actual_end = parsed_end
+                    ticket.scheduled_end = parsed_end
+                else:
+                    ticket.actual_end = timezone.now()
+                    ticket.scheduled_end = timezone.now()
+            else:
+                ticket.actual_end = timezone.now()
+                ticket.scheduled_end = timezone.now()
 
         ticket.save()
 

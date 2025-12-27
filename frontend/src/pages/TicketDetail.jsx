@@ -35,6 +35,9 @@ const TicketDetail = () => {
   const [rollbackLoading, setRollbackLoading] = useState(false);
   // Scheduled task fields
   const [scheduledStart, setScheduledStart] = useState('');
+  const [scheduledEnd, setScheduledEnd] = useState('');
+  const [showScheduledCompleteModal, setShowScheduledCompleteModal] = useState(false);
+  const [actualEnd, setActualEnd] = useState('');
 
   // Check if this is a scheduled task type
   const isScheduledTask = ticket?.request_type && ['videoshoot', 'photoshoot', 'live_production'].includes(ticket.request_type);
@@ -78,9 +81,10 @@ const TicketDetail = () => {
         case 'assign':
           // First user becomes main assignee, rest become collaborators
           if (assignUserIds.length > 0) {
-            // Pass scheduled start time for scheduled task types (end time auto-set on complete)
+            // Pass scheduled start and end time for scheduled task types
             const schedStart = scheduledStart || null;
-            response = await ticketsAPI.assign(id, assignUserIds[0], schedStart, null);
+            const schedEnd = scheduledEnd || null;
+            response = await ticketsAPI.assign(id, assignUserIds[0], schedStart, schedEnd);
             // Add remaining users as collaborators
             for (let i = 1; i < assignUserIds.length; i++) {
               try {
@@ -93,13 +97,16 @@ const TicketDetail = () => {
           setShowAssignModal(false);
           setAssignUserIds([]);
           setScheduledStart('');
+          setScheduledEnd('');
           break;
         case 'start':
           response = await ticketsAPI.start(id);
           break;
         case 'complete':
-          // For scheduled tasks, backend auto-sets actual_end to current time
-          response = await ticketsAPI.complete(id);
+          // For scheduled tasks, pass the actual end time
+          response = await ticketsAPI.complete(id, actualEnd || null);
+          setShowScheduledCompleteModal(false);
+          setActualEnd('');
           break;
         default:
           return;
@@ -459,7 +466,13 @@ const TicketDetail = () => {
               )}
               {canComplete && (
                 <button
-                  onClick={() => handleAction('complete')}
+                  onClick={() => {
+                    if (isScheduledTask) {
+                      setShowScheduledCompleteModal(true);
+                    } else {
+                      handleAction('complete');
+                    }
+                  }}
                   disabled={actionLoading}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                 >
@@ -1049,7 +1062,7 @@ const TicketDetail = () => {
               );
             })()}
 
-            {/* Scheduled task datetime picker - only start time */}
+            {/* Scheduled task start time picker */}
             {isScheduledTask && (
               <div className="mt-4 space-y-3 border-t pt-4">
                 <p className="text-sm font-medium text-gray-700">Schedule Start Time</p>
@@ -1062,7 +1075,7 @@ const TicketDetail = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <p className="text-xs text-gray-500">End time will be recorded automatically when marked complete.</p>
+                <p className="text-xs text-gray-500">End time will be set by the assigned user when marking complete.</p>
               </div>
             )}
             <div className="mt-4 flex justify-end space-x-2">
@@ -1109,6 +1122,52 @@ const TicketDetail = () => {
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
               >
                 {actionLoading ? 'Confirming...' : 'Yes, Confirm Completion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled Task Complete Modal - with End Time */}
+      {showScheduledCompleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Complete {ticket?.request_type?.replace('_', ' ')}</h3>
+            <div className="space-y-4">
+              {ticket?.scheduled_start && (
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Scheduled Start:</span>{' '}
+                  {new Date(ticket.scheduled_start).toLocaleString()}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  When did the {ticket?.request_type?.replace('_', ' ')} end?
+                </label>
+                <input
+                  type="datetime-local"
+                  value={actualEnd}
+                  onChange={(e) => setActualEnd(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowScheduledCompleteModal(false);
+                  setActualEnd('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAction('complete')}
+                disabled={actionLoading || !actualEnd}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Completing...' : 'Mark Complete'}
               </button>
             </div>
           </div>

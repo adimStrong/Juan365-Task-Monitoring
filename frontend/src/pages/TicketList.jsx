@@ -1,4 +1,4 @@
-// v1.0.1 - User count display
+// v1.0.2 - Force Vercel rebuild Dec 27 2025
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsAPI, usersAPI } from '../services/api';

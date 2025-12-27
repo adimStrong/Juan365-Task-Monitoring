@@ -1916,422 +1916,428 @@ class AnalyticsView(APIView):
     def get(self, request):
         from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField, Min, Max, Sum
         from django.db.models.functions import Coalesce
-        from .models import TicketProductItem
+        from .models import TicketProductItem, TicketAnalytics
 
-        # Get available date range (min/max dates with data)
-        all_tickets = Ticket.objects.all()
-        date_range = all_tickets.aggregate(
-            min_date=Min('created_at'),
-            max_date=Max('created_at')
-        )
-        min_date = date_range['min_date'].date().isoformat() if date_range['min_date'] else None
-        max_date = date_range['max_date'].date().isoformat() if date_range['max_date'] else None
-
-        # Get date range filters
-        date_from = request.query_params.get('date_from')
-        date_to = request.query_params.get('date_to')
-
-        tickets = Ticket.objects.all()
-        if date_from:
-            tickets = tickets.filter(created_at__date__gte=date_from)
-        if date_to:
-            tickets = tickets.filter(created_at__date__lte=date_to)
-
-        # User performance metrics
-        user_stats = []
-        users_with_tickets = User.objects.select_related('user_department').filter(
-            Q(assigned_tickets__isnull=False) | Q(requested_tickets__isnull=False)
-        ).distinct()
-
-        for user in users_with_tickets:
-            user_tickets = tickets.filter(assigned_to=user)
-            completed_tickets = user_tickets.filter(status=Ticket.Status.COMPLETED)
-
-            # Calculate average processing time (started_at to completed_at)
-            processing_times = []
-            for t in completed_tickets.filter(started_at__isnull=False, completed_at__isnull=False):
-                if t.started_at and t.completed_at:
-                    delta = (t.completed_at - t.started_at).total_seconds()
-                    processing_times.append(delta)
-
-            avg_processing_seconds = round(sum(processing_times) / len(processing_times)) if processing_times else None
-
-            # Calculate average approval to completion time
-            approval_times = []
-            for t in completed_tickets.filter(approved_at__isnull=False, completed_at__isnull=False):
-                if t.approved_at and t.completed_at:
-                    delta = (t.completed_at - t.approved_at).total_seconds()
-                    approval_times.append(delta)
-
-            avg_approval_to_complete_seconds = sum(approval_times) / len(approval_times) if approval_times else 0
-            avg_approval_to_complete_hours = round(avg_approval_to_complete_seconds / 3600, 1)
-
-            # Calculate total quantity output for user (from regular tickets + product items)
-            # For regular tickets: use ticket.quantity
-            # For ads/telegram: use product_items.quantity (not ticket.quantity)
-            user_regular_qty = completed_tickets.exclude(
-                request_type__in=['ads', 'telegram_channel']
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            # Add quantities from product_items for Ads/Telegram tickets
-            user_product_items_qty = TicketProductItem.objects.filter(
-                ticket__in=completed_tickets
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            total_user_output = user_regular_qty + user_product_items_qty
-
-            # Calculate average acknowledge time for user (time from assignment to start) - now in seconds
-            user_ack_times = []
-            for t in user_tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
-                if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
-                    user_ack_times.append(t.analytics.time_to_acknowledge)
-            avg_ack_seconds = round(sum(user_ack_times) / len(user_ack_times), 0) if user_ack_times else None
-
-            # Calculate assigned output (total quantity from all assigned tickets)
-            # For regular tickets: use ticket.quantity
-            # For ads/telegram: use product_items.quantity (not ticket.quantity)
-            regular_assigned_qty = user_tickets.exclude(
-                request_type__in=['ads', 'telegram_channel']
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            # Add quantities from product_items for Ads/Telegram tickets
-            assigned_product_items_qty = TicketProductItem.objects.filter(
-                ticket__in=user_tickets
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            total_assigned_output = regular_assigned_qty + assigned_product_items_qty
-
-            user_stats.append({
-                'user_id': user.id,
-                'username': user.username,
-                'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
-                'role': user.role,
-                'department': user.user_department.name if user.user_department else user.department,
-                'total_assigned': user_tickets.count(),
-                'assigned_output': total_assigned_output,  # NEW: assigned quantity output
-                'completed': completed_tickets.count(),
-                'in_progress': user_tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
-                'pending': user_tickets.filter(status__in=[Ticket.Status.REQUESTED, Ticket.Status.APPROVED]).count(),
-                'avg_processing_seconds': avg_processing_seconds,
-                'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
-                'completion_rate': round(completed_tickets.count() / user_tickets.count() * 100, 1) if user_tickets.count() > 0 else 0,
-                'total_output': total_user_output,  # Completed quantity output
-                'avg_acknowledge_seconds': avg_ack_seconds,  # NOW in seconds
-            })
-
-        # Sort by total assigned descending
-        user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
-
-        # Product breakdown (using ticket_product FK, fallback to old text field)
-        product_stats = tickets.filter(
-            Q(ticket_product__isnull=False) | ~Q(product='')
-        ).annotate(
-            product_name=Coalesce(F('ticket_product__name'), F('product'))
-        ).values('product_name').annotate(
-            count=Count('id'),
-            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
-        ).filter(product_name__isnull=False).exclude(product_name='').order_by('-count')
-        # Rename for frontend compatibility
-        product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]
-
-        # Department breakdown (using target_department FK, fallback to old text field)
-        department_stats = tickets.filter(
-            Q(target_department__isnull=False) | ~Q(department='')
-        ).annotate(
-            dept_name=Coalesce(F('target_department__name'), F('department'))
-        ).values('dept_name').annotate(
-            count=Count('id'),
-            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
-        ).filter(dept_name__isnull=False).exclude(dept_name='').order_by('-count')
-        # Rename for frontend compatibility
-        department_stats = [{'department': s['dept_name'], **{k: v for k, v in s.items() if k != 'dept_name'}} for s in department_stats]
-
-        # Overall stats
-        total_completed = tickets.filter(status=Ticket.Status.COMPLETED).count()
-        total_tickets = tickets.count()
-
-        # Overall average processing time
-        all_processing_times = []
-        for t in tickets.filter(started_at__isnull=False, completed_at__isnull=False, status=Ticket.Status.COMPLETED):
-            if t.started_at and t.completed_at:
-                delta = (t.completed_at - t.started_at).total_seconds()
-                all_processing_times.append(delta)
-
-        overall_avg_processing_seconds = round(
-            sum(all_processing_times) / len(all_processing_times)
-        ) if all_processing_times else None
-
-        # Revision statistics
-        tickets_with_revisions = tickets.filter(revision_count__gt=0).count()
-        revision_rate = round(tickets_with_revisions / total_tickets * 100, 1) if total_tickets > 0 else 0
-
-        # Request type breakdown with quantity metrics
-        request_type_stats = tickets.exclude(request_type='').values('request_type').annotate(
-            count=Count('id'),
-            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-            avg_revisions=Avg('revision_count'),
-            total_quantity=Sum('quantity'),  # NEW: total quantity
-            completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)),  # NEW
-        ).order_by('-count')
-
-        # Map request_type values to display names (including new types)
-        request_type_display = {
-            'socmed_posting': 'Socmed Posting',
-            'website_banner': 'Website Banner (H5 & WEB)',
-            'photoshoot': 'Photoshoot',
-            'videoshoot': 'Videoshoot',
-            'live_production': 'Live Production',
-            'ads': 'Ads',  # NEW
-            'telegram_channel': 'Telegram Official Channel',  # NEW
-        }
-        for stat in request_type_stats:
-            stat['display_name'] = request_type_display.get(stat['request_type'], stat['request_type'])
-            # For Ads/Telegram, add product_items quantity
-            if stat['request_type'] in ['ads', 'telegram_channel']:
-                items_qty = TicketProductItem.objects.filter(
-                    ticket__in=tickets.filter(request_type=stat['request_type'])
-                ).aggregate(total=Sum('quantity'))['total'] or 0
-                completed_items_qty = TicketProductItem.objects.filter(
-                    ticket__in=tickets.filter(request_type=stat['request_type'], status=Ticket.Status.COMPLETED)
-                ).aggregate(total=Sum('quantity'))['total'] or 0
-                stat['total_quantity'] = items_qty
-                stat['completed_quantity'] = completed_items_qty
-
-        # Time to acknowledge metrics (now in seconds)
-        acknowledge_times = []
-        for t in tickets.filter(status__in=[Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]):
-            # Check if analytics exists and time_to_acknowledge is set (including 0)
-            if hasattr(t, 'analytics') and t.analytics.time_to_acknowledge is not None:
-                acknowledge_times.append(t.analytics.time_to_acknowledge)
-
-        avg_acknowledge_seconds = round(sum(acknowledge_times) / len(acknowledge_times), 0) if acknowledge_times else None
-
-        # Priority breakdown with processing times
-        priority_stats = []
-        for priority in ['urgent', 'high', 'medium', 'low']:
-            priority_tickets = tickets.filter(priority=priority)
-            priority_completed = priority_tickets.filter(status=Ticket.Status.COMPLETED)
-
-            # Calculate avg processing time for this priority
-            priority_processing_times = []
-            for t in priority_completed.filter(started_at__isnull=False, completed_at__isnull=False):
-                if t.started_at and t.completed_at:
-                    delta = (t.completed_at - t.started_at).total_seconds()
-                    priority_processing_times.append(delta)
-
-            avg_seconds = round(sum(priority_processing_times) / len(priority_processing_times)) if priority_processing_times else None
-
-            priority_stats.append({
-                'priority': priority,
-                'display_name': priority.title(),
-                'total': priority_tickets.count(),
-                'completed': priority_completed.count(),
-                'avg_processing_seconds': avg_seconds
-            })
-
-        # =====================
-        # NEW: Quantity Metrics
-        # =====================
-        # Total quantity from regular tickets (completed) - exclude ads/telegram
-        completed_tickets = tickets.filter(status=Ticket.Status.COMPLETED)
-        regular_quantity = completed_tickets.exclude(
-            request_type__in=['ads', 'telegram_channel']
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        # Add quantities from product_items for Ads/Telegram tickets
-        product_items_quantity = TicketProductItem.objects.filter(
-            ticket__in=completed_tickets
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        total_quantity_produced = regular_quantity + product_items_quantity
-        avg_quantity_per_ticket = round(total_quantity_produced / total_completed, 1) if total_completed > 0 else 0
-
-        # =====================
-        # NEW: Criteria Breakdown
-        # =====================
-        # Get criteria stats (for tickets with criteria set)
-        # EXCLUDE ads/telegram_channel as they use product_items instead of ticket.quantity
-        criteria_stats = list(tickets.exclude(criteria='').exclude(
-            request_type__in=['ads', 'telegram_channel']
-        ).values('criteria').annotate(
-            count=Count('id'),
-            completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-            total_quantity=Sum('quantity'),
-            completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED))
-        ).order_by('-count'))
-
-        # Add display names for criteria
-        criteria_display_names = {'image': 'Image', 'video': 'Video'}
-        for stat in criteria_stats:
-            stat['display_name'] = criteria_display_names.get(stat['criteria'], stat['criteria'].title())
-
-        # For old tickets without criteria, count them as "video" (default)
-        # EXCLUDE ads/telegram_channel as they use product_items instead of ticket.quantity
-        old_tickets_qs = tickets.filter(criteria='').exclude(request_type__in=['ads', 'telegram_channel'])
-        old_tickets_count = old_tickets_qs.count()
-        old_tickets_completed = old_tickets_qs.filter(status=Ticket.Status.COMPLETED).count()
-        old_tickets_quantity = old_tickets_qs.aggregate(total=Sum('quantity'))['total'] or 0
-        old_tickets_completed_qty = old_tickets_qs.filter(status=Ticket.Status.COMPLETED).aggregate(total=Sum('quantity'))['total'] or 0
-
-        if old_tickets_count > 0:
-            # Check if video already exists in criteria_stats
-            video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
-            if video_stat:
-                video_stat['count'] += old_tickets_count
-                video_stat['completed'] += old_tickets_completed
-                video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + old_tickets_quantity
-                video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + old_tickets_completed_qty
-            else:
-                criteria_stats.append({
-                    'criteria': 'video',
-                    'display_name': 'Video',
-                    'count': old_tickets_count,
-                    'completed': old_tickets_completed,
-                    'total_quantity': old_tickets_quantity,
-                    'completed_quantity': old_tickets_completed_qty
-                })
-
-        # Add quantities from TicketProductItem (Ads) to criteria breakdown
-        # Ads products: VID = video, STATIC = image
-        product_items_for_criteria = TicketProductItem.objects.filter(ticket__in=tickets)
-
-        # Video from Ads (product name contains VID)
-        ads_video_qty = product_items_for_criteria.filter(
-            product__name__icontains='VID'
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        ads_video_completed_qty = product_items_for_criteria.filter(
-            product__name__icontains='VID',
-            ticket__status=Ticket.Status.COMPLETED
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-
-        # Image from Ads (product name contains STATIC)
-        ads_image_qty = product_items_for_criteria.filter(
-            product__name__icontains='STATIC'
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-        ads_image_completed_qty = product_items_for_criteria.filter(
-            product__name__icontains='STATIC',
-            ticket__status=Ticket.Status.COMPLETED
-        ).aggregate(total=Sum('quantity'))['total'] or 0
-
-        # Add Ads video quantities to video criteria
-        if ads_video_qty > 0:
-            video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
-            if video_stat:
-                video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + ads_video_qty
-                video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + ads_video_completed_qty
-            else:
-                criteria_stats.append({
-                    'criteria': 'video',
-                    'display_name': 'Video',
-                    'count': 0,
-                    'completed': 0,
-                    'total_quantity': ads_video_qty,
-                    'completed_quantity': ads_video_completed_qty
-                })
-
-        # Add Ads image quantities to image criteria
-        if ads_image_qty > 0:
-            image_stat = next((s for s in criteria_stats if s['criteria'] == 'image'), None)
-            if image_stat:
-                image_stat['total_quantity'] = (image_stat['total_quantity'] or 0) + ads_image_qty
-                image_stat['completed_quantity'] = (image_stat['completed_quantity'] or 0) + ads_image_completed_qty
-            else:
-                criteria_stats.append({
-                    'criteria': 'image',
-                    'display_name': 'Image',
-                    'count': 0,
-                    'completed': 0,
-                    'total_quantity': ads_image_qty,
-                    'completed_quantity': ads_image_completed_qty
-                })
-
-        # Add Telegram product items to criteria
-        # Use product_item.criteria if set, otherwise fall back to ticket.criteria
-        telegram_items = TicketProductItem.objects.filter(
-            ticket__in=tickets.filter(request_type='telegram_channel')
-        ).select_related('ticket')
-
-        for criteria_val in ['image', 'video']:
-            # Items with explicit criteria OR items without criteria but ticket has this criteria
-            telegram_qty = sum(
-                item.quantity for item in telegram_items
-                if (item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val)
+        try:
+            # Get available date range (min/max dates with data)
+            all_tickets = Ticket.objects.all()
+            date_range = all_tickets.aggregate(
+                min_date=Min('created_at'),
+                max_date=Max('created_at')
             )
-            telegram_completed_qty = sum(
-                item.quantity for item in telegram_items
-                if ((item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val))
-                and item.ticket.status == Ticket.Status.COMPLETED
+            min_date = date_range['min_date'].date().isoformat() if date_range['min_date'] else None
+            max_date = date_range['max_date'].date().isoformat() if date_range['max_date'] else None
+
+            # Get date range filters
+            date_from = request.query_params.get('date_from')
+            date_to = request.query_params.get('date_to')
+
+            # Prefetch analytics to avoid N+1 queries
+            tickets = Ticket.objects.select_related('analytics', 'assigned_to', 'target_department', 'ticket_product').all()
+            if date_from:
+                tickets = tickets.filter(created_at__date__gte=date_from)
+            if date_to:
+                tickets = tickets.filter(created_at__date__lte=date_to)
+
+            # Cache tickets list to avoid re-querying
+            tickets_list = list(tickets)
+            tickets_by_user = {}
+            for t in tickets_list:
+                if t.assigned_to_id:
+                    if t.assigned_to_id not in tickets_by_user:
+                        tickets_by_user[t.assigned_to_id] = []
+                    tickets_by_user[t.assigned_to_id].append(t)
+
+            # User performance metrics - optimized with pre-grouped data
+            user_stats = []
+            users_with_tickets = User.objects.select_related('user_department').filter(
+                id__in=tickets_by_user.keys()
             )
 
-            if telegram_qty > 0:
-                existing_stat = next((s for s in criteria_stats if s['criteria'] == criteria_val), None)
-                if existing_stat:
-                    existing_stat['total_quantity'] = (existing_stat['total_quantity'] or 0) + telegram_qty
-                    existing_stat['completed_quantity'] = (existing_stat['completed_quantity'] or 0) + telegram_completed_qty
+            for user in users_with_tickets:
+                user_tickets_list = tickets_by_user.get(user.id, [])
+                completed_list = [t for t in user_tickets_list if t.status == Ticket.Status.COMPLETED]
+
+                # Calculate average processing time (started_at to completed_at)
+                processing_times = [
+                    (t.completed_at - t.started_at).total_seconds()
+                    for t in completed_list
+                    if t.started_at and t.completed_at
+                ]
+                avg_processing_seconds = round(sum(processing_times) / len(processing_times)) if processing_times else None
+
+                # Calculate average approval to completion time
+                approval_times = [
+                    (t.completed_at - t.approved_at).total_seconds()
+                    for t in completed_list
+                    if t.approved_at and t.completed_at
+                ]
+                avg_approval_to_complete_seconds = sum(approval_times) / len(approval_times) if approval_times else 0
+                avg_approval_to_complete_hours = round(avg_approval_to_complete_seconds / 3600, 1)
+
+                # Calculate total quantity output for user (from regular tickets + product items)
+                user_regular_qty = sum(
+                    t.quantity or 0 for t in completed_list
+                    if t.request_type not in ['ads', 'telegram_channel']
+                )
+                # Add quantities from product_items for Ads/Telegram tickets
+                completed_ids = [t.id for t in completed_list]
+                user_product_items_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=completed_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                total_user_output = user_regular_qty + user_product_items_qty
+
+                # Calculate average acknowledge time for user
+                user_ack_times = []
+                for t in user_tickets_list:
+                    if t.status in [Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]:
+                        try:
+                            if hasattr(t, 'analytics') and t.analytics and t.analytics.time_to_acknowledge is not None:
+                                user_ack_times.append(t.analytics.time_to_acknowledge)
+                        except TicketAnalytics.DoesNotExist:
+                            pass
+                avg_ack_seconds = round(sum(user_ack_times) / len(user_ack_times), 0) if user_ack_times else None
+
+                # Calculate assigned output (total quantity from all assigned tickets)
+                regular_assigned_qty = sum(
+                    t.quantity or 0 for t in user_tickets_list
+                    if t.request_type not in ['ads', 'telegram_channel']
+                )
+                user_ticket_ids = [t.id for t in user_tickets_list]
+                assigned_product_items_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=user_ticket_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                total_assigned_output = regular_assigned_qty + assigned_product_items_qty
+
+                in_progress_count = sum(1 for t in user_tickets_list if t.status == Ticket.Status.IN_PROGRESS)
+                pending_count = sum(1 for t in user_tickets_list if t.status in [Ticket.Status.REQUESTED, Ticket.Status.APPROVED])
+
+                user_stats.append({
+                    'user_id': user.id,
+                    'username': user.username,
+                    'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
+                    'role': user.role,
+                    'department': user.user_department.name if user.user_department else getattr(user, 'department', ''),
+                    'total_assigned': len(user_tickets_list),
+                    'assigned_output': total_assigned_output,
+                    'completed': len(completed_list),
+                    'in_progress': in_progress_count,
+                    'pending': pending_count,
+                    'avg_processing_seconds': avg_processing_seconds,
+                    'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
+                    'completion_rate': round(len(completed_list) / len(user_tickets_list) * 100, 1) if len(user_tickets_list) > 0 else 0,
+                    'total_output': total_user_output,
+                    'avg_acknowledge_seconds': avg_ack_seconds,
+                })
+
+            # Sort by total assigned descending
+            user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
+
+            # Product breakdown (using ticket_product FK, fallback to old text field)
+            product_stats = tickets.filter(
+                Q(ticket_product__isnull=False) | ~Q(product='')
+            ).annotate(
+                product_name=Coalesce(F('ticket_product__name'), F('product'))
+            ).values('product_name').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+            ).filter(product_name__isnull=False).exclude(product_name='').order_by('-count')
+            # Rename for frontend compatibility
+            product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]
+
+            # Department breakdown (using target_department FK, fallback to old text field)
+            department_stats = tickets.filter(
+                Q(target_department__isnull=False) | ~Q(department='')
+            ).annotate(
+                dept_name=Coalesce(F('target_department__name'), F('department'))
+            ).values('dept_name').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+            ).filter(dept_name__isnull=False).exclude(dept_name='').order_by('-count')
+            # Rename for frontend compatibility
+            department_stats = [{'department': s['dept_name'], **{k: v for k, v in s.items() if k != 'dept_name'}} for s in department_stats]
+
+            # Use cached tickets_list for overall stats
+            total_completed = sum(1 for t in tickets_list if t.status == Ticket.Status.COMPLETED)
+            total_tickets = len(tickets_list)
+
+            # Overall average processing time using cached list
+            all_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in tickets_list
+                if t.status == Ticket.Status.COMPLETED and t.started_at and t.completed_at
+            ]
+
+            overall_avg_processing_seconds = round(
+                sum(all_processing_times) / len(all_processing_times)
+            ) if all_processing_times else None
+
+            # Revision statistics using cached list
+            tickets_with_revisions = sum(1 for t in tickets_list if t.revision_count and t.revision_count > 0)
+            revision_rate = round(tickets_with_revisions / total_tickets * 100, 1) if total_tickets > 0 else 0
+
+            # Request type breakdown with quantity metrics
+            request_type_stats = list(tickets.exclude(request_type='').values('request_type').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+                avg_revisions=Avg('revision_count'),
+                total_quantity=Sum('quantity'),
+                completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)),
+            ).order_by('-count'))
+
+            # Map request_type values to display names
+            request_type_display = {
+                'socmed_posting': 'Socmed Posting',
+                'website_banner': 'Website Banner (H5 & WEB)',
+                'photoshoot': 'Photoshoot',
+                'videoshoot': 'Videoshoot',
+                'live_production': 'Live Production',
+                'ads': 'Ads',
+                'telegram_channel': 'Telegram Official Channel',
+            }
+            for stat in request_type_stats:
+                stat['display_name'] = request_type_display.get(stat['request_type'], stat['request_type'])
+                # For Ads/Telegram, add product_items quantity
+                if stat['request_type'] in ['ads', 'telegram_channel']:
+                    items_qty = TicketProductItem.objects.filter(
+                        ticket__in=tickets.filter(request_type=stat['request_type'])
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    completed_items_qty = TicketProductItem.objects.filter(
+                        ticket__in=tickets.filter(request_type=stat['request_type'], status=Ticket.Status.COMPLETED)
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    stat['total_quantity'] = items_qty
+                    stat['completed_quantity'] = completed_items_qty
+
+            # Time to acknowledge metrics using cached list
+            acknowledge_times = []
+            for t in tickets_list:
+                if t.status in [Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]:
+                    try:
+                        if hasattr(t, 'analytics') and t.analytics and t.analytics.time_to_acknowledge is not None:
+                            acknowledge_times.append(t.analytics.time_to_acknowledge)
+                    except:
+                        pass
+
+            avg_acknowledge_seconds = round(sum(acknowledge_times) / len(acknowledge_times), 0) if acknowledge_times else None
+
+            # Priority breakdown using cached list
+            priority_stats = []
+            for priority in ['urgent', 'high', 'medium', 'low']:
+                priority_list = [t for t in tickets_list if t.priority == priority]
+                priority_completed_list = [t for t in priority_list if t.status == Ticket.Status.COMPLETED]
+
+                # Calculate avg processing time for this priority
+                priority_processing_times = [
+                    (t.completed_at - t.started_at).total_seconds()
+                    for t in priority_completed_list
+                    if t.started_at and t.completed_at
+                ]
+
+                avg_seconds = round(sum(priority_processing_times) / len(priority_processing_times)) if priority_processing_times else None
+
+                priority_stats.append({
+                    'priority': priority,
+                    'display_name': priority.title(),
+                    'total': len(priority_list),
+                    'completed': len(priority_completed_list),
+                    'avg_processing_seconds': avg_seconds
+                })
+
+            # =====================
+            # Quantity Metrics
+            # =====================
+            # Total quantity from regular tickets (completed) - exclude ads/telegram
+            completed_list_all = [t for t in tickets_list if t.status == Ticket.Status.COMPLETED]
+            regular_quantity = sum(
+                t.quantity or 0 for t in completed_list_all
+                if t.request_type not in ['ads', 'telegram_channel']
+            )
+            # Add quantities from product_items for Ads/Telegram tickets
+            completed_ids_all = [t.id for t in completed_list_all]
+            product_items_quantity = TicketProductItem.objects.filter(
+                ticket_id__in=completed_ids_all
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            total_quantity_produced = regular_quantity + product_items_quantity
+            avg_quantity_per_ticket = round(total_quantity_produced / total_completed, 1) if total_completed > 0 else 0
+
+            # =====================
+            # Criteria Breakdown
+            # =====================
+            criteria_stats = list(tickets.exclude(criteria='').exclude(
+                request_type__in=['ads', 'telegram_channel']
+            ).values('criteria').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+                total_quantity=Sum('quantity'),
+                completed_quantity=Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED))
+            ).order_by('-count'))
+
+            # Add display names for criteria
+            criteria_display_names = {'image': 'Image', 'video': 'Video'}
+            for stat in criteria_stats:
+                stat['display_name'] = criteria_display_names.get(stat['criteria'], stat['criteria'].title())
+
+            # For old tickets without criteria, count them as "video" (default)
+            old_tickets_list = [t for t in tickets_list if not t.criteria and t.request_type not in ['ads', 'telegram_channel']]
+            old_tickets_count = len(old_tickets_list)
+            old_tickets_completed = sum(1 for t in old_tickets_list if t.status == Ticket.Status.COMPLETED)
+            old_tickets_quantity = sum(t.quantity or 0 for t in old_tickets_list)
+            old_tickets_completed_qty = sum(t.quantity or 0 for t in old_tickets_list if t.status == Ticket.Status.COMPLETED)
+
+            if old_tickets_count > 0:
+                video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
+                if video_stat:
+                    video_stat['count'] += old_tickets_count
+                    video_stat['completed'] += old_tickets_completed
+                    video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + old_tickets_quantity
+                    video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + old_tickets_completed_qty
                 else:
                     criteria_stats.append({
-                        'criteria': criteria_val,
-                        'display_name': criteria_display_names.get(criteria_val, criteria_val.title()),
-                        'count': 0,
-                        'completed': 0,
-                        'total_quantity': telegram_qty,
-                        'completed_quantity': telegram_completed_qty
+                        'criteria': 'video',
+                        'display_name': 'Video',
+                        'count': old_tickets_count,
+                        'completed': old_tickets_completed,
+                        'total_quantity': old_tickets_quantity,
+                        'completed_quantity': old_tickets_completed_qty
                     })
 
-        # =====================
-        # NEW: Product Items Breakdown (for Ads/Telegram)
-        # =====================
-        product_items_stats = list(TicketProductItem.objects.filter(
-            ticket__in=tickets
-        ).values('product__name', 'product__category').annotate(
-            ticket_count=Count('ticket', distinct=True),
-            total_quantity=Sum('quantity'),
-            completed_quantity=Sum(
-                'quantity',
-                filter=Q(ticket__status=Ticket.Status.COMPLETED)
+            # Add quantities from TicketProductItem (Ads) to criteria breakdown
+            ticket_ids = [t.id for t in tickets_list]
+            product_items_for_criteria = TicketProductItem.objects.filter(ticket_id__in=ticket_ids).select_related('product', 'ticket')
+            product_items_list = list(product_items_for_criteria)
+
+            # Video from Ads (product name contains VID)
+            ads_video_qty = sum(p.quantity or 0 for p in product_items_list if p.product and 'VID' in (p.product.name or '').upper())
+            ads_video_completed_qty = sum(p.quantity or 0 for p in product_items_list if p.product and 'VID' in (p.product.name or '').upper() and p.ticket.status == Ticket.Status.COMPLETED)
+
+            # Image from Ads (product name contains STATIC)
+            ads_image_qty = sum(p.quantity or 0 for p in product_items_list if p.product and 'STATIC' in (p.product.name or '').upper())
+            ads_image_completed_qty = sum(p.quantity or 0 for p in product_items_list if p.product and 'STATIC' in (p.product.name or '').upper() and p.ticket.status == Ticket.Status.COMPLETED)
+
+            # Add Ads video quantities to video criteria
+            if ads_video_qty > 0:
+                video_stat = next((s for s in criteria_stats if s['criteria'] == 'video'), None)
+                if video_stat:
+                    video_stat['total_quantity'] = (video_stat['total_quantity'] or 0) + ads_video_qty
+                    video_stat['completed_quantity'] = (video_stat['completed_quantity'] or 0) + ads_video_completed_qty
+                else:
+                    criteria_stats.append({
+                        'criteria': 'video',
+                        'display_name': 'Video',
+                        'count': 0,
+                        'completed': 0,
+                        'total_quantity': ads_video_qty,
+                        'completed_quantity': ads_video_completed_qty
+                    })
+
+            # Add Ads image quantities to image criteria
+            if ads_image_qty > 0:
+                image_stat = next((s for s in criteria_stats if s['criteria'] == 'image'), None)
+                if image_stat:
+                    image_stat['total_quantity'] = (image_stat['total_quantity'] or 0) + ads_image_qty
+                    image_stat['completed_quantity'] = (image_stat['completed_quantity'] or 0) + ads_image_completed_qty
+                else:
+                    criteria_stats.append({
+                        'criteria': 'image',
+                        'display_name': 'Image',
+                        'count': 0,
+                        'completed': 0,
+                        'total_quantity': ads_image_qty,
+                        'completed_quantity': ads_image_completed_qty
+                    })
+
+            # Add Telegram product items to criteria
+            telegram_items = [p for p in product_items_list if p.ticket.request_type == 'telegram_channel']
+
+            for criteria_val in ['image', 'video']:
+                telegram_qty = sum(
+                    item.quantity or 0 for item in telegram_items
+                    if (item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val)
+                )
+                telegram_completed_qty = sum(
+                    item.quantity or 0 for item in telegram_items
+                    if ((item.criteria == criteria_val) or (not item.criteria and item.ticket.criteria == criteria_val))
+                    and item.ticket.status == Ticket.Status.COMPLETED
+                )
+
+                if telegram_qty > 0:
+                    existing_stat = next((s for s in criteria_stats if s['criteria'] == criteria_val), None)
+                    if existing_stat:
+                        existing_stat['total_quantity'] = (existing_stat['total_quantity'] or 0) + telegram_qty
+                        existing_stat['completed_quantity'] = (existing_stat['completed_quantity'] or 0) + telegram_completed_qty
+                    else:
+                        criteria_stats.append({
+                            'criteria': criteria_val,
+                            'display_name': criteria_display_names.get(criteria_val, criteria_val.title()),
+                            'count': 0,
+                            'completed': 0,
+                            'total_quantity': telegram_qty,
+                            'completed_quantity': telegram_completed_qty
+                        })
+
+            # Product Items Breakdown (for Ads/Telegram)
+            product_items_stats = list(TicketProductItem.objects.filter(
+                ticket_id__in=ticket_ids
+            ).values('product__name', 'product__category').annotate(
+                ticket_count=Count('ticket', distinct=True),
+                total_quantity=Sum('quantity'),
+                completed_quantity=Sum(
+                    'quantity',
+                    filter=Q(ticket__status=Ticket.Status.COMPLETED)
+                )
+            ).order_by('-total_quantity'))
+
+            # Separate by category
+            ads_product_stats = [
+                {
+                    'product_name': s['product__name'],
+                    'ticket_count': s['ticket_count'],
+                    'total_quantity': s['total_quantity'] or 0,
+                    'completed_quantity': s['completed_quantity'] or 0
+                }
+                for s in product_items_stats if s['product__category'] == 'ads'
+            ]
+            telegram_product_stats = [
+                {
+                    'product_name': s['product__name'],
+                    'ticket_count': s['ticket_count'],
+                    'total_quantity': s['total_quantity'] or 0,
+                    'completed_quantity': s['completed_quantity'] or 0
+                }
+                for s in product_items_stats if s['product__category'] == 'telegram'
+            ]
+
+            return Response({
+                'date_range': {
+                    'min_date': min_date,
+                    'max_date': max_date,
+                },
+                'summary': {
+                    'total_tickets': total_tickets,
+                    'completed_tickets': total_completed,
+                    'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
+                    'avg_processing_seconds': overall_avg_processing_seconds,
+                    'avg_acknowledge_seconds': avg_acknowledge_seconds,
+                    'tickets_with_revisions': tickets_with_revisions,
+                    'revision_rate': revision_rate,
+                    'total_quantity_produced': total_quantity_produced,
+                    'avg_quantity_per_ticket': avg_quantity_per_ticket,
+                },
+                'user_performance': user_stats,
+                'by_product': list(product_stats),
+                'by_department': list(department_stats),
+                'by_request_type': list(request_type_stats),
+                'by_priority': priority_stats,
+                'by_criteria': criteria_stats,
+                'ads_product_output': ads_product_stats,
+                'telegram_product_output': telegram_product_stats,
+            })
+
+        except Exception as e:
+            logger.error(f"Analytics error: {str(e)}")
+            return Response(
+                {'error': f'Failed to load analytics: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        ).order_by('-total_quantity'))
-
-        # Separate by category
-        ads_product_stats = [
-            {
-                'product_name': s['product__name'],
-                'ticket_count': s['ticket_count'],
-                'total_quantity': s['total_quantity'] or 0,
-                'completed_quantity': s['completed_quantity'] or 0
-            }
-            for s in product_items_stats if s['product__category'] == 'ads'
-        ]
-        telegram_product_stats = [
-            {
-                'product_name': s['product__name'],
-                'ticket_count': s['ticket_count'],
-                'total_quantity': s['total_quantity'] or 0,
-                'completed_quantity': s['completed_quantity'] or 0
-            }
-            for s in product_items_stats if s['product__category'] == 'telegram'
-        ]
-
-        return Response({
-            'date_range': {
-                'min_date': min_date,
-                'max_date': max_date,
-            },
-            'summary': {
-                'total_tickets': total_tickets,
-                'completed_tickets': total_completed,
-                'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
-                'avg_processing_seconds': overall_avg_processing_seconds,
-                'avg_acknowledge_seconds': avg_acknowledge_seconds,  # Now in seconds for precision
-                'tickets_with_revisions': tickets_with_revisions,
-                'revision_rate': revision_rate,
-                # NEW: Quantity metrics
-                'total_quantity_produced': total_quantity_produced,
-                'avg_quantity_per_ticket': avg_quantity_per_ticket,
-            },
-            'user_performance': user_stats,
-            'by_product': list(product_stats),
-            'by_department': list(department_stats),
-            'by_request_type': list(request_type_stats),
-            'by_priority': priority_stats,
-            # NEW: Additional breakdowns
-            'by_criteria': criteria_stats,
-            'ads_product_output': ads_product_stats,
-            'telegram_product_output': telegram_product_stats,
-        })

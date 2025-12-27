@@ -20,7 +20,7 @@ const TicketDetail = () => {
   const [comment, setComment] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [assignUserId, setAssignUserId] = useState('');
+  const [assignUserIds, setAssignUserIds] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -71,8 +71,20 @@ const TicketDetail = () => {
           setShowRejectModal(false);
           break;
         case 'assign':
-          response = await ticketsAPI.assign(id, assignUserId);
+          // First user becomes main assignee, rest become collaborators
+          if (assignUserIds.length > 0) {
+            response = await ticketsAPI.assign(id, assignUserIds[0]);
+            // Add remaining users as collaborators
+            for (let i = 1; i < assignUserIds.length; i++) {
+              try {
+                await ticketsAPI.addCollaborator(id, assignUserIds[i]);
+              } catch (collabErr) {
+                console.error('Failed to add collaborator:', collabErr);
+              }
+            }
+          }
           setShowAssignModal(false);
+          setAssignUserIds([]);
           break;
         case 'start':
           response = await ticketsAPI.start(id);
@@ -974,47 +986,74 @@ const TicketDetail = () => {
         </div>
       )}
 
-      {/* Assign Modal */}
+      {/* Assign Modal - Multi-select */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Ticket</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              <span className="text-blue-600 font-medium">Note:</span> Tickets can only be assigned to Creative department members.
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Assign Ticket</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="text-blue-600 font-medium">Note:</span> Select one or more Creative members. First selected will be the main assignee.
             </p>
+            {assignUserIds.length > 0 && (
+              <p className="text-xs text-green-600 mb-2">
+                {assignUserIds.length} selected - {users?.find(u => u.id === assignUserIds[0])?.first_name || 'First'} will be main assignee
+              </p>
+            )}
             {(() => {
-              // Filter only Creative department members
               const creativeUsers = users?.filter(u => u.user_department_info?.is_creative) || [];
               return creativeUsers.length > 0 ? (
-                <select
-                  value={assignUserId}
-                  onChange={(e) => setAssignUserId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Select Creative member...</option>
+                <div className="overflow-y-auto max-h-60 border border-gray-200 rounded-md">
                   {creativeUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.first_name || u.username} ({u.username}) - {u.user_department_info?.name || 'Creative'}
-                    </option>
+                    <label
+                      key={u.id}
+                      className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 ${
+                        assignUserIds.includes(u.id) ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assignUserIds.includes(u.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignUserIds([...assignUserIds, u.id]);
+                          } else {
+                            setAssignUserIds(assignUserIds.filter(id => id !== u.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div className="ml-3 flex-1">
+                        <span className="text-sm font-medium text-gray-900">
+                          {u.first_name || u.username} {u.last_name || ''}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">@{u.username}</span>
+                        {assignUserIds.length > 0 && assignUserIds[0] === u.id && (
+                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Main</span>
+                        )}
+                      </div>
+                    </label>
                   ))}
-                </select>
+                </div>
               ) : (
-                <p className="text-gray-500 text-sm">No Creative department members available for assignment.</p>
+                <p className="text-gray-500 text-sm">No Creative department members available.</p>
               );
             })()}
             <div className="mt-4 flex justify-end space-x-2">
               <button
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setAssignUserIds([]);
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleAction('assign')}
-                disabled={actionLoading || !assignUserId || !users?.some(u => u.user_department_info?.is_creative)}
+                disabled={actionLoading || assignUserIds.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                Assign
+                {actionLoading ? 'Assigning...' : `Assign ${assignUserIds.length > 1 ? `(${assignUserIds.length})` : ''}`}
               </button>
             </div>
           </div>

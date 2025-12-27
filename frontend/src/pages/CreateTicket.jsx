@@ -238,16 +238,18 @@ const CreateTicket = () => {
       const response = await ticketsAPI.create(data);
       const ticketId = response.data.id;
 
-      // Upload attachments if any
+      // Upload attachments in parallel for better performance
       if (attachments.length > 0) {
         setUploadingFiles(true);
-        for (const attachment of attachments) {
-          try {
-            await ticketsAPI.addAttachment(ticketId, attachment.file);
-          } catch (uploadErr) {
-            console.error('Failed to upload attachment:', attachment.name, uploadErr);
-          }
-        }
+        await Promise.all(
+          attachments.map(async (attachment) => {
+            try {
+              await ticketsAPI.addAttachment(ticketId, attachment.file);
+            } catch (uploadErr) {
+              console.error('Failed to upload attachment:', attachment.name, uploadErr);
+            }
+          })
+        );
         setUploadingFiles(false);
       }
 

@@ -1785,7 +1785,7 @@ class DashboardView(APIView):
             {'name': 'Not Yet Started', 'value': stats['approved'], 'color': '#06B6D4'},
             {'name': 'In Progress', 'value': stats['in_progress'], 'color': '#F59E0B'},
             {'name': 'Completed', 'value': stats['completed'], 'color': '#10B981'},
-            {'name': 'Rejected', 'value': stats['rejected'], 'color': '#EF4444'},
+            {'name': 'Rejected', 'value': stats['rejected'], 'color': '#6B7280'},
         ]
 
         # Priority breakdown for bar chart

@@ -1,3 +1,4 @@
+// v1.0.1 - User count display
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ticketsAPI, usersAPI } from '../services/api';

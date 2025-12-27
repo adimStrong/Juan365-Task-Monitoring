@@ -205,6 +205,23 @@ class Ticket(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    # Scheduled task fields (for videoshoot, photoshoot, live_production)
+    scheduled_start = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Scheduled start time (set by manager for videoshoot/photoshoot/live_production)'
+    )
+    scheduled_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Scheduled end time (set by manager for videoshoot/photoshoot/live_production)'
+    )
+    actual_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Actual end time (input by assigned person on completion)'
+    )
+
     # Categorization with ForeignKeys
     ticket_product = models.ForeignKey(
         Product,

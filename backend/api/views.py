@@ -2212,6 +2212,14 @@ class AnalyticsView(APIView):
                 total_processing_seconds / total_quantity_produced
             ) if total_quantity_produced > 0 else None
 
+            # Pre-fetch product items for time calculations
+            ticket_ids_for_time = [t.id for t in tickets_list]
+            product_items_for_time = TicketProductItem.objects.filter(
+                ticket_id__in=ticket_ids_for_time
+            ).select_related('product', 'ticket')
+            product_items_list_for_time = list(product_items_for_time)
+            telegram_items_for_time = [p for p in product_items_list_for_time if p.ticket.request_type == 'telegram_channel']
+
             # =====================
             # Video Creation Time
             # =====================
@@ -2229,7 +2237,7 @@ class AnalyticsView(APIView):
 
             # Add Ads VID products processing time and quantity
             ads_vid_completed_items = [
-                p for p in product_items_list
+                p for p in product_items_list_for_time
                 if p.product and 'VID' in (p.product.name or '').upper()
                 and p.ticket.status == Ticket.Status.COMPLETED
             ]
@@ -2245,7 +2253,7 @@ class AnalyticsView(APIView):
 
             # Add Telegram video items
             telegram_video_items = [
-                p for p in telegram_items
+                p for p in telegram_items_for_time
                 if (p.criteria == 'video' or (not p.criteria and p.ticket.criteria == 'video') or (not p.criteria and not p.ticket.criteria))
                 and p.ticket.status == Ticket.Status.COMPLETED
             ]
@@ -2282,7 +2290,7 @@ class AnalyticsView(APIView):
 
             # Add Ads STATIC products processing time and quantity
             ads_static_completed_items = [
-                p for p in product_items_list
+                p for p in product_items_list_for_time
                 if p.product and 'STATIC' in (p.product.name or '').upper()
                 and p.ticket.status == Ticket.Status.COMPLETED
             ]
@@ -2297,7 +2305,7 @@ class AnalyticsView(APIView):
 
             # Add Telegram image items
             telegram_image_items = [
-                p for p in telegram_items
+                p for p in telegram_items_for_time
                 if p.criteria == 'image' or (not p.criteria and p.ticket.criteria == 'image')
             ]
             telegram_image_items_completed = [p for p in telegram_image_items if p.ticket.status == Ticket.Status.COMPLETED]

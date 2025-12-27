@@ -28,6 +28,9 @@ const TicketList = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [assignModal, setAssignModal] = useState({ show: false, ticketId: null });
   const [selectedAssignees, setSelectedAssignees] = useState([]);
+  // Scheduled task complete modal
+  const [scheduledCompleteModal, setScheduledCompleteModal] = useState({ show: false, ticket: null });
+  const [actualEnd, setActualEnd] = useState('');
 
   // Filters from URL
   const statusFilter = searchParams.get('status') || '';
@@ -161,6 +164,14 @@ const TicketList = () => {
       } else if (action === 'start') {
         await ticketsAPI.start(ticketId);
       } else if (action === 'complete') {
+        // For scheduled tasks, show modal to get end time
+        const ticket = tickets.find(t => t.id === ticketId);
+        const scheduledTypes = ['videoshoot', 'photoshoot', 'live_production'];
+        if (ticket && scheduledTypes.includes(ticket.request_type)) {
+          setScheduledCompleteModal({ show: true, ticket });
+          setActionLoading(null);
+          return;
+        }
         await ticketsAPI.complete(ticketId);
       } else if (action === 'revision') {
         await ticketsAPI.requestRevision(ticketId, { reason: 'Revision requested' });
@@ -231,6 +242,28 @@ const TicketList = () => {
   // Get Creative department members for assign
   const getCreativeMembers = () => {
     return users.filter(u => u.user_department_info?.is_creative) || [];
+  };
+
+  // Handle scheduled task complete submit
+  const handleScheduledCompleteSubmit = async () => {
+    if (!actualEnd) {
+      toast.error('Please enter the end time');
+      return;
+    }
+    const ticketId = scheduledCompleteModal.ticket?.id;
+    setActionLoading(ticketId);
+    try {
+      await ticketsAPI.complete(ticketId, actualEnd);
+      const response = await ticketsAPI.get(ticketId);
+      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      toast.success('Ticket completed!');
+      setScheduledCompleteModal({ show: false, ticket: null });
+      setActualEnd('');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to complete');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   // Load view preference from localStorage
@@ -938,6 +971,54 @@ const TicketList = () => {
                   {actionLoading === assignModal.ticketId ? 'Assigning...' : 'Assign'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled Task Complete Modal */}
+      {scheduledCompleteModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Complete {scheduledCompleteModal.ticket?.request_type?.replace('_', ' ')}
+            </h3>
+            <div className="space-y-4">
+              {scheduledCompleteModal.ticket?.scheduled_start && (
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Scheduled Start:</span>{' '}
+                  {new Date(scheduledCompleteModal.ticket.scheduled_start).toLocaleString()}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  When did the {scheduledCompleteModal.ticket?.request_type?.replace('_', ' ')} end?
+                </label>
+                <input
+                  type="datetime-local"
+                  value={actualEnd}
+                  onChange={(e) => setActualEnd(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setScheduledCompleteModal({ show: false, ticket: null });
+                  setActualEnd('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleScheduledCompleteSubmit}
+                disabled={actionLoading === scheduledCompleteModal.ticket?.id || !actualEnd}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionLoading === scheduledCompleteModal.ticket?.id ? 'Completing...' : 'Mark Complete'}
+              </button>
             </div>
           </div>
         </div>

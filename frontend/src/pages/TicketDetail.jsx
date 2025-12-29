@@ -753,7 +753,12 @@ const TicketDetail = () => {
                   <dt className="text-sm text-gray-500">Assigned To</dt>
                   <dd className="text-sm font-medium text-gray-900">
                     {ticket.assigned_to
-                      ? `${(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} ${((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'}`
+                      ? (() => {
+                          const totalUsers = (ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0);
+                          return totalUsers === 1
+                            ? (ticket.assigned_to?.first_name || ticket.assigned_to?.username)
+                            : `${totalUsers} users`;
+                        })()
                       : 'Unassigned'}
                   </dd>
                 </div>
@@ -847,7 +852,12 @@ const TicketDetail = () => {
             {(ticket.assigned_to || ticket.collaborators?.length > 0) && (
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  Assigned Team ({(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} {((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'})
+                  {(() => {
+                    const totalUsers = (ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0);
+                    return totalUsers === 1
+                      ? `Assigned to ${ticket.assigned_to?.first_name || ticket.assigned_to?.username}`
+                      : `Assigned Team (${totalUsers} users)`;
+                  })()}
                 </h3>
                 <div className="space-y-2">
                   {/* Main assignee */}

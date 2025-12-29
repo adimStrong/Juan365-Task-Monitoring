@@ -142,6 +142,7 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         'completed': '🎉',
         'confirmed': '✔️',
         'pending_creative': '🔄',
+        'overdue': '🚨',
     }
 
     emoji = emojis.get(notification_type, '📌')

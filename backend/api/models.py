@@ -219,6 +219,12 @@ class Ticket(models.Model):
         help_text='Actual end time (input by assigned person on completion)'
     )
 
+    # Overdue reminder tracking
+    last_overdue_reminder_sent = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the last overdue reminder was sent'
+    )
+
     # Categorization with ForeignKeys
     ticket_product = models.ForeignKey(
         Product,

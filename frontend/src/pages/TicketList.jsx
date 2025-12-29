@@ -1,7 +1,7 @@
 // v1.0.2 - Force Vercel rebuild Dec 27 2025
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ticketsAPI, usersAPI } from '../services/api';
+import { ticketsAPI, usersAPI, departmentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
@@ -15,6 +15,7 @@ const TicketList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState([]);
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
@@ -39,6 +40,9 @@ const TicketList = () => {
   const dateFrom = searchParams.get('date_from') || '';
   const dateTo = searchParams.get('date_to') || '';
   const myTasksFilter = searchParams.get('my_tasks') || '';
+  const overdueFilter = searchParams.get('overdue') || '';
+  const departmentFilter = searchParams.get('department') || '';
+  const userFilter = searchParams.get('assigned_to') || '';
 
   // Pagination from URL
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
@@ -89,7 +93,8 @@ const TicketList = () => {
   useEffect(() => {
     fetchTickets();
     fetchUsers();
-  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, myTasksFilter, currentPage, pageSize]);
+    fetchDepartments();
+  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, myTasksFilter, overdueFilter, departmentFilter, userFilter, currentPage, pageSize]);
 
   // Fetch users for assign modal
   const fetchUsers = async () => {
@@ -99,6 +104,16 @@ const TicketList = () => {
       setUsers(Array.isArray(usersData) ? usersData : (usersData.results || []));
     } catch (error) {
       console.error('Failed to fetch users:', error);
+    }
+  };
+
+  // Fetch departments for filter
+  const fetchDepartments = async () => {
+    try {
+      const response = await departmentsAPI.list();
+      setDepartments(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch departments:', error);
     }
   };
 
@@ -288,6 +303,9 @@ const TicketList = () => {
       if (dateFrom) params.created_after = dateFrom;
       if (dateTo) params.created_before = dateTo;
       if (myTasksFilter) params.my_tasks = myTasksFilter;
+      if (overdueFilter) params.overdue = overdueFilter;
+      if (departmentFilter) params.target_department = departmentFilter;
+      if (userFilter) params.assigned_to = userFilter;
 
       const response = await ticketsAPI.list(params);
       const data = response.data;
@@ -358,7 +376,7 @@ const TicketList = () => {
     setPreviewTicketId(ticket.id);
   };
 
-  const hasActiveFilters = statusFilter || priorityFilter || searchQuery || dateFrom || dateTo;
+  const hasActiveFilters = statusFilter || priorityFilter || searchQuery || dateFrom || dateTo || overdueFilter || departmentFilter || userFilter;
 
   const getPriorityColor = (priority) => {
     const colors = {
@@ -520,6 +538,48 @@ const TicketList = () => {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+              </div>
+              {/* Second row: Department and User filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select
+                    value={departmentFilter}
+                    onChange={(e) => handleFilterChange('department', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+                  <select
+                    value={userFilter}
+                    onChange={(e) => handleFilterChange('assigned_to', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Users</option>
+                    {users.filter(u => u.is_active && u.is_approved).map(u => (
+                      <option key={u.id} value={u.id}>{u.first_name || u.username}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {/* Overdue checkbox */}
+              <div className="mt-4 flex items-center">
+                <input
+                  type="checkbox"
+                  id="overdue-filter"
+                  checked={overdueFilter === 'true'}
+                  onChange={(e) => handleFilterChange('overdue', e.target.checked ? 'true' : '')}
+                  className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <label htmlFor="overdue-filter" className="ml-2 text-sm text-red-700 font-medium">
+                  Show Overdue Only
+                </label>
               </div>
               {hasActiveFilters && (
                 <div className="mt-4 flex justify-end">

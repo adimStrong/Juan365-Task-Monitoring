@@ -350,7 +350,8 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
-        queryset = User.objects.all().order_by('-date_joined')
+        # Optimize with select_related for department
+        queryset = User.objects.select_related('user_department').order_by('-date_joined')
 
         # Filter by approval status
         approval_filter = self.request.query_params.get('is_approved')
@@ -2124,7 +2125,11 @@ class ActivityLogListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = ActivityLog.objects.select_related('user', 'ticket')
+        # Optimize with ticket-related fields to avoid N+1
+        queryset = ActivityLog.objects.select_related(
+            'user', 'user__user_department',
+            'ticket', 'ticket__requester', 'ticket__assigned_to'
+        )
 
         # Managers see all activity, others see only their tickets
         if not user.is_manager:

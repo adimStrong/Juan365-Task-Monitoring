@@ -295,13 +295,22 @@ const Dashboard = () => {
                   <Link
                     key={ticket.id}
                     to={`/tickets/${ticket.id}`}
-                    className="block p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className={`block p-4 border rounded-lg hover:bg-gray-50 transition-colors ${
+                      ticket.task_type === 'needs_approval' ? 'border-purple-300 bg-purple-50' : ''
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          #{ticket.id} - {ticket.title}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            #{ticket.id} - {ticket.title}
+                          </p>
+                          {ticket.task_type === 'needs_approval' && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 font-medium whitespace-nowrap">
+                              Needs your approval
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">
                           From: {ticket.requester?.first_name || ticket.requester?.username}
                         </p>

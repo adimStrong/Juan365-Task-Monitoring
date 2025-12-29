@@ -1937,17 +1937,65 @@ class DashboardView(APIView):
 
 
 class MyTasksView(generics.ListAPIView):
-    """Get tickets assigned to current user"""
+    """Get tickets assigned to current user AND tickets needing approval for managers"""
     serializer_class = TicketListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
-        return Ticket.objects.filter(
-            assigned_to=self.request.user
+        user = self.request.user
+
+        # Get tickets assigned to the user (or where user is collaborator)
+        assigned_tickets = Ticket.objects.filter(
+            Q(assigned_to=user) | Q(collaborators__user=user)
         ).exclude(
             status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
-        ).select_related('requester', 'assigned_to')
+        )
+
+        # For managers, also include tickets that need their approval
+        if user.is_manager:
+            # Tickets needing approval that the manager should review
+            approval_tickets = Ticket.objects.filter(
+                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE]
+            )
+            # Combine both querysets
+            return (assigned_tickets | approval_tickets).distinct().select_related(
+                'requester', 'assigned_to', 'target_department', 'ticket_product'
+            ).order_by('-created_at')
+
+        return assigned_tickets.select_related(
+            'requester', 'assigned_to', 'target_department', 'ticket_product'
+        ).order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        """Override list to add task_type field to each ticket"""
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        data = serializer.data
+
+        user = request.user
+
+        # Add task_type field to each ticket
+        for ticket_data in data:
+            status = ticket_data.get('status')
+            assigned_to = ticket_data.get('assigned_to')
+            assigned_to_id = assigned_to.get('id') if isinstance(assigned_to, dict) else None
+
+            # Check collaborators
+            collaborator_ids = []
+            for c in ticket_data.get('collaborators', []):
+                c_user = c.get('user', {})
+                if isinstance(c_user, dict):
+                    collaborator_ids.append(c_user.get('id'))
+
+            is_assigned = (assigned_to_id == user.id) or (user.id in collaborator_ids)
+
+            if status in ['requested', 'pending_creative'] and user.is_manager and not is_assigned:
+                ticket_data['task_type'] = 'needs_approval'
+            else:
+                ticket_data['task_type'] = 'assigned'
+
+        return Response(data)
 
 
 class TeamOverviewView(generics.ListAPIView):

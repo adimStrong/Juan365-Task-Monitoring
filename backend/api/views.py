@@ -1937,17 +1937,34 @@ class DashboardView(APIView):
 
 
 class MyTasksView(generics.ListAPIView):
-    """Get tickets assigned to current user"""
+    """Get tickets assigned to current user OR pending their approval"""
     serializer_class = TicketListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
 
     def get_queryset(self):
+        user = self.request.user
+
+        # Tickets assigned to user (not completed/rejected)
+        assigned_tickets = Q(assigned_to=user) & ~Q(status__in=[
+            Ticket.Status.COMPLETED, Ticket.Status.REJECTED
+        ])
+
+        # Tickets where user is a collaborator (not completed/rejected)
+        collaborator_tickets = Q(collaborators__user=user) & ~Q(status__in=[
+            Ticket.Status.COMPLETED, Ticket.Status.REJECTED
+        ])
+
+        # Tickets awaiting user's approval
+        pending_approval = Q(pending_approver=user) & Q(status__in=[
+            Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE
+        ])
+
         return Ticket.objects.filter(
-            assigned_to=self.request.user
-        ).exclude(
-            status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
-        ).select_related('requester', 'assigned_to')
+            Q(is_deleted=False) & (assigned_tickets | collaborator_tickets | pending_approval)
+        ).distinct().select_related(
+            'requester', 'assigned_to', 'pending_approver'
+        ).order_by('-created_at')
 
 
 class TeamOverviewView(generics.ListAPIView):

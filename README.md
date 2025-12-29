@@ -320,3 +320,4 @@ MIT License - see LICENSE file for details.
 ---
 
 Built with Django + React by Juan365 Team
+# Dev environment - Mon Dec 29 18:03:08 TST 2025

@@ -202,7 +202,12 @@ const TicketPreviewModal = ({ ticketId, onClose, currentUser, isManager, users, 
                     <dt className="text-xs text-gray-500">Assigned To</dt>
                     <dd className="text-sm font-medium text-gray-900">
                       {ticket.assigned_to
-                        ? `${(ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)} ${((ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0)) === 1 ? 'user' : 'users'}`
+                        ? (() => {
+                            const totalUsers = (ticket.assigned_to ? 1 : 0) + (ticket.collaborators?.length || 0);
+                            return totalUsers === 1
+                              ? (ticket.assigned_to?.first_name || ticket.assigned_to?.username)
+                              : `${totalUsers} users`;
+                          })()
                         : 'Unassigned'}
                     </dd>
                   </div>

@@ -28,6 +28,8 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS]
 # Add Cloudflare tunnel wildcard
 ALLOWED_HOSTS.append('.trycloudflare.com')
+# Add Railway wildcard for all environments (production and development)
+ALLOWED_HOSTS.append('.railway.app')
 
 # For Railway/Render deployment
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')

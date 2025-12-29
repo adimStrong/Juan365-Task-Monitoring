@@ -2185,7 +2185,9 @@ class AnalyticsView(APIView):
             ).values('product_name').annotate(
                 count=Count('id'),
                 completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS))
+                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
             ).filter(product_name__isnull=False).exclude(product_name='').order_by('-count')
             # Rename for frontend compatibility
             product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]

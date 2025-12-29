@@ -140,6 +140,7 @@ def format_notification_message(ticket, action, extra_info=None):
 
 
 from .permissions import IsAdminUser, IsManagerUser, IsTicketOwnerOrManager, CanApproveTicket
+from .cache_utils import invalidate_ticket_caches
 
 User = get_user_model()
 
@@ -1095,6 +1096,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
             notify_user(ticket.pending_approver, 'pending_creative', ticket, actor=user)
 
+        invalidate_ticket_caches()
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
@@ -1129,6 +1131,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         # Send Telegram notification
         notify_user(ticket.requester, 'rejected', ticket, reason, actor=request.user)
 
+        invalidate_ticket_caches()
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
@@ -1263,6 +1266,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
             notify_user(ticket.requester, 'started', ticket, actor=request.user)
 
+        invalidate_ticket_caches()
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'])
@@ -1332,6 +1336,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             # Send Telegram notification
             notify_user(ticket.requester, 'completed', ticket, actor=request.user)
 
+        invalidate_ticket_caches()
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'])
@@ -1381,6 +1386,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             # Send Telegram notification
             notify_user(ticket.assigned_to, 'confirmed', ticket, actor=request.user)
 
+        invalidate_ticket_caches()
         return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['post'])
@@ -1874,19 +1880,39 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 # =====================
 
 class DashboardView(APIView):
-    """Dashboard statistics and overview"""
+    """
+    Dashboard statistics and overview.
+
+    Caching Strategy (Netflix-style):
+    - Stats cached for 5 minutes per user role (manager vs member)
+    - Cache key includes role to show different data
+    - Invalidated when tickets are created/updated/deleted
+    """
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
 
     def get(self, request):
-        user = request.user
+        from .cache_utils import get_cache_key, CACHE_TTL_DASHBOARD
 
-        # Base queryset
+        user = request.user
+        role = 'manager' if user.is_manager else 'member'
+        cache_key = get_cache_key('dashboard', 'stats', f'role:{role}')
+
+        # Try to get from cache first
+        cached_stats = cache.get(cache_key)
+        if cached_stats is not None:
+            logger.debug(f'Dashboard cache HIT for role:{role}')
+            return Response(cached_stats)
+
+        logger.debug(f'Dashboard cache MISS for role:{role}')
+
+        # Base queryset - exclude deleted tickets
         if user.is_manager:
-            tickets = Ticket.objects.all()
+            tickets = Ticket.objects.filter(is_deleted=False)
         else:
             tickets = Ticket.objects.filter(
-                Q(requester=user) | Q(assigned_to=user)
+                Q(requester=user) | Q(assigned_to=user),
+                is_deleted=False
             )
 
         now = timezone.now()
@@ -1952,6 +1978,10 @@ class DashboardView(APIView):
         stats['status_chart'] = status_data
         stats['priority_chart'] = priority_data
         stats['weekly_chart'] = weekly_data
+
+        # Cache the stats before returning
+        cache.set(cache_key, stats, CACHE_TTL_DASHBOARD)
+        logger.debug(f'Dashboard stats cached for role:{role}')
 
         return Response(stats)
 
@@ -2087,13 +2117,34 @@ class ActivityLogListView(generics.ListAPIView):
 # =====================
 
 class AnalyticsView(APIView):
-    """Analytics endpoint for ticket processing metrics"""
+    """
+    Analytics endpoint for ticket processing metrics.
+    
+    Caching Strategy (Netflix-style):
+    - Results cached for 15 minutes per date range
+    - Expensive computations only run on cache miss
+    - Cache invalidated when tickets change
+    """
     permission_classes = [IsManagerUser]
 
     def get(self, request):
         from django.db.models import Avg, Count, F, ExpressionWrapper, DurationField, Min, Max, Sum
         from django.db.models.functions import Coalesce
         from .models import TicketProductItem, TicketAnalytics
+        from .cache_utils import get_cache_key, hash_params, CACHE_TTL_ANALYTICS
+
+        # Build cache key from date range
+        date_from = request.query_params.get('date_from', 'all')
+        date_to = request.query_params.get('date_to', 'all')
+        cache_key = get_cache_key('analytics', date_from, date_to)
+
+        # Try to get from cache first
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            logger.debug(f'Analytics cache HIT for {date_from} to {date_to}')
+            return Response(cached_result)
+
+        logger.debug(f'Analytics cache MISS for {date_from} to {date_to}')
 
         try:
             # Get available date range (min/max dates with data) - exclude deleted

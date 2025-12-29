@@ -192,3 +192,23 @@ export const useAddComment = () => {
     },
   });
 };
+
+// ==================
+// ANALYTICS (cached for 5 minutes - expensive query)
+// Netflix-style: Show stale data immediately, refresh in background
+// ==================
+export const useAnalytics = (dateFrom, dateTo) => {
+  return useQuery({
+    queryKey: queryKeys.analytics({ dateFrom, dateTo }),
+    queryFn: async () => {
+      const { analyticsAPI } = await import('../services/api');
+      const response = await analyticsAPI.get({ date_from: dateFrom, date_to: dateTo });
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - analytics don't change frequently
+    gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
+    // Show stale data while revalidating (Netflix pattern)
+    refetchOnMount: 'always', // Always check for fresh data
+    refetchOnWindowFocus: false, // Don't refetch on tab switch
+  });
+};

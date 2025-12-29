@@ -195,7 +195,10 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Total Tickets</p>
-                    <p className="text-3xl font-bold text-gray-900">{analytics.summary.total_tickets}</p>
+                    <div className="flex items-baseline space-x-3">
+                      <p className="text-3xl font-bold text-gray-900">{analytics.summary.total_tickets}</p>
+                      <p className="text-lg text-blue-600 font-semibold">({analytics.summary.assigned_tickets || 0} assigned)</p>
+                    </div>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,6 +230,9 @@ const Analytics = () => {
                       style={{ width: `${analytics.summary.completion_rate}%` }}
                     />
                   </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {analytics.summary.completed_tickets} of {analytics.summary.assigned_tickets || 0} assigned
+                  </p>
                 </div>
               </div>
 

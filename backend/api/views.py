@@ -2253,6 +2253,8 @@ class AnalyticsView(APIView):
             # Use cached tickets_list for overall stats
             total_completed = sum(1 for t in tickets_list if t.status == Ticket.Status.COMPLETED)
             total_tickets = len(tickets_list)
+            # Assigned tickets = tickets that have assigned_to set
+            assigned_tickets = sum(1 for t in tickets_list if t.assigned_to_id is not None)
 
             # Overall average processing time using cached list
             all_processing_times = [
@@ -2603,8 +2605,9 @@ class AnalyticsView(APIView):
                 },
                 'summary': {
                     'total_tickets': total_tickets,
+                    'assigned_tickets': assigned_tickets,
                     'completed_tickets': total_completed,
-                    'completion_rate': round(total_completed / total_tickets * 100, 1) if total_tickets > 0 else 0,
+                    'completion_rate': round(total_completed / assigned_tickets * 100, 1) if assigned_tickets > 0 else 0,
                     'avg_processing_seconds': overall_avg_processing_seconds,
                     'avg_acknowledge_seconds': avg_acknowledge_seconds,
                     'avg_time_per_creative_seconds': avg_time_per_creative_seconds,

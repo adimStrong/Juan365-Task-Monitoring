@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Case, When, IntegerField, Value
 from django.core.cache import cache
 from django.views.decorators.cache import cache_page
 from django.utils.decorators import method_decorator
@@ -1917,23 +1917,46 @@ class DashboardView(APIView):
 
         now = timezone.now()
 
+        # OPTIMIZED: Single aggregate query for all counts (instead of 15+ queries)
+        counts = tickets.aggregate(
+            total=Count('id'),
+            pending_approval=Count(Case(When(status=Ticket.Status.REQUESTED, then=1))),
+            pending_creative=Count(Case(When(status=Ticket.Status.PENDING_CREATIVE, then=1))),
+            in_progress=Count(Case(When(status=Ticket.Status.IN_PROGRESS, then=1))),
+            completed=Count(Case(When(status=Ticket.Status.COMPLETED, then=1))),
+            approved=Count(Case(When(status=Ticket.Status.APPROVED, then=1))),
+            rejected=Count(Case(When(status=Ticket.Status.REJECTED, then=1))),
+            overdue=Count(Case(When(
+                deadline__lt=now,
+                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE, 
+                           Ticket.Status.APPROVED, Ticket.Status.IN_PROGRESS],
+                then=1
+            ))),
+            # Priority counts
+            urgent=Count(Case(When(priority='urgent', then=1))),
+            high=Count(Case(When(priority='high', then=1))),
+            medium=Count(Case(When(priority='medium', then=1))),
+            low=Count(Case(When(priority='low', then=1))),
+        )
+
+        # My assigned count (separate query since it uses different base)
+        my_assigned = Ticket.objects.filter(
+            assigned_to=user, is_deleted=False
+        ).exclude(
+            status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
+        ).count()
+
         # Basic stats
         stats = {
-            'total_tickets': tickets.count(),
-            'pending_approval': tickets.filter(status=Ticket.Status.REQUESTED).count(),
-            'pending_creative': tickets.filter(status=Ticket.Status.PENDING_CREATIVE).count(),
-            'in_progress': tickets.filter(status=Ticket.Status.IN_PROGRESS).count(),
-            'completed': tickets.filter(status=Ticket.Status.COMPLETED).count(),
-            'approved': tickets.filter(status=Ticket.Status.APPROVED).count(),
-            'rejected': tickets.filter(status=Ticket.Status.REJECTED).count(),
-            'overdue': tickets.filter(
-                deadline__lt=now
-            ).exclude(
-                status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
-            ).count(),
-            'my_assigned': Ticket.objects.filter(assigned_to=user).exclude(
-                status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
-            ).count()
+            'total_tickets': counts['total'],
+            'pending_approval': counts['pending_approval'],
+            'pending_creative': counts['pending_creative'],
+            'in_progress': counts['in_progress'],
+            'completed': counts['completed'],
+            'approved': counts['approved'],
+            'rejected': counts['rejected'],
+            'overdue': counts['overdue'],
+            'my_assigned': my_assigned
         }
 
         # Status breakdown for pie chart
@@ -1948,26 +1971,27 @@ class DashboardView(APIView):
 
         # Priority breakdown for bar chart
         priority_data = [
-            {'name': 'Urgent', 'count': tickets.filter(priority='urgent').count(), 'color': '#EF4444'},
-            {'name': 'High', 'count': tickets.filter(priority='high').count(), 'color': '#F97316'},
-            {'name': 'Medium', 'count': tickets.filter(priority='medium').count(), 'color': '#EAB308'},
-            {'name': 'Low', 'count': tickets.filter(priority='low').count(), 'color': '#22C55E'},
+            {'name': 'Urgent', 'count': counts['urgent'], 'color': '#EF4444'},
+            {'name': 'High', 'count': counts['high'], 'color': '#F97316'},
+            {'name': 'Medium', 'count': counts['medium'], 'color': '#EAB308'},
+            {'name': 'Low', 'count': counts['low'], 'color': '#22C55E'},
         ]
 
-        # Weekly trends (last 7 days)
+        # OPTIMIZED: Weekly trends using single annotated query (instead of 14 queries)
+        seven_days_ago = now - timedelta(days=7)
+        weekly_tickets = tickets.filter(
+            Q(created_at__gte=seven_days_ago) | 
+            Q(status=Ticket.Status.COMPLETED, updated_at__gte=seven_days_ago)
+        ).values('created_at', 'updated_at', 'status')
+
+        # Build weekly data from prefetched results
         weekly_data = []
         for i in range(6, -1, -1):
             day = now.date() - timedelta(days=i)
-            day_start = timezone.make_aware(timezone.datetime.combine(day, timezone.datetime.min.time()))
-            day_end = day_start + timedelta(days=1)
-
-            created = tickets.filter(created_at__gte=day_start, created_at__lt=day_end).count()
-            completed = tickets.filter(
-                status=Ticket.Status.COMPLETED,
-                updated_at__gte=day_start,
-                updated_at__lt=day_end
-            ).count()
-
+            created = sum(1 for t in weekly_tickets if t['created_at'].date() == day)
+            completed = sum(1 for t in weekly_tickets 
+                         if t['status'] == Ticket.Status.COMPLETED 
+                         and t['updated_at'].date() == day)
             weekly_data.append({
                 'day': day.strftime('%a'),
                 'date': day.strftime('%m/%d'),
@@ -2011,10 +2035,14 @@ class MyTasksView(generics.ListAPIView):
             # Combine both querysets
             return (assigned_tickets | approval_tickets).distinct().select_related(
                 'requester', 'assigned_to', 'target_department', 'ticket_product'
+            ).prefetch_related(
+                'collaborators__user'
             ).order_by('-created_at')
 
         return assigned_tickets.select_related(
             'requester', 'assigned_to', 'target_department', 'ticket_product'
+        ).prefetch_related(
+            'collaborators__user'
         ).order_by('-created_at')
 
     def list(self, request, *args, **kwargs):

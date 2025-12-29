@@ -110,6 +110,35 @@ def calculate_deadline_from_priority(priority, file_format=None, criteria=None):
 
     hours = hours_map.get(priority, 72)  # Default to medium (72 hours)
     return timezone.now() + timedelta(hours=hours)
+
+
+def format_notification_message(ticket, action, extra_info=None):
+    """
+    Format notification message with ticket context.
+    Format: #{id} - {title} ({priority}) - {action}
+    """
+    base = f'#{ticket.id} - {ticket.title} ({ticket.get_priority_display()})'
+
+    messages = {
+        'needs_dept_approval': f'{base} - needs your department approval',
+        'needs_creative_approval': f'{base} - needs your Creative approval',
+        'dept_approved': f'{base} - approved by department, pending Creative',
+        'approved': f'{base} - has been fully approved',
+        'rejected': f'{base} - has been rejected' + (f': {extra_info}' if extra_info else ''),
+        'assigned': f'{base} - has been assigned to you',
+        'started': f'{base} - work has started',
+        'completed': f'{base} - has been completed, please confirm',
+        'confirmed': f'{base} - completion confirmed by requester',
+        'revision': f'{base} - revision requested' + (f': {extra_info[:100]}' if extra_info else ''),
+        'comment': f'{base} - new comment added',
+        'collaborator': f'{base} - you have been added as collaborator',
+        'rollback': f'{base} - has been rolled back',
+        'restored': f'{base} - has been restored from trash',
+        'reminder': f'{base} - awaiting your approval (reminder)',
+    }
+    return messages.get(action, f'{base} - {action}')
+
+
 from .permissions import IsAdminUser, IsManagerUser, IsTicketOwnerOrManager, CanApproveTicket
 
 User = get_user_model()
@@ -875,7 +904,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 Notification.objects.create(
                     user=creative_manager,
                     ticket=ticket,
-                    message=f'New ticket from Creative team member {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
+                    message=format_notification_message(ticket, 'needs_creative_approval'),
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
                 notify_user(creative_manager, 'new_request', ticket, actor=requester)
@@ -889,7 +918,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 Notification.objects.create(
                     user=requester_dept.manager,
                     ticket=ticket,
-                    message=f'New ticket from {requester.username}: "#{ticket.id} - {ticket.title}" needs your approval',
+                    message=format_notification_message(ticket, 'needs_dept_approval'),
                     notification_type=Notification.NotificationType.NEW_REQUEST
                 )
                 notify_user(requester_dept.manager, 'new_request', ticket, actor=requester)
@@ -961,7 +990,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been fully approved by Creative',
+                message=format_notification_message(ticket, 'approved'),
                 notification_type=Notification.NotificationType.APPROVED
             )
             notify_user(ticket.requester, 'approved', ticket, actor=user)
@@ -971,7 +1000,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 Notification.objects.create(
                     user=ticket.dept_approver,
                     ticket=ticket,
-                    message=f'Ticket "#{ticket.id} - {ticket.title}" has been approved by Creative',
+                    message=format_notification_message(ticket, 'approved'),
                     notification_type=Notification.NotificationType.APPROVED
                 )
 
@@ -1031,7 +1060,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         Notification.objects.create(
             user=ticket.requester,
             ticket=ticket,
-            message=f'Your ticket "#{ticket.id} - {ticket.title}" has been approved by department, pending Creative approval',
+            message=format_notification_message(ticket, 'dept_approved'),
             notification_type=Notification.NotificationType.PENDING_CREATIVE
         )
         notify_user(ticket.requester, 'pending_creative', ticket, actor=user)
@@ -1041,7 +1070,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.pending_approver,
                 ticket=ticket,
-                message=f'Ticket "#{ticket.id} - {ticket.title}" needs your approval (approved by {user.username})',
+                message=format_notification_message(ticket, 'needs_creative_approval'),
                 notification_type=Notification.NotificationType.PENDING_CREATIVE
             )
             notify_user(ticket.pending_approver, 'pending_creative', ticket, actor=user)
@@ -1070,14 +1099,11 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         # Log activity
         log_activity(request.user, ticket, ActivityLog.ActionType.REJECTED, reason)
-        message = f'Your ticket "#{ticket.id} - {ticket.title}" has been rejected'
-        if reason:
-            message += f'. Reason: {reason}'
 
         Notification.objects.create(
             user=ticket.requester,
             ticket=ticket,
-            message=message,
+            message=format_notification_message(ticket, 'rejected', reason),
             notification_type=Notification.NotificationType.REJECTED
         )
         # Send Telegram notification
@@ -1212,7 +1238,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Work has started on your ticket "#{ticket.id} - {ticket.title}"',
+                message=format_notification_message(ticket, 'started'),
                 notification_type=Notification.NotificationType.APPROVED
             )
             notify_user(ticket.requester, 'started', ticket, actor=request.user)
@@ -1280,7 +1306,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Ticket "#{ticket.id} - {ticket.title}" has been completed. Please confirm completion.',
+                message=format_notification_message(ticket, 'completed'),
                 notification_type=Notification.NotificationType.APPROVED
             )
             # Send Telegram notification
@@ -1329,7 +1355,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.assigned_to,
                 ticket=ticket,
-                message=f'Requester has confirmed completion of ticket "#{ticket.id} - {ticket.title}"',
+                message=format_notification_message(ticket, 'confirmed'),
                 notification_type=Notification.NotificationType.APPROVED
             )
             # Send Telegram notification
@@ -1394,7 +1420,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.assigned_to,
                 ticket=ticket,
-                message=f'Revision requested for ticket "#{ticket.id} - {ticket.title}": {revision_comments[:100]}',
+                message=format_notification_message(ticket, 'revision', revision_comments),
                 notification_type=Notification.NotificationType.COMMENT
             )
             notify_user(ticket.assigned_to, 'revision_requested', ticket, revision_comments, actor=request.user)
@@ -1545,7 +1571,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=collaborator_user,
                 ticket=ticket,
-                message=f'You have been added as a collaborator on ticket "#{ticket.id} - {ticket.title}"',
+                message=format_notification_message(ticket, 'collaborator'),
                 notification_type=Notification.NotificationType.ASSIGNED
             )
             notify_user(collaborator_user, 'assigned', ticket, actor=request.user)
@@ -1666,7 +1692,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Ticket "#{ticket.id} - {ticket.title}" has been rolled back to a previous state by {request.user.username}',
+                message=format_notification_message(ticket, 'rollback'),
                 notification_type=Notification.NotificationType.APPROVED
             )
             notify_user(ticket.requester, 'rollback', ticket, actor=request.user)
@@ -1726,7 +1752,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             Notification.objects.create(
                 user=ticket.requester,
                 ticket=ticket,
-                message=f'Your ticket "#{ticket.id} - {ticket.title}" has been restored from trash',
+                message=format_notification_message(ticket, 'restored'),
                 notification_type=Notification.NotificationType.APPROVED
             )
         

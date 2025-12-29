@@ -568,7 +568,7 @@ const TicketList = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created', 'Product', 'Category', 'Actions'].map((h) => (
+                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created', 'Product', 'Type', 'Actions'].map((h) => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -722,13 +722,16 @@ const TicketList = () => {
                         {ticket.ticket_product?.name || ticket.product || '-'}
                       </td>
                       <td className="hidden lg:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
-                        {ticket.ticket_product?.category ? (
+                        {ticket.request_type ? (
                           <span className={`px-2 py-1 text-xs rounded-full ${
-                            ticket.ticket_product.category === 'ads' ? 'bg-orange-100 text-orange-800' :
-                            ticket.ticket_product.category === 'telegram' ? 'bg-sky-100 text-sky-800' :
-                            'bg-gray-100 text-gray-800'
+                            ticket.request_type === 'ads' ? 'bg-orange-100 text-orange-800' :
+                            ticket.request_type === 'telegram_channel' ? 'bg-sky-100 text-sky-800' :
+                            ticket.request_type === 'videoshoot' ? 'bg-purple-100 text-purple-800' :
+                            ticket.request_type === 'photoshoot' ? 'bg-pink-100 text-pink-800' :
+                            ticket.request_type === 'live_production' ? 'bg-red-100 text-red-800' :
+                            'bg-blue-100 text-blue-800'
                           }`}>
-                            {ticket.ticket_product.category.charAt(0).toUpperCase() + ticket.ticket_product.category.slice(1)}
+                            {ticket.request_type_display || ticket.request_type.replace('_', ' ')}
                           </span>
                         ) : '-'}
                       </td>

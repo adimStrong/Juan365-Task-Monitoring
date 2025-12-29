@@ -9,7 +9,7 @@ from .views import (
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
     ActivityLogListView, AnalyticsView,
     DepartmentViewSet, ProductViewSet, PublicDepartmentListView,
-    ForgotPasswordView, ResetPasswordView, HealthCheckView
+    ForgotPasswordView, ResetPasswordView, HealthCheckView, TriggerOverdueRemindersView
 )
 
 router = DefaultRouter()
@@ -52,4 +52,7 @@ urlpatterns = [
 
     # Health check (for uptime monitoring)
     path('health/', HealthCheckView.as_view(), name='health-check'),
+    
+    # Cron endpoint for overdue reminders
+    path('cron/overdue-reminders/', TriggerOverdueRemindersView.as_view(), name='trigger-overdue'),
 ]

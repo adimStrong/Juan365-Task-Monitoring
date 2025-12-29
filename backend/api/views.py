@@ -2828,3 +2828,22 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         return Response({"status": "ok"})
+
+
+class TriggerOverdueRemindersView(APIView):
+    """Trigger overdue reminders via HTTP. Protected by token."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token', '')
+        expected_token = getattr(settings, 'CRON_SECRET_TOKEN', 'juan365-cron-secret-2024')
+        if token != expected_token:
+            return Response({"error": "Invalid token"}, status=status.HTTP_403_FORBIDDEN)
+        from django.core.management import call_command
+        from io import StringIO
+        output = StringIO()
+        try:
+            call_command('send_overdue_reminders', stdout=output)
+            return Response({"status": "ok", "output": output.getvalue()})
+        except Exception as e:
+            return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

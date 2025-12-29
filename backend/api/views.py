@@ -285,6 +285,7 @@ class UserListView(generics.ListAPIView):
 
 class UserManagementViewSet(viewsets.ModelViewSet):
     """Admin user management - list, approve, change roles"""
+    pagination_class = None  # Show all users without pagination
     serializer_class = UserSerializer
     permission_classes = [IsManagerUser]
 

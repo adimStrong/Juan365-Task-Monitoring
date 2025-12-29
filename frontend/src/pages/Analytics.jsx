@@ -407,112 +407,88 @@ const Analytics = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assigned
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assigned Qty
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Completed
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Output
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        In Progress
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Completion Rate
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ticket Processing Time
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Ack Time
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Video Time
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Image Time
-                      </th>
+                      <th className="px-2 py-2 text-left font-medium text-gray-500 text-xs">User</th>
+                      <th className="px-2 py-2 text-left font-medium text-gray-500 text-xs">Role</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Asgn</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Qty</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Done</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Out</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">WIP</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Rate</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Process</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Ack</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Video</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Image</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {/* Summary Row */}
                     {analytics.user_totals && (
                       <tr className="bg-gray-100 font-semibold">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                            <div className="w-6 h-6 bg-gray-700 rounded-full flex items-center justify-center text-white text-sm font-medium">
                               T
                             </div>
                             <div className="ml-3">
-                              <div className="text-sm font-bold text-gray-900">TEAM TOTAL</div>
-                              <div className="text-xs text-gray-500">All designers</div>
+                              <div className="text-sm font-bold text-gray-900">TOTAL</div>
+                              
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap">
                           <span className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-700">
                             Summary
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
                           {analytics.user_totals.total_assigned}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-blue-600 font-bold">
                           {analytics.user_totals.assigned_output || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-green-600 font-bold">
                           {analytics.user_totals.completed}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-indigo-600 font-bold">
                           {analytics.user_totals.total_output || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-yellow-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-yellow-600 font-bold">
                           {analytics.user_totals.in_progress}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center">
                           <span className="text-sm font-bold text-gray-900">
                             {analytics.summary.completion_rate}%
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-gray-900 font-bold">
                           {formatSeconds(analytics.summary.avg_processing_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-orange-600 font-bold">
                           {formatSeconds(analytics.summary.avg_acknowledge_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-blue-600 font-bold">
                           {formatSeconds(analytics.summary.avg_video_creation_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-pink-600 font-bold">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-pink-600 font-bold">
                           {formatSeconds(analytics.summary.avg_image_creation_seconds)}
                         </td>
                       </tr>
                     )}
                     {analytics.user_performance.filter(u => u.total_assigned > 0).map((user) => (
                       <tr key={user.user_id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
                               {user.full_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase()}
                             </div>
                             <div className="ml-3">
                               <div className="text-sm font-medium text-gray-900">{user.full_name || user.username}</div>
-                              <div className="text-xs text-gray-500">{user.department}</div>
+                              
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             user.role === 'admin' ? 'bg-red-100 text-red-800' :
                             user.role === 'manager' ? 'bg-purple-100 text-purple-800' :
@@ -521,22 +497,22 @@ const Analytics = () => {
                             {user.role === 'manager' ? 'Approver' : user.role}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-gray-900">
                           {user.total_assigned}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-blue-600">
                           {user.assigned_output || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-green-600 font-medium">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-green-600 font-medium">
                           {user.completed}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-indigo-600 font-medium">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-indigo-600 font-medium">
                           {user.total_output || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-yellow-600">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-yellow-600">
                           {user.in_progress}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center">
                             <span className={`text-sm font-medium ${
                               user.completion_rate >= 80 ? 'text-green-600' :
@@ -546,16 +522,16 @@ const Analytics = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-gray-900">
                           {formatSeconds(user.avg_processing_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-orange-600">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-orange-600">
                           {formatSeconds(user.avg_acknowledge_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-blue-600">
                           {formatSeconds(user.avg_video_creation_seconds)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-pink-600">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center text-sm text-pink-600">
                           {formatSeconds(user.avg_image_creation_seconds)}
                         </td>
                       </tr>
@@ -652,13 +628,14 @@ const Analytics = () => {
                 {analytics.by_product.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {analytics.by_product.map((stat) => (
-                      <div key={stat.product} className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 truncate">{stat.product}</h4>
-                        <div className="mt-2 flex items-baseline space-x-2">
-                          <span className="text-2xl font-bold text-gray-900">{stat.count}</span>
-                          <span className="text-sm text-gray-500">tickets</span>
+                      <div key={stat.product} className="border rounded-lg p-3">
+                        <h4 className="font-medium text-gray-900 text-sm truncate">{stat.product}</h4>
+                        <div className="mt-1 flex items-baseline space-x-2">
+                          <span className="text-xl font-bold text-gray-900">{stat.count}</span>
+                          <span className="text-xs text-gray-500">tickets</span>
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">{stat.total_quantity || stat.count} qty</span>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-sm">
+                        <div className="mt-1 flex items-center justify-between text-xs">
                           <span className="text-green-600">{stat.completed} done</span>
                           <span className="text-yellow-600">{stat.in_progress} active</span>
                         </div>
@@ -755,3 +732,7 @@ const Analytics = () => {
 };
 
 export default Analytics;
+
+
+
+

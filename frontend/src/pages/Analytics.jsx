@@ -180,8 +180,12 @@ const Analytics = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="text-center">
+              <p className="text-gray-600 font-medium">Loading Analytics...</p>
+              <p className="text-sm text-gray-400 mt-1">Please wait while we calculate metrics from your data</p>
+            </div>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">

@@ -38,6 +38,7 @@ const TicketList = () => {
   const searchQuery = searchParams.get('search') || '';
   const dateFrom = searchParams.get('date_from') || '';
   const dateTo = searchParams.get('date_to') || '';
+  const myTasksFilter = searchParams.get('my_tasks') || '';
 
   // Pagination from URL
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
@@ -88,7 +89,7 @@ const TicketList = () => {
   useEffect(() => {
     fetchTickets();
     fetchUsers();
-  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, currentPage, pageSize]);
+  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, myTasksFilter, currentPage, pageSize]);
 
   // Fetch users for assign modal
   const fetchUsers = async () => {
@@ -286,6 +287,7 @@ const TicketList = () => {
       if (searchQuery) params.search = searchQuery;
       if (dateFrom) params.created_after = dateFrom;
       if (dateTo) params.created_before = dateTo;
+      if (myTasksFilter) params.my_tasks = myTasksFilter;
 
       const response = await ticketsAPI.list(params);
       const data = response.data;

@@ -830,6 +830,26 @@ class TicketViewSet(viewsets.ModelViewSet):
         if created_before:
             queryset = queryset.filter(created_at__date__lte=created_before)
 
+        # My Tasks filter (replicates MyTasksView logic for ticket list page)
+        my_tasks_filter = self.request.query_params.get('my_tasks')
+        if my_tasks_filter == 'true':
+            user = self.request.user
+            # Assigned tickets and collaborations (active only)
+            my_queryset = queryset.filter(
+                Q(assigned_to=user) | Q(collaborators__user=user)
+            ).exclude(
+                status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
+            )
+
+            # For managers: also include approval tickets
+            if user.is_manager:
+                approval_tickets = queryset.filter(
+                    status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE]
+                )
+                my_queryset = (my_queryset | approval_tickets).distinct()
+
+            queryset = my_queryset
+
         return queryset.order_by('-created_at')
 
     def get_serializer_class(self):

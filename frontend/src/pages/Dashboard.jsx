@@ -332,7 +332,7 @@ const Dashboard = () => {
 
                 {myTasks.length > 5 && (
                   <Link
-                    to="/tickets?assigned_to=me"
+                    to="/tickets?my_tasks=true"
                     className="block text-center text-sm text-blue-600 hover:text-blue-800 pt-2"
                   >
                     View all {myTasks.length} tasks →

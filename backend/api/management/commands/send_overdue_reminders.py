@@ -71,7 +71,7 @@ class Command(BaseCommand):
             # Check if we already sent a reminder recently (within 4 hours)
             if not force and ticket.last_overdue_reminder_sent:
                 hours_since_last = (now - ticket.last_overdue_reminder_sent).total_seconds() / 3600
-                if hours_since_last < 4:
+                if hours_since_last < 6:
                     self.stdout.write(
                         self.style.WARNING(
                             f'  Skipping #{ticket.id} - reminder sent {hours_since_last:.1f}h ago'

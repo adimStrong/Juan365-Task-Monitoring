@@ -128,17 +128,16 @@ Please complete this task immediately!
             keyboard = create_ticket_keyboard(ticket.id)
 
             # Only send to Rob and Yeng (specific telegram handles)
-            NOTIFY_TELEGRAM_IDS = ['@robjuan365', '@yengj365']
+            NOTIFY_TELEGRAM_IDS = ['@Johnreyadim']  # Testing - change back to ['@robjuan365', '@yengj365']
             for telegram_id in NOTIFY_TELEGRAM_IDS:
                 send_telegram_message(telegram_id, telegram_message, reply_markup=keyboard)
 
-            # Also send to group with @mentions
-            group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
-            if group_chat_id:
-                group_message = f'@robjuan365 @yengj365
-
-{telegram_message}'
-                send_telegram_message(group_chat_id, group_message, reply_markup=keyboard)
+            # Skip group notification for testing - direct message only
+            # TODO: Re-enable after testing
+            # group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
+            # if group_chat_id:
+            #     group_message = f'@robjuan365 @yengj365\n\n{telegram_message}'
+            #     send_telegram_message(group_chat_id, group_message, reply_markup=keyboard)
 
             # Update last reminder sent
             ticket.last_overdue_reminder_sent = now

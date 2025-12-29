@@ -113,9 +113,9 @@ class Command(BaseCommand):
                     message=notification_message
                 )
 
-            # Send Telegram notification
+            # Send Telegram notification (only to Rob and Yeng)
             telegram_message = f'''
-⚠️ <b>OVERDUE TICKET ALERT</b>
+🚨 <b>OVERDUE TICKET ALERT</b>
 
 <b>#{ticket.id}</b> - {ticket.title}
 <b>Priority:</b> {ticket.get_priority_display()}
@@ -127,14 +127,18 @@ Please complete this task immediately!
 '''
             keyboard = create_ticket_keyboard(ticket.id)
 
-            # Send to assigned user
-            if ticket.assigned_to and ticket.assigned_to.telegram_id:
-                send_telegram_message(ticket.assigned_to.telegram_id, telegram_message, reply_markup=keyboard)
+            # Only send to Rob and Yeng (specific telegram handles)
+            NOTIFY_TELEGRAM_IDS = ['@robjuan365', '@yengj365']
+            for telegram_id in NOTIFY_TELEGRAM_IDS:
+                send_telegram_message(telegram_id, telegram_message, reply_markup=keyboard)
 
-            # Send to group
+            # Also send to group with @mentions
             group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
             if group_chat_id:
-                send_telegram_message(group_chat_id, telegram_message, reply_markup=keyboard)
+                group_message = f'@robjuan365 @yengj365
+
+{telegram_message}'
+                send_telegram_message(group_chat_id, group_message, reply_markup=keyboard)
 
             # Update last reminder sent
             ticket.last_overdue_reminder_sent = now

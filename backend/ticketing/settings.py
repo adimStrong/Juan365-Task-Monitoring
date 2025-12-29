@@ -103,7 +103,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL and HAS_DJ_DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
+        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=0)
     }
 else:
     DATABASES = {

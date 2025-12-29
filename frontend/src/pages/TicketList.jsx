@@ -566,7 +566,7 @@ const TicketList = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created', 'Actions'].map((h) => (
+                    {['Ticket', 'Requester', 'Assigned To', 'Status', 'Priority', 'Created', 'Product', 'Category', 'Actions'].map((h) => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -574,7 +574,7 @@ const TicketList = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {[...Array(6)].map((_, i) => (
                     <tr key={i}>
-                      {[...Array(7)].map((_, j) => (
+                      {[...Array(9)].map((_, j) => (
                         <td key={j} className="px-6 py-4">
                           <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
                         </td>
@@ -651,6 +651,12 @@ const TicketList = () => {
                     <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
+                    <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
                     <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -709,6 +715,20 @@ const TicketList = () => {
                       </td>
                       <td className="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(ticket.created_at)}
+                      </td>
+                      <td className="hidden lg:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900">
+                        {ticket.ticket_product?.name || ticket.product || '-'}
+                      </td>
+                      <td className="hidden lg:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                        {ticket.ticket_product?.category ? (
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            ticket.ticket_product.category === 'ads' ? 'bg-orange-100 text-orange-800' :
+                            ticket.ticket_product.category === 'telegram' ? 'bg-sky-100 text-sky-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {ticket.ticket_product.category.charAt(0).toUpperCase() + ticket.ticket_product.category.slice(1)}
+                          </span>
+                        ) : '-'}
                       </td>
                       <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
                         {(() => {

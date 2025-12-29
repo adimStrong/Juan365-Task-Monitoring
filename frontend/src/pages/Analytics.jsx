@@ -409,16 +409,16 @@ const Analytics = () => {
                     <tr>
                       <th className="px-2 py-2 text-left font-medium text-gray-500 text-xs">User</th>
                       <th className="px-2 py-2 text-left font-medium text-gray-500 text-xs">Role</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Asgn</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Qty</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Done</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Out</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">WIP</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Rate</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Process</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Ack</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Video</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Image</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Assigned</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Assigned<br/>Qty</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Completed</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Output</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">In<br/>Progress</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Completion<br/>Rate</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Processing<br/>Time</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Avg Ack<br/>Time</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Avg Video<br/>Time</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-500 text-xs">Avg Image<br/>Time</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">

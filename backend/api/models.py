@@ -285,9 +285,6 @@ class Ticket(models.Model):
     last_rollback_at = models.DateTimeField(null=True, blank=True, help_text='Last time this ticket was rolled back')
     rollback_count = models.IntegerField(default=0, help_text='Number of times this ticket has been rolled back')
 
-    # Approval reminder tracking
-    last_approval_reminder_sent = models.DateTimeField(null=True, blank=True, help_text='Last time approval reminder was sent')
-
     # New fields for request type and file format
     request_type = models.CharField(
         max_length=50,

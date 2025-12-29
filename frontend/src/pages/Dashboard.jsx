@@ -288,7 +288,7 @@ const Dashboard = () => {
             </div>
 
             {myTasks.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No tasks assigned to you or pending your approval.</p>
+              <p className="text-gray-500 text-center py-8">No tasks assigned to you.</p>
             ) : (
               <div className="space-y-3">
                 {myTasks.slice(0, 5).map((ticket) => (
@@ -303,7 +303,7 @@ const Dashboard = () => {
                           #{ticket.id} - {ticket.title}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {ticket.pending_approver?.id === user?.id ? (<span className="text-purple-600 font-medium">Needs your approval</span>) : (<>From: {ticket.requester?.first_name || ticket.requester?.username}</>)}
+                          From: {ticket.requester?.first_name || ticket.requester?.username}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">

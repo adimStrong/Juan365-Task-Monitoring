@@ -142,6 +142,7 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         'completed': '🎉',
         'confirmed': '✔️',
         'pending_creative': '🔄',
+        'reminder': '🔔',
     }
 
     emoji = emojis.get(notification_type, '📌')
@@ -247,6 +248,15 @@ The requester has confirmed that the task was completed satisfactorily. Great jo
 {f"<b>Rolled back by:</b> {actor_name}" if actor_name else ""}
 
 The ticket has been restored to a previous state.
+''',
+        'reminder': f'''
+🔔 <b>Approval Reminder</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Priority:</b> {ticket.get_priority_display()}
+<b>From:</b> {ticket.requester.get_full_name() or ticket.requester.username}
+
+This ticket is waiting for your approval. Please review it at your earliest convenience.
 ''',
     }
 

@@ -118,7 +118,7 @@ const CreateTicket = () => {
       setProducts(prodRes.data);
       // Filter to only Creative department members
       const creative = (usersRes.data || []).filter(
-        (u) => u.user_department?.is_creative && u.is_active && u.is_approved
+        (u) => u.user_department_info?.is_creative && u.is_active && u.is_approved
       );
       setCreativeUsers(creative);
     } catch (err) {

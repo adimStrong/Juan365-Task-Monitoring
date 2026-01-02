@@ -10,6 +10,58 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def format_duration(seconds):
+    """Format duration in seconds to human-readable string"""
+    if seconds is None or seconds < 0:
+        return 'N/A'
+
+    if seconds < 60:
+        return f'{int(seconds)}s'
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f'{minutes}m {secs}s' if secs > 0 else f'{minutes}m'
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        return f'{hours}h {minutes}m' if minutes > 0 else f'{hours}h'
+
+
+def get_ticket_summary(ticket):
+    """Generate a summary of ticket processing times and output"""
+    summary_lines = []
+
+    # Processing time (started -> completed)
+    if ticket.started_at and ticket.completed_at:
+        processing_seconds = (ticket.completed_at - ticket.started_at).total_seconds()
+        summary_lines.append(f'⏱ <b>Processing Time:</b> {format_duration(processing_seconds)}')
+
+    # Total time (created -> completed)
+    if ticket.created_at and ticket.completed_at:
+        total_seconds = (ticket.completed_at - ticket.created_at).total_seconds()
+        summary_lines.append(f'📅 <b>Total Time:</b> {format_duration(total_seconds)}')
+
+    # Output quantity
+    if ticket.quantity and ticket.quantity > 0:
+        # For Ads/Telegram, sum up product items instead
+        if ticket.request_type in ['ads', 'telegram_channel']:
+            try:
+                total_qty = sum(item.quantity for item in ticket.product_items.all())
+                if total_qty > 0:
+                    summary_lines.append(f'📦 <b>Output:</b> {total_qty} items')
+            except:
+                pass
+        else:
+            summary_lines.append(f'📦 <b>Output:</b> {ticket.quantity} creative(s)')
+
+    # Criteria (Image/Video)
+    if ticket.criteria:
+        criteria_display = 'Video 🎬' if ticket.criteria == 'video' else 'Image 🖼'
+        summary_lines.append(f'📋 <b>Type:</b> {criteria_display}')
+
+    return chr(10).join(summary_lines) if summary_lines else ''
+
+
 def get_api_url():
     """Get Telegram API URL using token from settings"""
     token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
@@ -234,7 +286,9 @@ This task has been idle for more than 1 day. Please update progress.
 <b>Status:</b> Completed ✓
 {f"<b>Completed by:</b> {actor_name}" if actor_name else ""}
 
-The task has been completed. Awaiting requester confirmation.
+{get_ticket_summary(ticket)}
+
+Great work! The task has been completed.
 ''',
         'confirmed': f'''
 {emoji} <b>Completion Confirmed!</b>

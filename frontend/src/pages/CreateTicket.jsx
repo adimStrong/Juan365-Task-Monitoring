@@ -117,9 +117,12 @@ const CreateTicket = () => {
       setDepartments(deptRes.data);
       setProducts(prodRes.data);
       // Filter to only Creative department members
-      const creative = (usersRes.data || []).filter(
-        (u) => u.user_department_info?.is_creative && u.is_active && u.is_approved
+      // Note: Backend already filters to active/approved users, so we only check is_creative
+      const usersData = usersRes.data?.results || usersRes.data || [];
+      const creative = usersData.filter(
+        (u) => u.user_department_info?.is_creative
       );
+      console.log('All users:', usersData.length, 'Creative users:', creative.length);
       setCreativeUsers(creative);
     } catch (err) {
       console.error('Failed to fetch departments/products', err);

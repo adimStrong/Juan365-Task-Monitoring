@@ -623,6 +623,11 @@ const TicketList = () => {
 
         {/* Loading State */}
         {loading ? (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
+              <span className="text-gray-600">Loading data, please wait...</span>
+            </div>
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -646,6 +651,7 @@ const TicketList = () => {
                 </tbody>
               </table>
             </div>
+          </div>
           </div>
         ) : tickets.length === 0 ? (
           /* Empty State */

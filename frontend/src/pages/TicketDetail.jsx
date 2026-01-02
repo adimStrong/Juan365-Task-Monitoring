@@ -445,13 +445,14 @@ const TicketDetail = () => {
                   </button>
                 </>
               )}
-              {isManager && ticket.status === 'approved' && !ticket.assigned_to && (
+              {/* Assign/Re-assign - available until ticket is IN_PROGRESS or COMPLETED */}
+              {isManager && !['in_progress', 'completed'].includes(ticket.status) && (
                 <button
                   onClick={() => setShowAssignModal(true)}
                   disabled={actionLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Assign
+                  {ticket.assigned_to ? 'Re-assign' : 'Assign'}
                 </button>
               )}
               {/* Add Collaborator button removed - use multi-select assign instead */}
@@ -1026,7 +1027,7 @@ const TicketDetail = () => {
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Assign Ticket</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">{ticket.assigned_to ? 'Re-assign Ticket' : 'Assign Ticket'}</h3>
             <p className="text-sm text-gray-600 mb-2">
               <span className="text-blue-600 font-medium">Note:</span> Select one or more Creative members to assign.
             </p>

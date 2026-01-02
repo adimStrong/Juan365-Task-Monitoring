@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI, departmentsAPI, productsAPI } from '../services/api';
+import { ticketsAPI, departmentsAPI, productsAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
@@ -51,6 +51,7 @@ const CreateTicket = () => {
   const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
   const [products, setProducts] = useState([]);
+  const [creativeUsers, setCreativeUsers] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef(null);
@@ -66,6 +67,7 @@ const CreateTicket = () => {
     quantity: 1,
     criteria: '',
   });
+  const [selectedAssignees, setSelectedAssignees] = useState([]);
   const [productItems, setProductItems] = useState([]);
 
   // Check if user has a department assigned
@@ -107,12 +109,21 @@ const CreateTicket = () => {
   const fetchDepartmentsAndProducts = async () => {
     setDropdownLoading(true);
     try {
-      const [deptRes, prodRes] = await Promise.all([
+      const [deptRes, prodRes, usersRes] = await Promise.all([
         departmentsAPI.list({ is_active: true }),
         productsAPI.list({ is_active: true }),
+        usersAPI.list(),
       ]);
       setDepartments(deptRes.data);
       setProducts(prodRes.data);
+      // Filter to only Creative department members
+      // Note: Backend already filters to active/approved users, so we only check is_creative
+      const usersData = usersRes.data?.results || usersRes.data || [];
+      const creative = usersData.filter(
+        (u) => u.user_department_info?.is_creative
+      );
+      console.log('All users:', usersData.length, 'Creative users:', creative.length);
+      setCreativeUsers(creative);
     } catch (err) {
       console.error('Failed to fetch departments/products', err);
     } finally {
@@ -227,6 +238,10 @@ const CreateTicket = () => {
       if (!data.request_type) delete data.request_type;
       if (!data.file_format) delete data.file_format;
       if (!data.criteria) delete data.criteria;
+      // Handle assignees - first one is assigned_to, rest are collaborators
+      if (selectedAssignees.length > 0) {
+        data.assigned_to = selectedAssignees[0];
+      }
 
       // For Ads/Telegram, include product_items
       if (PRODUCT_ITEM_TYPES.includes(formData.request_type) && productItems.length > 0) {
@@ -237,6 +252,19 @@ const CreateTicket = () => {
 
       const response = await ticketsAPI.create(data);
       const ticketId = response.data.id;
+
+      // Add remaining assignees as collaborators
+      if (selectedAssignees.length > 1) {
+        await Promise.all(
+          selectedAssignees.slice(1).map(async (userId) => {
+            try {
+              await ticketsAPI.addCollaborator(ticketId, userId);
+            } catch (err) {
+              console.error('Failed to add collaborator:', userId, err);
+            }
+          })
+        );
+      }
 
       // Upload attachments in parallel for better performance
       if (attachments.length > 0) {
@@ -638,6 +666,52 @@ const CreateTicket = () => {
             </select>
             <p className={`mt-1 text-sm ${PRIORITY_INFO[formData.priority]?.color || 'text-gray-500'}`}>
               Deadline will be auto-calculated: <strong>{PRIORITY_INFO[formData.priority]?.deadline}</strong> from assignment
+            </p>
+          </div>
+
+          {/* Assign To (Optional) - Pre-assign to Creative members */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Assign To (Optional)
+            </label>
+            {dropdownLoading ? (
+              <div className="text-sm text-gray-500 py-2">Loading creative members...</div>
+            ) : creativeUsers.length === 0 ? (
+              <div className="text-sm text-gray-500 py-2">No creative members available</div>
+            ) : (
+              <div className="border border-gray-300 rounded-md max-h-48 overflow-y-auto">
+                {creativeUsers.map((u) => (
+                  <label
+                    key={u.id}
+                    className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAssignees.includes(u.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAssignees([...selectedAssignees, u.id]);
+                        } else {
+                          setSelectedAssignees(selectedAssignees.filter(id => id !== u.id));
+                        }
+                      }}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">
+                      {u.first_name || u.username} {u.last_name || ''}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {selectedAssignees.length > 0 && (
+              <p className="mt-1 text-xs text-blue-600">
+                {selectedAssignees.length} selected
+                {selectedAssignees.length > 1 && ' (first will be main assignee, others as collaborators)'}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              Optionally pre-assign this ticket to Creative team members. You can also assign later.
             </p>
           </div>
 

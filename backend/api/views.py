@@ -947,10 +947,49 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         ticket.save()
 
+        # Handle pre-assignment if assigned_to was provided at creation
+        if ticket.assigned_to:
+            assigned_user = ticket.assigned_to
+
+            # Validate assignee is in Creative department
+            if not assigned_user.user_department or not assigned_user.user_department.is_creative:
+                # Clear the invalid assignment
+                ticket.assigned_to = None
+                ticket.save(update_fields=['assigned_to'])
+            else:
+                # Valid Creative member - set up assignment
+                ticket.assigned_at = timezone.now()
+
+                # Calculate deadline for non-scheduled tasks
+                scheduled_request_types = ['videoshoot', 'photoshoot', 'live_production']
+                if ticket.request_type not in scheduled_request_types:
+                    ticket.deadline = calculate_deadline_from_priority(
+                        ticket.priority,
+                        file_format=ticket.file_format,
+                        criteria=ticket.criteria
+                    )
+
+                ticket.save(update_fields=['assigned_at', 'deadline'])
+
+                # Notify assigned user
+                deadline_info = ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'N/A'
+                message = f'Ticket "#{ticket.id} - {ticket.title}" has been assigned to you. Deadline: {deadline_info}'
+
+                Notification.objects.create(
+                    user=assigned_user,
+                    ticket=ticket,
+                    message=message,
+                    notification_type=Notification.NotificationType.ASSIGNED
+                )
+                notify_user(assigned_user, 'assigned', ticket, actor=requester)
+                log_activity(requester, ticket, ActivityLog.ActionType.ASSIGNED,
+                            f'Pre-assigned to {assigned_user.username}. Deadline: {deadline_info}')
+
         # Create analytics record
         TicketAnalytics.objects.create(
             ticket=ticket,
-            created_at=ticket.created_at
+            created_at=ticket.created_at,
+            assigned_at=ticket.assigned_at if ticket.assigned_to else None
         )
 
         # Log creation
@@ -1138,11 +1177,20 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[CanApproveTicket])
     def assign(self, request, pk=None):
         """
-        Assign ticket to a user.
+        Assign/re-assign ticket to a user.
         RESTRICTION: Can ONLY assign to Creative department members.
+        RESTRICTION: Cannot re-assign once ticket is IN_PROGRESS or COMPLETED.
         Auto-calculates deadline based on priority when assigned.
         """
         ticket = self.get_object()
+
+        # Cannot re-assign once work has started or completed
+        if ticket.status in [Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]:
+            return Response(
+                {'error': 'Cannot re-assign ticket once work has started or is completed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = TicketAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

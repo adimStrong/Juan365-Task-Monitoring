@@ -143,6 +143,11 @@ def format_ticket_notification(notification_type: str, ticket, extra_info: str =
         'confirmed': '✔️',
         'pending_creative': '🔄',
         'overdue': '🚨',
+        'started': '▶️',
+        'revision_requested': '🔄',
+        'collaborator_added': '👥',
+        'restored': '♻️',
+        'rollback': '⏪',
     }
 
     emoji = emojis.get(notification_type, '📌')
@@ -249,9 +254,57 @@ The requester has confirmed that the task was completed satisfactorily. Great jo
 
 The ticket has been restored to a previous state.
 ''',
+        'started': f'''
+▶️ <b>Work Started</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> In Progress
+{f"<b>Started by:</b> {actor_name}" if actor_name else ""}
+<b>Priority:</b> {ticket.get_priority_display()}
+<b>Deadline:</b> {ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'No deadline'}
+
+The assignee has started working on this ticket.
+''',
+        'revision_requested': f'''
+🔄 <b>Revision Requested</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> Needs Revision
+{f"<b>Requested by:</b> {actor_name}" if actor_name else ""}
+{f"<b>Comments:</b> {extra_info}" if extra_info else ""}
+
+Please review the feedback and make necessary changes.
+''',
+        'collaborator_added': f'''
+👥 <b>Added as Collaborator</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+{f"<b>Added by:</b> {actor_name}" if actor_name else ""}
+<b>Priority:</b> {ticket.get_priority_display()}
+<b>Deadline:</b> {ticket.deadline.strftime('%Y-%m-%d %H:%M') if ticket.deadline else 'No deadline'}
+
+You have been added as a collaborator on this ticket.
+''',
+        'restored': f'''
+♻️ <b>Ticket Restored</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> {ticket.get_status_display()}
+{f"<b>Restored by:</b> {actor_name}" if actor_name else ""}
+
+This ticket has been restored from trash.
+''',
     }
 
-    return messages.get(notification_type, f'{emoji} Notification for ticket #{ticket.id}')
+    # Improved fallback with more context
+    fallback = f'''{emoji} <b>Ticket Update</b>
+
+<b>#{ticket.id}</b> - {ticket.title}
+<b>Status:</b> {ticket.get_status_display()}
+<b>Priority:</b> {ticket.get_priority_display()}
+{f"<b>Action by:</b> {actor_name}" if actor_name else ""}
+'''
+    return messages.get(notification_type, fallback)
 
 
 def get_user_mention(user) -> str:

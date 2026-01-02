@@ -288,7 +288,7 @@ This task has been idle for more than 1 day. Please update progress.
 
 {get_ticket_summary(ticket)}
 
-Great work! The task has been completed.
+Awaiting requester confirmation.
 ''',
         'confirmed': f'''
 {emoji} <b>Completion Confirmed!</b>

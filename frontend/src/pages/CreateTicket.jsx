@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI, departmentsAPI, productsAPI } from '../services/api';
+import { ticketsAPI, departmentsAPI, productsAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
@@ -51,6 +51,7 @@ const CreateTicket = () => {
   const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
   const [products, setProducts] = useState([]);
+  const [creativeUsers, setCreativeUsers] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef(null);
@@ -65,6 +66,7 @@ const CreateTicket = () => {
     file_format: '',
     quantity: 1,
     criteria: '',
+    assigned_to: '',
   });
   const [productItems, setProductItems] = useState([]);
 
@@ -107,12 +109,18 @@ const CreateTicket = () => {
   const fetchDepartmentsAndProducts = async () => {
     setDropdownLoading(true);
     try {
-      const [deptRes, prodRes] = await Promise.all([
+      const [deptRes, prodRes, usersRes] = await Promise.all([
         departmentsAPI.list({ is_active: true }),
         productsAPI.list({ is_active: true }),
+        usersAPI.list(),
       ]);
       setDepartments(deptRes.data);
       setProducts(prodRes.data);
+      // Filter to only Creative department members
+      const creative = (usersRes.data || []).filter(
+        (u) => u.user_department?.is_creative && u.is_active && u.is_approved
+      );
+      setCreativeUsers(creative);
     } catch (err) {
       console.error('Failed to fetch departments/products', err);
     } finally {
@@ -227,6 +235,7 @@ const CreateTicket = () => {
       if (!data.request_type) delete data.request_type;
       if (!data.file_format) delete data.file_format;
       if (!data.criteria) delete data.criteria;
+      if (!data.assigned_to) delete data.assigned_to;
 
       // For Ads/Telegram, include product_items
       if (PRODUCT_ITEM_TYPES.includes(formData.request_type) && productItems.length > 0) {
@@ -638,6 +647,31 @@ const CreateTicket = () => {
             </select>
             <p className={`mt-1 text-sm ${PRIORITY_INFO[formData.priority]?.color || 'text-gray-500'}`}>
               Deadline will be auto-calculated: <strong>{PRIORITY_INFO[formData.priority]?.deadline}</strong> from assignment
+            </p>
+          </div>
+
+          {/* Assign To (Optional) - Pre-assign to Creative member */}
+          <div>
+            <label htmlFor="assigned_to" className="block text-sm font-medium text-gray-700 mb-1">
+              Assign To (Optional)
+            </label>
+            <select
+              id="assigned_to"
+              name="assigned_to"
+              value={formData.assigned_to}
+              onChange={handleChange}
+              disabled={dropdownLoading}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">{dropdownLoading ? 'Loading...' : 'Select Creative Member (Optional)'}</option>
+              {creativeUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.first_name || u.username} {u.last_name || ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Optionally pre-assign this ticket to a Creative team member. You can also assign later.
             </p>
           </div>
 

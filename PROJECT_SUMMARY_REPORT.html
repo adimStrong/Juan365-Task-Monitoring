@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juan365 Creative Ticketing System - Project Summary Report</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--gray-800);
+            background: var(--gray-50);
+        }
+
+        /* Cover Page */
+        .cover {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+            page-break-after: always;
+        }
+
+        .cover-logo {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .cover-logo span {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .cover h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .cover h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            opacity: 0.9;
+            margin-bottom: 3rem;
+        }
+
+        .cover-meta {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .cover-meta p {
+            margin: 0.5rem 0;
+        }
+
+        /* Content */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--gray-900);
+            margin-bottom: 1rem;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            color: var(--gray-800);
+            margin: 2rem 0 1rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            color: var(--gray-700);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--gray-600);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--gray-200);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Screenshot Section */
+        .screenshot-section {
+            margin: 3rem 0;
+            page-break-inside: avoid;
+        }
+
+        .screenshot-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid var(--gray-200);
+        }
+
+        .screenshot-header {
+            background: var(--gray-100);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .screenshot-header .dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .screenshot-header .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .screenshot-header .dot.red { background: #ff5f57; }
+        .screenshot-header .dot.yellow { background: #febc2e; }
+        .screenshot-header .dot.green { background: #28c840; }
+
+        .screenshot-header .title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .screenshot-img {
+            width: 100%;
+            display: block;
+        }
+
+        .screenshot-caption {
+            padding: 1rem 1.5rem;
+            background: var(--gray-50);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .screenshot-caption h4 {
+            font-size: 1rem;
+            color: var(--gray-800);
+            margin-bottom: 0.5rem;
+        }
+
+        .screenshot-caption p {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            margin: 0;
+        }
+
+        /* Features List */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--gray-200);
+        }
+
+        .feature-card h4 {
+            font-size: 1.125rem;
+            color: var(--gray-800);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .feature-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-card li {
+            padding: 0.375rem 0;
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .feature-card li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        /* Tech Stack */
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+
+        .tech-badge {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* URLs */
+        .url-list {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--gray-200);
+            margin: 1rem 0;
+        }
+
+        .url-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .url-item:last-child {
+            border-bottom: none;
+        }
+
+        .url-item strong {
+            color: var(--gray-700);
+        }
+
+        .url-item a {
+            color: var(--primary);
+            text-decoration: none;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+
+        .url-item a:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 3rem;
+            background: var(--gray-800);
+            color: white;
+            margin-top: 4rem;
+        }
+
+        .footer p {
+            color: var(--gray-300);
+        }
+
+        /* Print Styles */
+        @media print {
+            .cover {
+                min-height: 100vh;
+            }
+
+            .screenshot-section {
+                page-break-inside: avoid;
+            }
+
+            .container {
+                max-width: none;
+            }
+        }
+
+        /* Page Break Helper */
+        .page-break {
+            page-break-after: always;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cover Page -->
+    <div class="cover">
+        <div class="cover-logo">
+            <span>J</span>
+        </div>
+        <h1>Juan365 Creative Ticketing System</h1>
+        <h2>Project Summary Report with Screenshots</h2>
+        <div class="cover-meta">
+            <p><strong>Version:</strong> 1.0</p>
+            <p><strong>Generated:</strong> January 2, 2026</p>
+            <p><strong>Environment:</strong> Production</p>
+        </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="container">
+        <h1>Table of Contents</h1>
+        <div class="url-list">
+            <div class="url-item"><strong>1.</strong> <a href="#overview">Project Overview</a></div>
+            <div class="url-item"><strong>2.</strong> <a href="#screenshots">System Screenshots</a></div>
+            <div class="url-item"><strong>3.</strong> <a href="#features">Key Features</a></div>
+            <div class="url-item"><strong>4.</strong> <a href="#tech">Technology Stack</a></div>
+            <div class="url-item"><strong>5.</strong> <a href="#urls">Live URLs</a></div>
+        </div>
+    </div>
+
+    <!-- Overview Section -->
+    <div class="container" id="overview">
+        <h1>1. Project Overview</h1>
+        <p>
+            The Juan365 Creative Ticketing System is a comprehensive task management platform designed specifically
+            for the Creative team. It streamlines the workflow from ticket creation to completion with a two-step
+            approval process, real-time notifications, and detailed analytics.
+        </p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">227+</div>
+                <div class="stat-label">Total Tickets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">31+</div>
+                <div class="stat-label">Active Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">9</div>
+                <div class="stat-label">Departments</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">8</div>
+                <div class="stat-label">Products</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screenshots Section -->
+    <div class="container" id="screenshots">
+        <h1>2. System Screenshots</h1>
+        <p>Visual overview of all major pages and features in the ticketing system.</p>
+
+        <!-- Login Page -->
+        <div class="screenshot-section">
+            <h2>2.1 Login Page</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/login</div>
+                </div>
+                <img src="screenshots/report/08_login.png" alt="Login Page" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>User Authentication</h4>
+                    <p>Secure login with username/password. Account lockout after failed attempts. New users can register and await admin approval.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="screenshot-section">
+            <h2>2.2 Dashboard</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/</div>
+                </div>
+                <img src="screenshots/report/01_dashboard.png" alt="Dashboard" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>Main Dashboard</h4>
+                    <p>Displays ticket statistics by status (Total, Pending Approval, In Progress, Completed), priority breakdown, weekly trends, and user's task list with quick actions.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket List -->
+        <div class="screenshot-section">
+            <h2>2.3 Ticket List</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/tickets</div>
+                </div>
+                <img src="screenshots/report/02_ticket_list.png" alt="Ticket List" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>All Tickets View</h4>
+                    <p>Paginated table with search, filters (status, priority, department), and inline action buttons. Supports table/card view toggle. Shows 227+ tickets with real-time status updates.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Ticket -->
+        <div class="screenshot-section">
+            <h2>2.4 Create Ticket</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/tickets/new</div>
+                </div>
+                <img src="screenshots/report/03_create_ticket.png" alt="Create Ticket" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>New Ticket Form</h4>
+                    <p>Create tickets with title, description, department, product, request type (Socmed Posting, Ads, Telegram, Videoshoot, etc.), priority with auto-calculated deadline, file attachments, and optional pre-assignment to Creative team members.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket Preview -->
+        <div class="screenshot-section">
+            <h2>2.5 Ticket Preview Modal</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">Quick Preview Modal</div>
+                </div>
+                <img src="screenshots/report/04_ticket_preview.png" alt="Ticket Preview" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>Quick Ticket Preview</h4>
+                    <p>Click any ticket row to see a quick preview with key details (status, priority, requester, assignee, deadline, products) and action buttons without leaving the list view.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket Detail -->
+        <div class="screenshot-section">
+            <h2>2.6 Ticket Detail</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/tickets/337</div>
+                </div>
+                <img src="screenshots/report/05_ticket_detail.png" alt="Ticket Detail" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>Full Ticket Details</h4>
+                    <p>Complete ticket information including description, comments thread, file attachments, assigned team members, ticket history with rollback capability, and all available actions based on status and user role.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics -->
+        <div class="screenshot-section">
+            <h2>2.7 Analytics Dashboard</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/analytics</div>
+                </div>
+                <img src="screenshots/report/06_analytics.png" alt="Analytics" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>Performance Analytics</h4>
+                    <p>Comprehensive metrics including team performance, processing times, output quantities, criteria breakdown (Image/Video), Ads and Telegram product output, request type distribution, and date-filtered reporting.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <div class="screenshot-section">
+            <h2>2.8 User Management</h2>
+            <div class="screenshot-container">
+                <div class="screenshot-header">
+                    <div class="dots">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <div class="title">juan365-ticketing-frontend.vercel.app/users</div>
+                </div>
+                <img src="screenshots/report/07_users.png" alt="User Management" class="screenshot-img">
+                <div class="screenshot-caption">
+                    <h4>Admin User Management</h4>
+                    <p>Manage all users with role assignment (Member, Approver, Admin), department assignment, account status (Active/Locked/Inactive), password reset, and user approval workflow for new registrations.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="container" id="features">
+        <h1>3. Key Features</h1>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <h4>📝 Ticket Management</h4>
+                <ul>
+                    <li>Create tickets with attachments</li>
+                    <li>7 request types (Socmed, Ads, Telegram, etc.)</li>
+                    <li>Auto-calculated deadlines by priority</li>
+                    <li>Multi-assignee support</li>
+                    <li>Product items for Ads/Telegram</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h4>✅ Two-Step Approval</h4>
+                <ul>
+                    <li>Department Manager approval</li>
+                    <li>Creative Manager approval</li>
+                    <li>Reject with reason</li>
+                    <li>Revision request workflow</li>
+                    <li>Completion confirmation</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h4>🔔 Notifications</h4>
+                <ul>
+                    <li>In-app notification center</li>
+                    <li>Telegram bot integration</li>
+                    <li>Real-time status updates</li>
+                    <li>Processing time summary</li>
+                    <li>Overdue reminders</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h4>📊 Analytics</h4>
+                <ul>
+                    <li>Team performance metrics</li>
+                    <li>Processing time tracking</li>
+                    <li>Output quantity tracking</li>
+                    <li>Date range filtering</li>
+                    <li>Image vs Video breakdown</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h4>👥 User Management</h4>
+                <ul>
+                    <li>Role-based access control</li>
+                    <li>Department assignment</li>
+                    <li>Account approval workflow</li>
+                    <li>Password reset</li>
+                    <li>Account lock/unlock</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h4>🛡️ Security</h4>
+                <ul>
+                    <li>JWT authentication</li>
+                    <li>Account lockout protection</li>
+                    <li>Role-based permissions</li>
+                    <li>Secure password hashing</li>
+                    <li>HTTPS encryption</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tech Stack Section -->
+    <div class="container" id="tech">
+        <h1>4. Technology Stack</h1>
+
+        <h3>Backend</h3>
+        <div class="tech-stack">
+            <span class="tech-badge">Python 3.11</span>
+            <span class="tech-badge">Django 5.0</span>
+            <span class="tech-badge">Django REST Framework</span>
+            <span class="tech-badge">PostgreSQL</span>
+            <span class="tech-badge">Redis (Caching)</span>
+            <span class="tech-badge">Gunicorn + Gevent</span>
+            <span class="tech-badge">Cloudinary (Storage)</span>
+        </div>
+
+        <h3>Frontend</h3>
+        <div class="tech-stack">
+            <span class="tech-badge">React 19</span>
+            <span class="tech-badge">Vite</span>
+            <span class="tech-badge">Tailwind CSS</span>
+            <span class="tech-badge">TanStack Query</span>
+            <span class="tech-badge">React Router</span>
+            <span class="tech-badge">Recharts</span>
+        </div>
+
+        <h3>Infrastructure</h3>
+        <div class="tech-stack">
+            <span class="tech-badge">Railway (Backend)</span>
+            <span class="tech-badge">Vercel (Frontend)</span>
+            <span class="tech-badge">Telegram Bot API</span>
+        </div>
+    </div>
+
+    <!-- URLs Section -->
+    <div class="container" id="urls">
+        <h1>5. Live URLs</h1>
+
+        <div class="url-list">
+            <div class="url-item">
+                <strong>Frontend (Production)</strong>
+                <a href="https://juan365-ticketing-frontend.vercel.app" target="_blank">https://juan365-ticketing-frontend.vercel.app</a>
+            </div>
+            <div class="url-item">
+                <strong>Backend API</strong>
+                <a href="https://juan365-task-monitoring-production.up.railway.app" target="_blank">https://juan365-task-monitoring-production.up.railway.app</a>
+            </div>
+            <div class="url-item">
+                <strong>GitHub Repository</strong>
+                <a href="https://github.com/adimStrong/Juan365-Task-Monitoring" target="_blank">https://github.com/adimStrong/Juan365-Task-Monitoring</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p><strong>Juan365 Creative Ticketing System</strong></p>
+        <p>Report generated on January 2, 2026</p>
+        <p style="margin-top: 1rem; font-size: 0.875rem;">For questions or support, contact the development team.</p>
+    </div>
+</body>
+</html>

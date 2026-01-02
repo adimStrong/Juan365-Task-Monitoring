@@ -2237,6 +2237,78 @@ class AnalyticsView(APIView):
             min_date = date_range['min_date'].date().isoformat() if date_range['min_date'] else None
             max_date = date_range['max_date'].date().isoformat() if date_range['max_date'] else None
 
+            # =====================
+            # OVERALL/ALL-TIME METRICS (no date filter)
+            # =====================
+            all_tickets_list = list(all_tickets.select_related('analytics', 'assigned_to', 'target_department', 'ticket_product'))
+            overall_total = len(all_tickets_list)
+            overall_completed = sum(1 for t in all_tickets_list if t.status == Ticket.Status.COMPLETED)
+            overall_assigned = sum(1 for t in all_tickets_list if t.assigned_to_id is not None)
+            overall_in_progress = sum(1 for t in all_tickets_list if t.status == Ticket.Status.IN_PROGRESS)
+            overall_completion_rate = round(overall_completed / overall_assigned * 100, 1) if overall_assigned > 0 else 0
+
+            # Overall quantity produced
+            overall_completed_list = [t for t in all_tickets_list if t.status == Ticket.Status.COMPLETED]
+            overall_regular_qty = sum(
+                t.quantity or 0 for t in overall_completed_list
+                if t.request_type not in ['ads', 'telegram_channel']
+            )
+            overall_completed_ids = [t.id for t in overall_completed_list]
+            overall_product_items_qty = TicketProductItem.objects.filter(
+                ticket_id__in=overall_completed_ids
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            overall_quantity_produced = overall_regular_qty + overall_product_items_qty
+
+            # Overall processing time
+            overall_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in overall_completed_list
+                if t.started_at and t.completed_at
+            ]
+            overall_avg_processing_seconds = round(
+                sum(overall_processing_times) / len(overall_processing_times)
+            ) if overall_processing_times else None
+            overall_total_processing = sum(overall_processing_times) if overall_processing_times else 0
+            overall_avg_time_per_creative = round(
+                overall_total_processing / overall_quantity_produced
+            ) if overall_quantity_produced > 0 else None
+
+            # Overall acknowledge time
+            overall_ack_times = []
+            for t in all_tickets_list:
+                if t.status in [Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]:
+                    try:
+                        if hasattr(t, 'analytics') and t.analytics and t.analytics.time_to_acknowledge is not None:
+                            overall_ack_times.append(t.analytics.time_to_acknowledge)
+                    except:
+                        pass
+            overall_avg_ack_seconds = round(sum(overall_ack_times) / len(overall_ack_times)) if overall_ack_times else None
+
+            # Overall video/image stats
+            all_product_items = list(TicketProductItem.objects.filter(
+                ticket_id__in=overall_completed_ids
+            ).select_related('product', 'ticket'))
+
+            # Video quantity overall
+            overall_video_tickets = [t for t in overall_completed_list if t.criteria == 'video' or (not t.criteria and t.request_type not in ['ads', 'telegram_channel'])]
+            overall_video_qty = sum(t.quantity or 0 for t in overall_video_tickets)
+            overall_video_qty += sum(p.quantity or 0 for p in all_product_items if p.product and 'VID' in (p.product.name or '').upper())
+            # Telegram video
+            overall_telegram_items = [p for p in all_product_items if p.ticket.request_type == 'telegram_channel']
+            overall_video_qty += sum(
+                item.quantity or 0 for item in overall_telegram_items
+                if (item.criteria == 'video') or (not item.criteria and item.ticket.criteria == 'video')
+            )
+
+            # Image quantity overall
+            overall_image_tickets = [t for t in overall_completed_list if t.criteria == 'image']
+            overall_image_qty = sum(t.quantity or 0 for t in overall_image_tickets)
+            overall_image_qty += sum(p.quantity or 0 for p in all_product_items if p.product and 'STATIC' in (p.product.name or '').upper())
+            overall_image_qty += sum(
+                item.quantity or 0 for item in overall_telegram_items
+                if (item.criteria == 'image') or (not item.criteria and item.ticket.criteria == 'image')
+            )
+
             # Get date range filters
             date_from = request.query_params.get('date_from')
             date_to = request.query_params.get('date_to')
@@ -2831,6 +2903,19 @@ class AnalyticsView(APIView):
                 'date_range': {
                     'min_date': min_date,
                     'max_date': max_date,
+                },
+                'overall': {
+                    'total_tickets': overall_total,
+                    'assigned_tickets': overall_assigned,
+                    'completed_tickets': overall_completed,
+                    'in_progress_tickets': overall_in_progress,
+                    'completion_rate': overall_completion_rate,
+                    'total_quantity_produced': overall_quantity_produced,
+                    'video_quantity': overall_video_qty,
+                    'image_quantity': overall_image_qty,
+                    'avg_processing_seconds': overall_avg_processing_seconds,
+                    'avg_time_per_creative_seconds': overall_avg_time_per_creative,
+                    'avg_acknowledge_seconds': overall_avg_ack_seconds,
                 },
                 'summary': {
                     'total_tickets': total_tickets,

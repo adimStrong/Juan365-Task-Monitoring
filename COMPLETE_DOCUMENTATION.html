@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juan365 Creative Ticketing System - Complete Documentation</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --bg: #ffffff;
+            --bg-alt: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            font-size: 14px;
+        }
+
+        /* Cover Page */
+        .cover-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            text-align: center;
+            padding: 40px;
+            page-break-after: always;
+        }
+
+        .cover-page h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .cover-page h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .cover-page .meta {
+            margin-top: 3rem;
+            opacity: 0.8;
+        }
+
+        .cover-page .meta p {
+            margin: 0.5rem 0;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 40px;
+            page-break-after: always;
+        }
+
+        .toc h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .toc-list {
+            list-style: none;
+        }
+
+        .toc-list li {
+            margin: 10px 0;
+        }
+
+        .toc-list a {
+            color: var(--text);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .toc-list a:hover {
+            color: var(--primary);
+        }
+
+        .toc-list .section-num {
+            background: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 12px;
+        }
+
+        /* Headings */
+        h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin: 40px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        h2 {
+            color: var(--text);
+            font-size: 1.5rem;
+            margin: 30px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h3 {
+            color: var(--text);
+            font-size: 1.2rem;
+            margin: 25px 0 12px;
+        }
+
+        h4 {
+            color: var(--secondary);
+            font-size: 1rem;
+            margin: 20px 0 10px;
+        }
+
+        /* Paragraphs */
+        p {
+            margin: 12px 0;
+            color: var(--text);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background: var(--bg-alt);
+        }
+
+        /* Code blocks */
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        code {
+            background: var(--bg-alt);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            color: var(--danger);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        /* Info boxes */
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid var(--warning);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .danger-box {
+            background: #fef2f2;
+            border-left: 4px solid var(--danger);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-purple { background: #f3e8ff; color: #7c3aed; }
+        .badge-cyan { background: #cffafe; color: #0891b2; }
+        .badge-yellow { background: #fef3c7; color: #b45309; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-red { background: #fee2e2; color: #dc2626; }
+
+        /* Diagram */
+        .diagram {
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre;
+            line-height: 1.4;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        /* Print styles */
+        @media print {
+            .cover-page {
+                min-height: auto;
+                padding: 100px 40px;
+            }
+
+            .container {
+                max-width: 100%;
+            }
+
+            h1 {
+                page-break-before: always;
+            }
+
+            table, pre {
+                page-break-inside: avoid;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+
+        /* Section spacing */
+        section {
+            margin-bottom: 40px;
+        }
+
+        /* Anchor links */
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Feature grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .feature-card h4 {
+            margin: 0 0 8px 0;
+            color: var(--primary);
+        }
+
+        .feature-card p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+
+<!-- Cover Page -->
+<div class="cover-page">
+    <h1>Juan365 Creative Ticketing System</h1>
+    <h2>Complete Documentation</h2>
+    <div class="meta">
+        <p><strong>Version:</strong> 1.0</p>
+        <p><strong>Last Updated:</strong> January 2026</p>
+        <p><strong>Organization:</strong> Juan365 Creative Team</p>
+    </div>
+</div>
+
+<div class="container">
+
+<!-- Table of Contents -->
+<nav class="toc">
+    <h2>Table of Contents</h2>
+    <ol class="toc-list">
+        <li><a href="#executive-summary"><span class="section-num">1</span> Executive Summary</a></li>
+        <li><a href="#getting-started"><span class="section-num">2</span> Getting Started</a></li>
+        <li><a href="#user-guide"><span class="section-num">3</span> User Guide</a></li>
+        <li><a href="#ticket-workflow"><span class="section-num">4</span> Ticket Workflow</a></li>
+        <li><a href="#technical-documentation"><span class="section-num">5</span> Technical Documentation</a></li>
+        <li><a href="#api-reference"><span class="section-num">6</span> API Reference</a></li>
+        <li><a href="#admin-guide"><span class="section-num">7</span> Admin Guide</a></li>
+        <li><a href="#deployment"><span class="section-num">8</span> Deployment & Configuration</a></li>
+        <li><a href="#appendix"><span class="section-num">9</span> Appendix</a></li>
+    </ol>
+</nav>
+
+<!-- Section 1: Executive Summary -->
+<section id="executive-summary">
+    <h1>1. Executive Summary</h1>
+
+    <h2>Overview</h2>
+    <p>The <strong>Juan365 Creative Ticketing System</strong> is a comprehensive task management platform designed specifically for creative teams. It features multi-step approval workflows, real-time Telegram notifications, detailed analytics, and role-based access control.</p>
+
+    <h2>Key Features</h2>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h4>Two-Step Approval</h4>
+            <p>Department Manager to Creative Manager workflow</p>
+        </div>
+        <div class="feature-card">
+            <h4>Real-time Notifications</h4>
+            <p>Telegram bot with @mentions</p>
+        </div>
+        <div class="feature-card">
+            <h4>Analytics Dashboard</h4>
+            <p>Performance metrics and charts</p>
+        </div>
+        <div class="feature-card">
+            <h4>Multi-Product Support</h4>
+            <p>Ads and Telegram with quantities</p>
+        </div>
+        <div class="feature-card">
+            <h4>File Management</h4>
+            <p>Upload images, PDFs, documents</p>
+        </div>
+        <div class="feature-card">
+            <h4>Activity Logging</h4>
+            <p>Full audit trail with rollback</p>
+        </div>
+    </div>
+
+    <h2>Technology Stack</h2>
+    <table>
+        <tr><th>Layer</th><th>Technology</th></tr>
+        <tr><td>Frontend</td><td>React 19 + Vite + Tailwind CSS</td></tr>
+        <tr><td>Backend</td><td>Django 5.0 + Django REST Framework</td></tr>
+        <tr><td>Database</td><td>PostgreSQL</td></tr>
+        <tr><td>Authentication</td><td>JWT (SimpleJWT)</td></tr>
+        <tr><td>File Storage</td><td>Cloudinary (production)</td></tr>
+        <tr><td>Notifications</td><td>Telegram Bot API</td></tr>
+        <tr><td>Hosting</td><td>Railway (Backend) + Vercel (Frontend)</td></tr>
+    </table>
+
+    <h2>Live Deployment</h2>
+    <table>
+        <tr><th>Environment</th><th>URL</th></tr>
+        <tr><td>Frontend</td><td><a href="https://juan365-ticketing-frontend.vercel.app">https://juan365-ticketing-frontend.vercel.app</a></td></tr>
+        <tr><td>Backend API</td><td><a href="https://juan365-task-monitoring-production.up.railway.app">https://juan365-task-monitoring-production.up.railway.app</a></td></tr>
+    </table>
+</section>
+
+<!-- Section 2: Getting Started -->
+<section id="getting-started">
+    <h1>2. Getting Started</h1>
+
+    <h2>2.1 Registration & Login</h2>
+    <h3>Creating an Account</h3>
+    <ol>
+        <li>Navigate to the login page</li>
+        <li>Click <strong>"Register"</strong> to create a new account</li>
+        <li>Fill in: Username, Email, Password, First/Last Name</li>
+        <li>Submit the registration form</li>
+        <li><strong>Wait for admin approval</strong> - Your account must be approved before login</li>
+    </ol>
+
+    <div class="info-box">
+        <strong>Note:</strong> 3 failed login attempts will lock your account for 30 minutes. Contact an admin to unlock.
+    </div>
+
+    <h2>2.2 User Roles</h2>
+    <table>
+        <tr><th>Role</th><th>Description</th><th>Permissions</th></tr>
+        <tr><td><span class="badge badge-red">Admin</span></td><td>System administrator</td><td>Full access to all features</td></tr>
+        <tr><td><span class="badge badge-purple">Manager/Approver</span></td><td>Department manager</td><td>Approve/reject, assign, view analytics</td></tr>
+        <tr><td><span class="badge badge-blue">Member</span></td><td>Team member</td><td>Create tickets, view assigned tasks</td></tr>
+    </table>
+
+    <h2>2.3 Dashboard Overview</h2>
+    <h3>Status Cards (8 total)</h3>
+    <table>
+        <tr><th>Card</th><th>Description</th><th>Color</th></tr>
+        <tr><td>Total</td><td>All tickets in the system</td><td><span class="badge badge-blue">Blue</span></td></tr>
+        <tr><td>Dept Approval</td><td>Awaiting department manager</td><td><span class="badge badge-blue">Blue</span></td></tr>
+        <tr><td>Creative Approval</td><td>Awaiting creative team</td><td><span class="badge badge-purple">Purple</span></td></tr>
+        <tr><td>Not Yet Started</td><td>Approved but not started</td><td><span class="badge badge-cyan">Cyan</span></td></tr>
+        <tr><td>In Progress</td><td>Currently being worked on</td><td><span class="badge badge-yellow">Yellow</span></td></tr>
+        <tr><td>Completed</td><td>Work finished</td><td><span class="badge badge-green">Green</span></td></tr>
+        <tr><td>Rejected</td><td>Declined tickets</td><td><span class="badge badge-gray">Gray</span></td></tr>
+        <tr><td>Overdue</td><td>Past deadline</td><td><span class="badge badge-red">Red</span></td></tr>
+    </table>
+</section>
+
+<!-- Section 3: User Guide -->
+<section id="user-guide">
+    <h1>3. User Guide</h1>
+
+    <h2>3.1 Creating a Ticket</h2>
+    <h3>Required Fields</h3>
+    <table>
+        <tr><th>Field</th><th>Description</th><th>Required</th></tr>
+        <tr><td>Title</td><td>Brief description of the task</td><td>Yes</td></tr>
+        <tr><td>Description</td><td>Detailed requirements</td><td>Yes</td></tr>
+        <tr><td>Priority</td><td>Low, Medium, High, or Urgent</td><td>Yes</td></tr>
+        <tr><td>Department</td><td>Target department</td><td>Yes</td></tr>
+        <tr><td>Request Type</td><td>Type of creative work</td><td>Yes</td></tr>
+        <tr><td>Product</td><td>Associated product/brand</td><td>Optional</td></tr>
+    </table>
+
+    <h3>Request Types</h3>
+    <table>
+        <tr><th>Type</th><th>Description</th><th>Special Fields</th></tr>
+        <tr><td>Socmed Posting</td><td>Social media content</td><td>File Format dropdown</td></tr>
+        <tr><td>Website Banner</td><td>Web banners (H5 & WEB)</td><td>Criteria (Image/Video)</td></tr>
+        <tr><td>Photoshoot</td><td>Photography requests</td><td>Scheduled times</td></tr>
+        <tr><td>Videoshoot</td><td>Video production</td><td>Scheduled times</td></tr>
+        <tr><td>Live Production</td><td>Live streaming</td><td>Scheduled times</td></tr>
+        <tr><td>Ads</td><td>Advertising creatives</td><td>Multi-product selection</td></tr>
+        <tr><td>Telegram</td><td>Telegram channel content</td><td>Product + criteria</td></tr>
+    </table>
+
+    <h2>3.2 Ticket Actions by Role</h2>
+    <table>
+        <tr><th>Action</th><th>Who Can Do It</th><th>When</th></tr>
+        <tr><td>Approve</td><td>Manager</td><td>When "Requested" or "Pending Creative"</td></tr>
+        <tr><td>Reject</td><td>Manager</td><td>Any time before completion</td></tr>
+        <tr><td>Assign</td><td>Manager</td><td>After approval, before "In Progress"</td></tr>
+        <tr><td>Start Editing</td><td>Assigned User</td><td>After assignment</td></tr>
+        <tr><td>Mark Complete</td><td>Assigned User</td><td>When in progress</td></tr>
+        <tr><td>Confirm</td><td>Requester</td><td>When completed</td></tr>
+        <tr><td>Request Revision</td><td>Requester</td><td>When completed</td></tr>
+    </table>
+</section>
+
+<!-- Section 4: Ticket Workflow -->
+<section id="ticket-workflow">
+    <h1>4. Ticket Workflow</h1>
+
+    <h2>4.1 Status Flow Diagram</h2>
+    <div class="diagram">
++----------------+     +--------------------+     +--------------+
+|   REQUESTED    |---->| PENDING_CREATIVE   |---->|   APPROVED   |
+| (Dept Review)  |     | (Creative Review)  |     |              |
++----------------+     +--------------------+     +------+-------+
+       |                        |                        |
+       v                        v                        v
++----------------+        +----------+           +--------------+
+|   REJECTED     |        | REJECTED |           | IN_PROGRESS  |
++----------------+        +----------+           +------+-------+
+                                                        |
+                                                        v
+                                                 +--------------+
+                                                 |  COMPLETED   |
+                                                 +------+-------+
+                                                        |
+                          +-----------------------------+-----------------------------+
+                          v                                                           v
+                    [Requester                                                  [Revision
+                     Confirms]                                                  Requested]
+                                                                                      |
+                                                                                      v
+                                                                               +--------------+
+                                                                               | IN_PROGRESS  |
+                                                                               +--------------+
+    </div>
+
+    <h2>4.2 Two-Step Approval Process</h2>
+    <h3>Step 1: Department Manager Approval</h3>
+    <ol>
+        <li>Member creates a ticket - Status: <code>REQUESTED</code></li>
+        <li>Department Manager reviews the request</li>
+        <li><strong>Approve:</strong> Moves to <code>PENDING_CREATIVE</code></li>
+        <li><strong>Reject:</strong> Status becomes <code>REJECTED</code></li>
+    </ol>
+    <div class="info-box">
+        <strong>Note:</strong> Creative department members skip this step.
+    </div>
+
+    <h3>Step 2: Creative Manager Approval</h3>
+    <ol>
+        <li>Creative Manager reviews the ticket</li>
+        <li><strong>Approve:</strong> Status becomes <code>APPROVED</code></li>
+        <li><strong>Reject:</strong> Status becomes <code>REJECTED</code></li>
+    </ol>
+
+    <h2>4.3 Priority Levels & Deadlines</h2>
+    <table>
+        <tr><th>Priority</th><th>Video Content</th><th>Image Content</th></tr>
+        <tr><td><span class="badge badge-red">Urgent</span></td><td>3 hours</td><td>2 hours</td></tr>
+        <tr><td><span class="badge badge-yellow">High</span></td><td>24 hours</td><td>24 hours</td></tr>
+        <tr><td><span class="badge badge-blue">Medium</span></td><td>72 hours (3 days)</td><td>72 hours</td></tr>
+        <tr><td><span class="badge badge-green">Low</span></td><td>168 hours (7 days)</td><td>168 hours</td></tr>
+    </table>
+</section>
+
+<!-- Section 5: Technical Documentation -->
+<section id="technical-documentation">
+    <h1>5. Technical Documentation</h1>
+
+    <h2>5.1 Architecture Overview</h2>
+    <div class="diagram">
++-------------------------------------------------------------+
+|                        FRONTEND                             |
+|  React 19 + Vite + Tailwind CSS                            |
+|  Deployed on: Vercel                                        |
++-------------------------------------------------------------+
+                              |
+                              | HTTPS / REST API
+                              |
++-------------------------------------------------------------+
+|                        BACKEND                              |
+|  Django 5.0 + Django REST Framework                        |
+|  Deployed on: Railway                                       |
++-------------------------------------------------------------+
+                              |
+              +---------------+---------------+
+              |               |               |
+              v               v               v
++-----------------+ +-----------------+ +-----------------+
+|   PostgreSQL    | |   Cloudinary    | |  Telegram Bot   |
+|   Database      | |   File Storage  | |  Notifications  |
++-----------------+ +-----------------+ +-----------------+
+    </div>
+
+    <h2>5.2 Database Models (14 Total)</h2>
+    <h3>User Model</h3>
+    <table>
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>role</td><td>CharField</td><td>admin, manager, member</td></tr>
+        <tr><td>user_department</td><td>ForeignKey</td><td>Assigned department</td></tr>
+        <tr><td>telegram_id</td><td>CharField</td><td>For notifications</td></tr>
+        <tr><td>is_approved</td><td>Boolean</td><td>Requires admin approval</td></tr>
+        <tr><td>is_locked</td><td>Boolean</td><td>Account lockout</td></tr>
+    </table>
+
+    <h3>Ticket Model (Main)</h3>
+    <table>
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>title</td><td>CharField</td><td>Ticket title</td></tr>
+        <tr><td>description</td><td>TextField</td><td>Detailed description</td></tr>
+        <tr><td>status</td><td>CharField</td><td>Workflow status</td></tr>
+        <tr><td>priority</td><td>CharField</td><td>low, medium, high, urgent</td></tr>
+        <tr><td>request_type</td><td>CharField</td><td>Type of request</td></tr>
+        <tr><td>criteria</td><td>CharField</td><td>image or video</td></tr>
+        <tr><td>quantity</td><td>Integer</td><td>Output count (max 1000)</td></tr>
+        <tr><td>requester</td><td>ForeignKey</td><td>Creator</td></tr>
+        <tr><td>assigned_to</td><td>ForeignKey</td><td>Assigned user</td></tr>
+        <tr><td>deadline</td><td>DateTime</td><td>Auto-calculated</td></tr>
+    </table>
+
+    <h3>Supporting Models</h3>
+    <table>
+        <tr><th>Model</th><th>Purpose</th></tr>
+        <tr><td>Department</td><td>Department with manager</td></tr>
+        <tr><td>Product</td><td>Product categorization</td></tr>
+        <tr><td>TicketProductItem</td><td>Multi-product for Ads/Telegram</td></tr>
+        <tr><td>TicketAnalytics</td><td>Performance metrics</td></tr>
+        <tr><td>TicketComment</td><td>Threaded comments</td></tr>
+        <tr><td>TicketAttachment</td><td>File uploads</td></tr>
+        <tr><td>TicketCollaborator</td><td>Multi-user access</td></tr>
+        <tr><td>Notification</td><td>In-app alerts</td></tr>
+        <tr><td>ActivityLog</td><td>Audit trail</td></tr>
+    </table>
+</section>
+
+<!-- Section 6: API Reference -->
+<section id="api-reference">
+    <h1>6. API Reference</h1>
+
+    <h2>6.1 Authentication</h2>
+    <table>
+        <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+        <tr><td><code>/api/auth/register/</code></td><td>POST</td><td>User registration</td></tr>
+        <tr><td><code>/api/auth/login/</code></td><td>POST</td><td>Login with JWT</td></tr>
+        <tr><td><code>/api/auth/refresh/</code></td><td>POST</td><td>Refresh token</td></tr>
+        <tr><td><code>/api/auth/me/</code></td><td>GET/PATCH</td><td>Current user profile</td></tr>
+    </table>
+
+    <h2>6.2 Tickets</h2>
+    <table>
+        <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+        <tr><td><code>/api/tickets/</code></td><td>GET</td><td>List tickets</td></tr>
+        <tr><td><code>/api/tickets/</code></td><td>POST</td><td>Create ticket</td></tr>
+        <tr><td><code>/api/tickets/{id}/</code></td><td>GET/PATCH</td><td>Get/update ticket</td></tr>
+        <tr><td><code>/api/tickets/{id}/approve/</code></td><td>POST</td><td>Approve (2-step)</td></tr>
+        <tr><td><code>/api/tickets/{id}/reject/</code></td><td>POST</td><td>Reject with reason</td></tr>
+        <tr><td><code>/api/tickets/{id}/assign/</code></td><td>POST</td><td>Assign to user</td></tr>
+        <tr><td><code>/api/tickets/{id}/start/</code></td><td>POST</td><td>Start working</td></tr>
+        <tr><td><code>/api/tickets/{id}/complete/</code></td><td>POST</td><td>Mark complete</td></tr>
+        <tr><td><code>/api/tickets/{id}/confirm/</code></td><td>POST</td><td>Requester confirms</td></tr>
+        <tr><td><code>/api/tickets/{id}/comments/</code></td><td>GET/POST</td><td>Comments</td></tr>
+        <tr><td><code>/api/tickets/{id}/attachments/</code></td><td>GET/POST</td><td>Attachments</td></tr>
+        <tr><td><code>/api/tickets/{id}/history/</code></td><td>GET</td><td>Activity history</td></tr>
+        <tr><td><code>/api/tickets/{id}/rollback/</code></td><td>POST</td><td>Rollback</td></tr>
+    </table>
+
+    <h2>6.3 Dashboard & Analytics</h2>
+    <table>
+        <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+        <tr><td><code>/api/dashboard/stats/</code></td><td>GET</td><td>Dashboard statistics</td></tr>
+        <tr><td><code>/api/dashboard/my-tasks/</code></td><td>GET</td><td>User's assigned tasks</td></tr>
+        <tr><td><code>/api/analytics/</code></td><td>GET</td><td>Comprehensive analytics</td></tr>
+        <tr><td><code>/api/notifications/</code></td><td>GET</td><td>User notifications</td></tr>
+        <tr><td><code>/api/health/</code></td><td>GET</td><td>Health check</td></tr>
+    </table>
+</section>
+
+<!-- Section 7: Admin Guide -->
+<section id="admin-guide">
+    <h1>7. Admin Guide</h1>
+
+    <h2>7.1 User Management</h2>
+    <h3>Approving New Users</h3>
+    <ol>
+        <li>Go to <strong>Users</strong> page</li>
+        <li>Find pending users (Pending tab)</li>
+        <li>Click <strong>"Approve"</strong> to grant access</li>
+    </ol>
+
+    <h3>Changing User Roles</h3>
+    <ol>
+        <li>Go to <strong>Users</strong> page</li>
+        <li>Find the user and click <strong>"Change Role"</strong></li>
+        <li>Select: Admin, Approver (Manager), or Member</li>
+    </ol>
+
+    <h2>7.2 Department Management</h2>
+    <ol>
+        <li>Go to <strong>Admin</strong> - <strong>Departments</strong> tab</li>
+        <li>Click <strong>"Add Department"</strong></li>
+        <li>Enter name and assign a manager</li>
+        <li>Check <strong>"Is Creative"</strong> for the Creative department</li>
+    </ol>
+
+    <h2>7.3 Product Management</h2>
+    <table>
+        <tr><th>Category</th><th>Used For</th><th>Examples</th></tr>
+        <tr><td>General</td><td>Socmed, Website, etc.</td><td>Juan365, JuanBingo</td></tr>
+        <tr><td>Ads</td><td>Ads request type</td><td>FB VID, TIKTOK VID, FB STATIC</td></tr>
+        <tr><td>Telegram</td><td>Telegram request type</td><td>Juan365 TG, JuanBingo TG</td></tr>
+    </table>
+
+    <h2>7.4 Trash Management</h2>
+    <div class="warning-box">
+        <strong>Warning:</strong> Permanent deletion cannot be undone. All comments, attachments, and history will be lost.
+    </div>
+</section>
+
+<!-- Section 8: Deployment -->
+<section id="deployment">
+    <h1>8. Deployment & Configuration</h1>
+
+    <h2>8.1 Backend Environment Variables</h2>
+    <pre><code># Django
+DJANGO_SECRET_KEY=your-secret-key-here
+DEBUG=False
+ALLOWED_HOSTS=your-domain.railway.app
+
+# Database (auto-set by Railway)
+DATABASE_URL=postgresql://user:pass@host:5432/db
+
+# CORS
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+
+# Telegram
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_GROUP_CHAT_ID=-1001234567890
+
+# Frontend URL
+FRONTEND_URL=https://your-frontend.vercel.app
+
+# Cloudinary
+CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name</code></pre>
+
+    <h2>8.2 Frontend Environment Variables</h2>
+    <pre><code>VITE_API_URL=https://your-backend.railway.app</code></pre>
+
+    <h2>8.3 Local Development</h2>
+    <h3>Backend</h3>
+    <pre><code>cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver</code></pre>
+
+    <h3>Frontend</h3>
+    <pre><code>cd frontend
+npm install
+npm run dev</code></pre>
+</section>
+
+<!-- Section 9: Appendix -->
+<section id="appendix">
+    <h1>9. Appendix</h1>
+
+    <h2>9.1 Glossary</h2>
+    <table>
+        <tr><th>Term</th><th>Definition</th></tr>
+        <tr><td>Ticket</td><td>A request for creative work</td></tr>
+        <tr><td>Requester</td><td>User who created the ticket</td></tr>
+        <tr><td>Assignee</td><td>User assigned to complete the work</td></tr>
+        <tr><td>Collaborator</td><td>Additional user with ticket access</td></tr>
+        <tr><td>Approver</td><td>Manager who approves/rejects tickets</td></tr>
+        <tr><td>Criteria</td><td>Whether output is Image or Video</td></tr>
+        <tr><td>Rollback</td><td>Restore ticket to previous state</td></tr>
+    </table>
+
+    <h2>9.2 Status Definitions</h2>
+    <table>
+        <tr><th>Status</th><th>Display Name</th><th>Description</th></tr>
+        <tr><td><code>requested</code></td><td>Dept Approval</td><td>Awaiting department manager</td></tr>
+        <tr><td><code>pending_creative</code></td><td>Creative Approval</td><td>Awaiting creative manager</td></tr>
+        <tr><td><code>approved</code></td><td>Not Yet Started</td><td>Ready for work</td></tr>
+        <tr><td><code>rejected</code></td><td>Rejected</td><td>Declined</td></tr>
+        <tr><td><code>in_progress</code></td><td>In Progress</td><td>Work started</td></tr>
+        <tr><td><code>completed</code></td><td>Completed</td><td>Work finished</td></tr>
+    </table>
+
+    <h2>9.3 Troubleshooting</h2>
+    <table>
+        <tr><th>Issue</th><th>Solution</th></tr>
+        <tr><td>Can't log in</td><td>Check if approved, check if locked, verify credentials</td></tr>
+        <tr><td>Tickets not showing</td><td>Clear filters, check permissions, check Trash</td></tr>
+        <tr><td>Notifications not working</td><td>Verify Telegram ID, check bot in group</td></tr>
+        <tr><td>File upload failed</td><td>Check file size (max 10MB), verify Cloudinary</td></tr>
+    </table>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+    <p><strong>Juan365 Creative Ticketing System</strong></p>
+    <p>Version 1.0 | January 2026</p>
+    <p>Built with Django + React by Juan365 Team</p>
+</footer>
+
+</div>
+
+</body>
+</html>

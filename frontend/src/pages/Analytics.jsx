@@ -113,6 +113,11 @@ const Analytics = () => {
     return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
   };
 
+  const formatNumber = (num) => {
+    if (num === null || num === undefined) return '-';
+    return num.toLocaleString();
+  };
+
   if (!isManager) {
     return null;
   }
@@ -208,22 +213,22 @@ const Analytics = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Total Tickets</p>
-                    <p className="text-2xl font-bold text-white mt-1">{analytics.overall.total_tickets}</p>
-                    <p className="text-xs text-slate-400">{analytics.overall.completed_tickets} completed</p>
+                    <p className="text-2xl font-bold text-white mt-1">{formatNumber(analytics.overall.total_tickets)}</p>
+                    <p className="text-xs text-slate-400">{formatNumber(analytics.overall.completed_tickets)} completed</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Total Output</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{analytics.overall.total_quantity_produced}</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">{formatNumber(analytics.overall.total_quantity_produced)}</p>
                     <p className="text-xs text-slate-400">creatives produced</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Video Output</p>
-                    <p className="text-2xl font-bold text-blue-400 mt-1">{analytics.overall.video_quantity || 0}</p>
+                    <p className="text-2xl font-bold text-blue-400 mt-1">{formatNumber(analytics.overall.video_quantity || 0)}</p>
                     <p className="text-xs text-slate-400">video creatives</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Image Output</p>
-                    <p className="text-2xl font-bold text-pink-400 mt-1">{analytics.overall.image_quantity || 0}</p>
+                    <p className="text-2xl font-bold text-pink-400 mt-1">{formatNumber(analytics.overall.image_quantity || 0)}</p>
                     <p className="text-xs text-slate-400">image creatives</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">

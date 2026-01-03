@@ -2120,7 +2120,6 @@ class DashboardView(APIView):
         return Response(stats)
 
 
-class MyTasksView
 class MyTasksView(generics.ListAPIView):
     """Get tickets assigned to current user AND tickets needing approval for managers"""
     serializer_class = TicketListSerializer

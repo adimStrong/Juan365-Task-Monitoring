@@ -118,20 +118,10 @@ const Dashboard = () => {
       <div className="space-y-6">
         {/* Welcome */}
         <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Welcome back, {user?.first_name || user?.username}!
-              </h1>
-              <p className="mt-1 text-gray-500">Here's what's happening with your tickets.</p>
-            </div>
-            {stats?.last_updated && (
-              <div className="text-xs text-gray-400 text-right">
-                <div>Last updated</div>
-                <div>{new Date(stats.last_updated).toLocaleTimeString()}</div>
-              </div>
-            )}
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome back, {user?.first_name || user?.username}!
+          </h1>
+          <p className="mt-1 text-gray-500">Here's what's happening with your tickets.</p>
         </div>
 
         {/* Stats */}

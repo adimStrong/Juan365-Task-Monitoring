@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.conf import settings
 import logging
 
-from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product, DailyStatistics
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product
 from notifications import notify_user  # Unified notification (Telegram + Email)
 
 logger = logging.getLogger(__name__)
@@ -1932,66 +1932,13 @@ class DashboardView(APIView):
     """
     Dashboard statistics and overview.
 
-    Performance Strategy:
-    - For managers: Try pre-aggregated DailyStatistics table first (instant load)
-    - Fallback to real-time if aggregates are stale (>1 hour)
-    - For members: Real-time calculation (user-specific data)
-    - Results cached for 5 minutes per user role
+    Caching Strategy (Netflix-style):
+    - Stats cached for 5 minutes per user role (manager vs member)
+    - Cache key includes role to show different data
+    - Invalidated when tickets are created/updated/deleted
     """
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
-
-    STALE_THRESHOLD_HOURS = 1  # Fallback to real-time if aggregates older than this
-
-    def _get_stats_from_aggregates(self, today):
-        """Try to get stats from pre-aggregated DailyStatistics table"""
-        try:
-            daily_stats = DailyStatistics.objects.filter(date=today).first()
-            if daily_stats:
-                # Check if data is fresh (within threshold)
-                age = timezone.now() - daily_stats.last_updated
-                if age.total_seconds() < self.STALE_THRESHOLD_HOURS * 3600:
-                    return daily_stats, daily_stats.last_updated
-            return None, None
-        except Exception as e:
-            logger.warning(f'Error reading DailyStatistics: {e}')
-            return None, None
-
-    def _calculate_realtime_stats(self, user):
-        """Calculate stats in real-time (fallback method)"""
-        now = timezone.now()
-
-        # Base queryset - exclude deleted tickets
-        if user.is_manager:
-            tickets = Ticket.objects.filter(is_deleted=False)
-        else:
-            tickets = Ticket.objects.filter(
-                Q(requester=user) | Q(assigned_to=user),
-                is_deleted=False
-            )
-
-        # Single aggregate query for all counts
-        counts = tickets.aggregate(
-            total=Count('id'),
-            pending_approval=Count(Case(When(status=Ticket.Status.REQUESTED, then=1))),
-            pending_creative=Count(Case(When(status=Ticket.Status.PENDING_CREATIVE, then=1))),
-            in_progress=Count(Case(When(status=Ticket.Status.IN_PROGRESS, then=1))),
-            completed=Count(Case(When(status=Ticket.Status.COMPLETED, then=1))),
-            approved=Count(Case(When(status=Ticket.Status.APPROVED, then=1))),
-            rejected=Count(Case(When(status=Ticket.Status.REJECTED, then=1))),
-            overdue=Count(Case(When(
-                deadline__lt=now,
-                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE,
-                           Ticket.Status.APPROVED, Ticket.Status.IN_PROGRESS],
-                then=1
-            ))),
-            urgent=Count(Case(When(priority='urgent', then=1))),
-            high=Count(Case(When(priority='high', then=1))),
-            medium=Count(Case(When(priority='medium', then=1))),
-            low=Count(Case(When(priority='low', then=1))),
-        )
-
-        return counts, now
 
     def get(self, request):
         from .cache_utils import get_cache_key, CACHE_TTL_DASHBOARD
@@ -2008,39 +1955,40 @@ class DashboardView(APIView):
 
         logger.debug(f'Dashboard cache MISS for role:{role}')
 
-        now = timezone.now()
-        today = now.date()
-        last_updated = now
-        use_aggregates = False
-
-        # For managers, try pre-aggregated data first
+        # Base queryset - exclude deleted tickets
         if user.is_manager:
-            daily_stats, agg_updated = self._get_stats_from_aggregates(today)
-            if daily_stats:
-                logger.debug('Using pre-aggregated DailyStatistics')
-                use_aggregates = True
-                last_updated = agg_updated
-                counts = {
-                    'total': daily_stats.total_tickets,
-                    'pending_approval': daily_stats.tickets_pending_dept,
-                    'pending_creative': daily_stats.tickets_pending_creative,
-                    'in_progress': daily_stats.tickets_in_progress,
-                    'completed': daily_stats.tickets_completed,
-                    'approved': daily_stats.tickets_approved,
-                    'rejected': daily_stats.tickets_rejected,
-                    'overdue': daily_stats.tickets_overdue,
-                    'urgent': daily_stats.urgent_count,
-                    'high': daily_stats.high_count,
-                    'medium': daily_stats.medium_count,
-                    'low': daily_stats.low_count,
-                }
+            tickets = Ticket.objects.filter(is_deleted=False)
+        else:
+            tickets = Ticket.objects.filter(
+                Q(requester=user) | Q(assigned_to=user),
+                is_deleted=False
+            )
 
-        # Fallback to real-time calculation
-        if not use_aggregates:
-            logger.debug('Calculating real-time stats (no fresh aggregates)')
-            counts, last_updated = self._calculate_realtime_stats(user)
+        now = timezone.now()
 
-        # My assigned count (always real-time since it is user-specific)
+        # OPTIMIZED: Single aggregate query for all counts (instead of 15+ queries)
+        counts = tickets.aggregate(
+            total=Count('id'),
+            pending_approval=Count(Case(When(status=Ticket.Status.REQUESTED, then=1))),
+            pending_creative=Count(Case(When(status=Ticket.Status.PENDING_CREATIVE, then=1))),
+            in_progress=Count(Case(When(status=Ticket.Status.IN_PROGRESS, then=1))),
+            completed=Count(Case(When(status=Ticket.Status.COMPLETED, then=1))),
+            approved=Count(Case(When(status=Ticket.Status.APPROVED, then=1))),
+            rejected=Count(Case(When(status=Ticket.Status.REJECTED, then=1))),
+            overdue=Count(Case(When(
+                deadline__lt=now,
+                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE, 
+                           Ticket.Status.APPROVED, Ticket.Status.IN_PROGRESS],
+                then=1
+            ))),
+            # Priority counts
+            urgent=Count(Case(When(priority='urgent', then=1))),
+            high=Count(Case(When(priority='high', then=1))),
+            medium=Count(Case(When(priority='medium', then=1))),
+            low=Count(Case(When(priority='low', then=1))),
+        )
+
+        # My assigned count (separate query since it uses different base)
         my_assigned = Ticket.objects.filter(
             assigned_to=user, is_deleted=False
         ).exclude(
@@ -2057,9 +2005,7 @@ class DashboardView(APIView):
             'approved': counts['approved'],
             'rejected': counts['rejected'],
             'overdue': counts['overdue'],
-            'my_assigned': my_assigned,
-            'last_updated': last_updated.isoformat(),
-            'data_source': 'aggregated' if use_aggregates else 'realtime'
+            'my_assigned': my_assigned
         }
 
         # Status breakdown for pie chart
@@ -2080,27 +2026,20 @@ class DashboardView(APIView):
             {'name': 'Low', 'count': counts['low'], 'color': '#22C55E'},
         ]
 
-        # Weekly trends (real-time for accuracy)
-        if user.is_manager:
-            tickets = Ticket.objects.filter(is_deleted=False)
-        else:
-            tickets = Ticket.objects.filter(
-                Q(requester=user) | Q(assigned_to=user),
-                is_deleted=False
-            )
-
+        # OPTIMIZED: Weekly trends using single annotated query (instead of 14 queries)
         seven_days_ago = now - timedelta(days=7)
-        weekly_tickets = list(tickets.filter(
-            Q(created_at__gte=seven_days_ago) |
+        weekly_tickets = tickets.filter(
+            Q(created_at__gte=seven_days_ago) | 
             Q(status=Ticket.Status.COMPLETED, updated_at__gte=seven_days_ago)
-        ).values('created_at', 'updated_at', 'status'))
+        ).values('created_at', 'updated_at', 'status')
 
+        # Build weekly data from prefetched results
         weekly_data = []
         for i in range(6, -1, -1):
             day = now.date() - timedelta(days=i)
             created = sum(1 for t in weekly_tickets if t['created_at'].date() == day)
-            completed = sum(1 for t in weekly_tickets
-                         if t['status'] == Ticket.Status.COMPLETED
+            completed = sum(1 for t in weekly_tickets 
+                         if t['status'] == Ticket.Status.COMPLETED 
                          and t['updated_at'].date() == day)
             weekly_data.append({
                 'day': day.strftime('%a'),
@@ -2120,7 +2059,6 @@ class DashboardView(APIView):
         return Response(stats)
 
 
-class MyTasksView
 class MyTasksView(generics.ListAPIView):
     """Get tickets assigned to current user AND tickets needing approval for managers"""
     serializer_class = TicketListSerializer
@@ -2298,6 +2236,78 @@ class AnalyticsView(APIView):
             )
             min_date = date_range['min_date'].date().isoformat() if date_range['min_date'] else None
             max_date = date_range['max_date'].date().isoformat() if date_range['max_date'] else None
+
+            # =====================
+            # OVERALL/ALL-TIME METRICS (no date filter)
+            # =====================
+            all_tickets_list = list(all_tickets.select_related('analytics', 'assigned_to', 'target_department', 'ticket_product'))
+            overall_total = len(all_tickets_list)
+            overall_completed = sum(1 for t in all_tickets_list if t.status == Ticket.Status.COMPLETED)
+            overall_assigned = sum(1 for t in all_tickets_list if t.assigned_to_id is not None)
+            overall_in_progress = sum(1 for t in all_tickets_list if t.status == Ticket.Status.IN_PROGRESS)
+            overall_completion_rate = round(overall_completed / overall_assigned * 100, 1) if overall_assigned > 0 else 0
+
+            # Overall quantity produced
+            overall_completed_list = [t for t in all_tickets_list if t.status == Ticket.Status.COMPLETED]
+            overall_regular_qty = sum(
+                t.quantity or 0 for t in overall_completed_list
+                if t.request_type not in ['ads', 'telegram_channel']
+            )
+            overall_completed_ids = [t.id for t in overall_completed_list]
+            overall_product_items_qty = TicketProductItem.objects.filter(
+                ticket_id__in=overall_completed_ids
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            overall_quantity_produced = overall_regular_qty + overall_product_items_qty
+
+            # Overall processing time
+            overall_processing_times = [
+                (t.completed_at - t.started_at).total_seconds()
+                for t in overall_completed_list
+                if t.started_at and t.completed_at
+            ]
+            overall_avg_processing_seconds = round(
+                sum(overall_processing_times) / len(overall_processing_times)
+            ) if overall_processing_times else None
+            overall_total_processing = sum(overall_processing_times) if overall_processing_times else 0
+            overall_avg_time_per_creative = round(
+                overall_total_processing / overall_quantity_produced
+            ) if overall_quantity_produced > 0 else None
+
+            # Overall acknowledge time
+            overall_ack_times = []
+            for t in all_tickets_list:
+                if t.status in [Ticket.Status.IN_PROGRESS, Ticket.Status.COMPLETED]:
+                    try:
+                        if hasattr(t, 'analytics') and t.analytics and t.analytics.time_to_acknowledge is not None:
+                            overall_ack_times.append(t.analytics.time_to_acknowledge)
+                    except:
+                        pass
+            overall_avg_ack_seconds = round(sum(overall_ack_times) / len(overall_ack_times)) if overall_ack_times else None
+
+            # Overall video/image stats
+            all_product_items = list(TicketProductItem.objects.filter(
+                ticket_id__in=overall_completed_ids
+            ).select_related('product', 'ticket'))
+
+            # Video quantity overall
+            overall_video_tickets = [t for t in overall_completed_list if t.criteria == 'video' or (not t.criteria and t.request_type not in ['ads', 'telegram_channel'])]
+            overall_video_qty = sum(t.quantity or 0 for t in overall_video_tickets)
+            overall_video_qty += sum(p.quantity or 0 for p in all_product_items if p.product and 'VID' in (p.product.name or '').upper())
+            # Telegram video
+            overall_telegram_items = [p for p in all_product_items if p.ticket.request_type == 'telegram_channel']
+            overall_video_qty += sum(
+                item.quantity or 0 for item in overall_telegram_items
+                if (item.criteria == 'video') or (not item.criteria and item.ticket.criteria == 'video')
+            )
+
+            # Image quantity overall
+            overall_image_tickets = [t for t in overall_completed_list if t.criteria == 'image']
+            overall_image_qty = sum(t.quantity or 0 for t in overall_image_tickets)
+            overall_image_qty += sum(p.quantity or 0 for p in all_product_items if p.product and 'STATIC' in (p.product.name or '').upper())
+            overall_image_qty += sum(
+                item.quantity or 0 for item in overall_telegram_items
+                if (item.criteria == 'image') or (not item.criteria and item.ticket.criteria == 'image')
+            )
 
             # Get date range filters
             date_from = request.query_params.get('date_from')
@@ -2889,14 +2899,24 @@ class AnalyticsView(APIView):
                 'in_progress': sum(u['in_progress'] for u in user_stats),
             }
 
-            # Include last_updated timestamp
-            result = {
+            return Response({
                 'date_range': {
                     'min_date': min_date,
                     'max_date': max_date,
                 },
-                'last_updated': timezone.now().isoformat(),
-                'data_source': 'realtime',
+                'overall': {
+                    'total_tickets': overall_total,
+                    'assigned_tickets': overall_assigned,
+                    'completed_tickets': overall_completed,
+                    'in_progress_tickets': overall_in_progress,
+                    'completion_rate': overall_completion_rate,
+                    'total_quantity_produced': overall_quantity_produced,
+                    'video_quantity': overall_video_qty,
+                    'image_quantity': overall_image_qty,
+                    'avg_processing_seconds': overall_avg_processing_seconds,
+                    'avg_time_per_creative_seconds': overall_avg_time_per_creative,
+                    'avg_acknowledge_seconds': overall_avg_ack_seconds,
+                },
                 'summary': {
                     'total_tickets': total_tickets,
                     'assigned_tickets': assigned_tickets,
@@ -2921,13 +2941,7 @@ class AnalyticsView(APIView):
                 'by_criteria': criteria_stats,
                 'ads_product_output': ads_product_stats,
                 'telegram_product_output': telegram_product_stats,
-            }
-
-            # Cache the result before returning
-            cache.set(cache_key, result, CACHE_TTL_ANALYTICS)
-            logger.debug(f'Analytics cached for {date_from} to {date_to}')
-
-            return Response(result)
+            })
 
         except Exception as e:
             logger.error(f"Analytics error: {str(e)}")
@@ -2947,3 +2961,22 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         return Response({"status": "ok"})
+
+
+class TriggerOverdueRemindersView(APIView):
+    """Trigger overdue reminders via HTTP. Protected by token."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token', '')
+        expected_token = getattr(settings, 'CRON_SECRET_TOKEN', 'juan365-cron-secret-2024')
+        if token != expected_token:
+            return Response({"error": "Invalid token"}, status=status.HTTP_403_FORBIDDEN)
+        from django.core.management import call_command
+        from io import StringIO
+        output = StringIO()
+        try:
+            call_command('send_overdue_reminders', stdout=output)
+            return Response({"status": "ok", "output": output.getvalue()})
+        except Exception as e:
+            return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

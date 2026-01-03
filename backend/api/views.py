@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.conf import settings
 import logging
 
-from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product
+from .models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department, Product, DailyStatistics
 from notifications import notify_user  # Unified notification (Telegram + Email)
 
 logger = logging.getLogger(__name__)
@@ -1932,13 +1932,66 @@ class DashboardView(APIView):
     """
     Dashboard statistics and overview.
 
-    Caching Strategy (Netflix-style):
-    - Stats cached for 5 minutes per user role (manager vs member)
-    - Cache key includes role to show different data
-    - Invalidated when tickets are created/updated/deleted
+    Performance Strategy:
+    - For managers: Try pre-aggregated DailyStatistics table first (instant load)
+    - Fallback to real-time if aggregates are stale (>1 hour)
+    - For members: Real-time calculation (user-specific data)
+    - Results cached for 5 minutes per user role
     """
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all as list for dropdowns
+
+    STALE_THRESHOLD_HOURS = 1  # Fallback to real-time if aggregates older than this
+
+    def _get_stats_from_aggregates(self, today):
+        """Try to get stats from pre-aggregated DailyStatistics table"""
+        try:
+            daily_stats = DailyStatistics.objects.filter(date=today).first()
+            if daily_stats:
+                # Check if data is fresh (within threshold)
+                age = timezone.now() - daily_stats.last_updated
+                if age.total_seconds() < self.STALE_THRESHOLD_HOURS * 3600:
+                    return daily_stats, daily_stats.last_updated
+            return None, None
+        except Exception as e:
+            logger.warning(f'Error reading DailyStatistics: {e}')
+            return None, None
+
+    def _calculate_realtime_stats(self, user):
+        """Calculate stats in real-time (fallback method)"""
+        now = timezone.now()
+
+        # Base queryset - exclude deleted tickets
+        if user.is_manager:
+            tickets = Ticket.objects.filter(is_deleted=False)
+        else:
+            tickets = Ticket.objects.filter(
+                Q(requester=user) | Q(assigned_to=user),
+                is_deleted=False
+            )
+
+        # Single aggregate query for all counts
+        counts = tickets.aggregate(
+            total=Count('id'),
+            pending_approval=Count(Case(When(status=Ticket.Status.REQUESTED, then=1))),
+            pending_creative=Count(Case(When(status=Ticket.Status.PENDING_CREATIVE, then=1))),
+            in_progress=Count(Case(When(status=Ticket.Status.IN_PROGRESS, then=1))),
+            completed=Count(Case(When(status=Ticket.Status.COMPLETED, then=1))),
+            approved=Count(Case(When(status=Ticket.Status.APPROVED, then=1))),
+            rejected=Count(Case(When(status=Ticket.Status.REJECTED, then=1))),
+            overdue=Count(Case(When(
+                deadline__lt=now,
+                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE,
+                           Ticket.Status.APPROVED, Ticket.Status.IN_PROGRESS],
+                then=1
+            ))),
+            urgent=Count(Case(When(priority='urgent', then=1))),
+            high=Count(Case(When(priority='high', then=1))),
+            medium=Count(Case(When(priority='medium', then=1))),
+            low=Count(Case(When(priority='low', then=1))),
+        )
+
+        return counts, now
 
     def get(self, request):
         from .cache_utils import get_cache_key, CACHE_TTL_DASHBOARD
@@ -1955,40 +2008,39 @@ class DashboardView(APIView):
 
         logger.debug(f'Dashboard cache MISS for role:{role}')
 
-        # Base queryset - exclude deleted tickets
-        if user.is_manager:
-            tickets = Ticket.objects.filter(is_deleted=False)
-        else:
-            tickets = Ticket.objects.filter(
-                Q(requester=user) | Q(assigned_to=user),
-                is_deleted=False
-            )
-
         now = timezone.now()
+        today = now.date()
+        last_updated = now
+        use_aggregates = False
 
-        # OPTIMIZED: Single aggregate query for all counts (instead of 15+ queries)
-        counts = tickets.aggregate(
-            total=Count('id'),
-            pending_approval=Count(Case(When(status=Ticket.Status.REQUESTED, then=1))),
-            pending_creative=Count(Case(When(status=Ticket.Status.PENDING_CREATIVE, then=1))),
-            in_progress=Count(Case(When(status=Ticket.Status.IN_PROGRESS, then=1))),
-            completed=Count(Case(When(status=Ticket.Status.COMPLETED, then=1))),
-            approved=Count(Case(When(status=Ticket.Status.APPROVED, then=1))),
-            rejected=Count(Case(When(status=Ticket.Status.REJECTED, then=1))),
-            overdue=Count(Case(When(
-                deadline__lt=now,
-                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE, 
-                           Ticket.Status.APPROVED, Ticket.Status.IN_PROGRESS],
-                then=1
-            ))),
-            # Priority counts
-            urgent=Count(Case(When(priority='urgent', then=1))),
-            high=Count(Case(When(priority='high', then=1))),
-            medium=Count(Case(When(priority='medium', then=1))),
-            low=Count(Case(When(priority='low', then=1))),
-        )
+        # For managers, try pre-aggregated data first
+        if user.is_manager:
+            daily_stats, agg_updated = self._get_stats_from_aggregates(today)
+            if daily_stats:
+                logger.debug('Using pre-aggregated DailyStatistics')
+                use_aggregates = True
+                last_updated = agg_updated
+                counts = {
+                    'total': daily_stats.total_tickets,
+                    'pending_approval': daily_stats.tickets_pending_dept,
+                    'pending_creative': daily_stats.tickets_pending_creative,
+                    'in_progress': daily_stats.tickets_in_progress,
+                    'completed': daily_stats.tickets_completed,
+                    'approved': daily_stats.tickets_approved,
+                    'rejected': daily_stats.tickets_rejected,
+                    'overdue': daily_stats.tickets_overdue,
+                    'urgent': daily_stats.urgent_count,
+                    'high': daily_stats.high_count,
+                    'medium': daily_stats.medium_count,
+                    'low': daily_stats.low_count,
+                }
 
-        # My assigned count (separate query since it uses different base)
+        # Fallback to real-time calculation
+        if not use_aggregates:
+            logger.debug('Calculating real-time stats (no fresh aggregates)')
+            counts, last_updated = self._calculate_realtime_stats(user)
+
+        # My assigned count (always real-time since it is user-specific)
         my_assigned = Ticket.objects.filter(
             assigned_to=user, is_deleted=False
         ).exclude(
@@ -2005,7 +2057,9 @@ class DashboardView(APIView):
             'approved': counts['approved'],
             'rejected': counts['rejected'],
             'overdue': counts['overdue'],
-            'my_assigned': my_assigned
+            'my_assigned': my_assigned,
+            'last_updated': last_updated.isoformat(),
+            'data_source': 'aggregated' if use_aggregates else 'realtime'
         }
 
         # Status breakdown for pie chart
@@ -2026,20 +2080,27 @@ class DashboardView(APIView):
             {'name': 'Low', 'count': counts['low'], 'color': '#22C55E'},
         ]
 
-        # OPTIMIZED: Weekly trends using single annotated query (instead of 14 queries)
-        seven_days_ago = now - timedelta(days=7)
-        weekly_tickets = tickets.filter(
-            Q(created_at__gte=seven_days_ago) | 
-            Q(status=Ticket.Status.COMPLETED, updated_at__gte=seven_days_ago)
-        ).values('created_at', 'updated_at', 'status')
+        # Weekly trends (real-time for accuracy)
+        if user.is_manager:
+            tickets = Ticket.objects.filter(is_deleted=False)
+        else:
+            tickets = Ticket.objects.filter(
+                Q(requester=user) | Q(assigned_to=user),
+                is_deleted=False
+            )
 
-        # Build weekly data from prefetched results
+        seven_days_ago = now - timedelta(days=7)
+        weekly_tickets = list(tickets.filter(
+            Q(created_at__gte=seven_days_ago) |
+            Q(status=Ticket.Status.COMPLETED, updated_at__gte=seven_days_ago)
+        ).values('created_at', 'updated_at', 'status'))
+
         weekly_data = []
         for i in range(6, -1, -1):
             day = now.date() - timedelta(days=i)
             created = sum(1 for t in weekly_tickets if t['created_at'].date() == day)
-            completed = sum(1 for t in weekly_tickets 
-                         if t['status'] == Ticket.Status.COMPLETED 
+            completed = sum(1 for t in weekly_tickets
+                         if t['status'] == Ticket.Status.COMPLETED
                          and t['updated_at'].date() == day)
             weekly_data.append({
                 'day': day.strftime('%a'),
@@ -2059,6 +2120,7 @@ class DashboardView(APIView):
         return Response(stats)
 
 
+class MyTasksView
 class MyTasksView(generics.ListAPIView):
     """Get tickets assigned to current user AND tickets needing approval for managers"""
     serializer_class = TicketListSerializer
@@ -2827,11 +2889,14 @@ class AnalyticsView(APIView):
                 'in_progress': sum(u['in_progress'] for u in user_stats),
             }
 
-            return Response({
+            # Include last_updated timestamp
+            result = {
                 'date_range': {
                     'min_date': min_date,
                     'max_date': max_date,
                 },
+                'last_updated': timezone.now().isoformat(),
+                'data_source': 'realtime',
                 'summary': {
                     'total_tickets': total_tickets,
                     'assigned_tickets': assigned_tickets,
@@ -2856,7 +2921,13 @@ class AnalyticsView(APIView):
                 'by_criteria': criteria_stats,
                 'ads_product_output': ads_product_stats,
                 'telegram_product_output': telegram_product_stats,
-            })
+            }
+
+            # Cache the result before returning
+            cache.set(cache_key, result, CACHE_TTL_ANALYTICS)
+            logger.debug(f'Analytics cached for {date_from} to {date_to}')
+
+            return Response(result)
 
         except Exception as e:
             logger.error(f"Analytics error: {str(e)}")

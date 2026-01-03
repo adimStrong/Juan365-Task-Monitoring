@@ -193,6 +193,15 @@ const Analytics = () => {
           </div>
         ) : analytics ? (
           <>
+            {/* Last Updated Indicator */}
+            {analytics?.last_updated && (
+              <div className="flex justify-end mb-2">
+                <div className="text-xs text-gray-400">
+                  Last updated: {new Date(analytics.last_updated).toLocaleString()}
+                </div>
+              </div>
+            )}
+
             {/* Summary Cards - Row 1 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-lg shadow-sm p-6">

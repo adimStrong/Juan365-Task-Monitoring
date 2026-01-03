@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0020_add_last_approval_reminder_sent'),
+        ('api', '0020_add_overdue_reminder_field'),
     ]
 
     operations = [

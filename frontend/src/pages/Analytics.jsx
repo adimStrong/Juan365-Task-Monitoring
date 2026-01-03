@@ -113,11 +113,6 @@ const Analytics = () => {
     return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
   };
 
-  const formatNumber = (num) => {
-    if (num === null || num === undefined) return '-';
-    return num.toLocaleString();
-  };
-
   if (!isManager) {
     return null;
   }
@@ -198,49 +193,11 @@ const Analytics = () => {
           </div>
         ) : analytics ? (
           <>
-            {/* Overall Statistics - All Time */}
-            {analytics.overall && (
-              <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-lg p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Overall Statistics</h2>
-                    <p className="text-slate-300 text-sm">All-time metrics (not affected by date filter)</p>
-                  </div>
-                  <div className="bg-slate-600 px-3 py-1 rounded-full">
-                    <span className="text-emerald-400 font-semibold">ALL TIME</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Total Tickets</p>
-                    <p className="text-2xl font-bold text-white mt-1">{formatNumber(analytics.overall.total_tickets)}</p>
-                    <p className="text-xs text-slate-400">{formatNumber(analytics.overall.completed_tickets)} completed</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Total Output</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{formatNumber(analytics.overall.total_quantity_produced)}</p>
-                    <p className="text-xs text-slate-400">creatives produced</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Video Output</p>
-                    <p className="text-2xl font-bold text-blue-400 mt-1">{formatNumber(analytics.overall.video_quantity || 0)}</p>
-                    <p className="text-xs text-slate-400">video creatives</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Image Output</p>
-                    <p className="text-2xl font-bold text-pink-400 mt-1">{formatNumber(analytics.overall.image_quantity || 0)}</p>
-                    <p className="text-xs text-slate-400">image creatives</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Avg Time/Creative</p>
-                    <p className="text-2xl font-bold text-amber-400 mt-1">{formatSeconds(analytics.overall.avg_time_per_creative_seconds)}</p>
-                    <p className="text-xs text-slate-400">processing time</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-slate-400 text-xs uppercase tracking-wide">Completion Rate</p>
-                    <p className="text-2xl font-bold text-green-400 mt-1">{analytics.overall.completion_rate}%</p>
-                    <p className="text-xs text-slate-400">of assigned</p>
-                  </div>
+            {/* Last Updated Indicator */}
+            {analytics?.last_updated && (
+              <div className="flex justify-end mb-2">
+                <div className="text-xs text-gray-400">
+                  Last updated: {new Date(analytics.last_updated).toLocaleString()}
                 </div>
               </div>
             )}

@@ -310,62 +310,17 @@ class Command(BaseCommand):
         import subprocess
         import os
 
-        # Debug: Check what's available on the system
-        self.stdout.write('Checking system environment...')
-
-        # Check for chromium in common locations
-        chromium_locations = [
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-        ]
-
-        # Search PATH
-        import shutil
-        for cmd in ['chromium', 'chromium-browser', 'google-chrome']:
-            path = shutil.which(cmd)
-            if path:
-                chromium_locations.insert(0, path)
-                self.stdout.write(f'Found {cmd} in PATH: {path}')
-
-        # Search nix store
-        if os.path.exists('/nix/store'):
-            nix_entries = os.listdir('/nix/store')
-            self.stdout.write(f'Found {len(nix_entries)} entries in /nix/store')
-
-            # Find chromium and set up library paths
-            nix_lib_paths = []
-            for entry in nix_entries:
-                entry_path = f'/nix/store/{entry}'
-
-                # Look for chromium binary
-                for bin_name in ['bin/chromium', 'bin/chromium-browser', 'bin/google-chrome-stable']:
-                    chromium_bin = f'{entry_path}/{bin_name}'
-                    if os.path.exists(chromium_bin):
-                        chromium_locations.insert(0, chromium_bin)
-                        self.stdout.write(f'Found chromium in nix: {chromium_bin}')
-
-                # Collect library paths
-                lib_path = f'{entry_path}/lib'
-                if os.path.isdir(lib_path):
-                    nix_lib_paths.append(lib_path)
-
-            # Set LD_LIBRARY_PATH
-            if nix_lib_paths:
-                existing_ld = os.environ.get('LD_LIBRARY_PATH', '')
-                new_ld = ':'.join(nix_lib_paths)
-                os.environ['LD_LIBRARY_PATH'] = f'{new_ld}:{existing_ld}' if existing_ld else new_ld
-                self.stdout.write(f'Set LD_LIBRARY_PATH with {len(nix_lib_paths)} paths')
-
         # Install Playwright browser
         self.stdout.write('Installing Playwright chromium...')
-        result = subprocess.run(
-            ['playwright', 'install', 'chromium'],
+        subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True)
+
+        # Install system dependencies (required for Chromium to run)
+        self.stdout.write('Installing system dependencies...')
+        subprocess.run(
+            ['playwright', 'install-deps', 'chromium'],
             capture_output=True, text=True,
-            env=os.environ.copy()
+            env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'}
         )
-        self.stdout.write(f'Playwright install: {"OK" if result.returncode == 0 else result.stderr[:200]}')
 
         from playwright.async_api import async_playwright
 
@@ -383,39 +338,12 @@ class Command(BaseCommand):
         screenshots = []
 
         async with async_playwright() as p:
-            # Try system chromium paths
-            import shutil
-            possible_paths = [
-                '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/google-chrome',
-            ]
-
-            # Search in nix store for chromium
-            if os.path.exists('/nix/store'):
-                for entry in os.listdir('/nix/store'):
-                    chromium_bin = f'/nix/store/{entry}/bin/chromium'
-                    if os.path.exists(chromium_bin):
-                        possible_paths.insert(0, chromium_bin)
-                        break
-
-            # Also search in PATH
-            path_chromium = shutil.which('chromium') or shutil.which('chromium-browser')
-            if path_chromium:
-                possible_paths.insert(0, path_chromium)
-
-            chromium_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chromium_path = path
-                    break
-
-            if chromium_path:
-                self.stdout.write(f'Using system chromium: {chromium_path}')
-                browser = await p.chromium.launch(headless=True, executable_path=chromium_path, args=['--no-sandbox', '--disable-dev-shm-usage'])
-            else:
-                self.stdout.write('Using Playwright bundled chromium')
-                browser = await p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+            # Launch Playwright's bundled chromium
+            self.stdout.write('Launching browser...')
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+            )
             context = await browser.new_context(
                 viewport={'width': 1280, 'height': 800},
                 device_scale_factor=2  # High DPI for better quality

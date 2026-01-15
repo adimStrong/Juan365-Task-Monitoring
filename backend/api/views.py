@@ -2548,7 +2548,7 @@ class AnalyticsView(APIView):
                 elif 'JUANSPORTS' in name_upper or 'JUAN SPORTS' in name_upper:
                     return 'JuanSports'
                 elif 'DIGIADS' in name_upper or 'DIGI ADS' in name_upper:
-                    return 'DigiAds'
+                    return 'Juan365'
                 elif 'LIVESTREAM' in name_upper:
                     return 'Juan365 Livestream'
                 elif 'STUDIOS' in name_upper:

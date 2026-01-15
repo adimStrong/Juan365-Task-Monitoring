@@ -1,9 +1,10 @@
-// v1.0.2 - Force Vercel rebuild Dec 27 2025
+// v1.0.3 - React Query pagination with keepPreviousData
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ticketsAPI, usersAPI, departmentsAPI } from '../services/api';
+import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useTickets, usePrefetchTickets, useUsers, useDepartments } from '../hooks/useQueries';
 import Layout from '../components/Layout';
 import { TicketListSkeleton } from '../components/Skeleton';
 import TicketCard from '../components/TicketCard';
@@ -13,10 +14,6 @@ const TicketList = () => {
   const { user, isManager } = useAuth();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tickets, setTickets] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
   const [previewTicketId, setPreviewTicketId] = useState(null);
@@ -48,15 +45,51 @@ const TicketList = () => {
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('page_size') || '20', 10);
 
-  // Pagination state
-  const [paginationInfo, setPaginationInfo] = useState({
-    count: 0,
-    total_pages: 1,
-    current_page: 1,
-    page_size: 20,
-    next: null,
-    previous: null
-  });
+  // Build filters object for React Query
+  const filters = {
+    page: currentPage,
+    page_size: pageSize,
+    ...(statusFilter && { status: statusFilter }),
+    ...(priorityFilter && { priority: priorityFilter }),
+    ...(searchQuery && { search: searchQuery }),
+    ...(dateFrom && { created_after: dateFrom }),
+    ...(dateTo && { created_before: dateTo }),
+    ...(myTasksFilter && { my_tasks: myTasksFilter }),
+    ...(overdueFilter && { overdue: overdueFilter }),
+    ...(departmentFilter && { target_department: departmentFilter }),
+    ...(userFilter && { assigned_to: userFilter }),
+  };
+
+  // React Query hooks - keeps previous data while fetching new page!
+  const { data: ticketsData, isLoading, isFetching, refetch } = useTickets(filters);
+  const { data: users = [] } = useUsers();
+  const { data: departments = [] } = useDepartments();
+  const prefetchTickets = usePrefetchTickets();
+
+  // Extract tickets and pagination from response
+  const tickets = ticketsData?.results || ticketsData || [];
+  const paginationInfo = {
+    count: ticketsData?.count || tickets.length,
+    total_pages: ticketsData?.total_pages || 1,
+    current_page: ticketsData?.current_page || currentPage,
+    page_size: ticketsData?.page_size || pageSize,
+    next: ticketsData?.next || null,
+    previous: ticketsData?.previous || null,
+  };
+
+  // Prefetch adjacent pages on hover or after load
+  useEffect(() => {
+    if (paginationInfo.total_pages > 1) {
+      // Prefetch next page
+      if (currentPage < paginationInfo.total_pages) {
+        prefetchTickets({ ...filters, page: currentPage + 1 });
+      }
+      // Prefetch previous page
+      if (currentPage > 1) {
+        prefetchTickets({ ...filters, page: currentPage - 1 });
+      }
+    }
+  }, [currentPage, paginationInfo.total_pages]);
 
   // Sync local search with URL on mount
   useEffect(() => {
@@ -90,50 +123,11 @@ const TicketList = () => {
     };
   }, [localSearch]);
 
-  useEffect(() => {
-    fetchTickets();
-    fetchUsers();
-    fetchDepartments();
-  }, [statusFilter, priorityFilter, searchQuery, dateFrom, dateTo, myTasksFilter, overdueFilter, departmentFilter, userFilter, currentPage, pageSize]);
 
-  // Fetch users for assign modal
-  const fetchUsers = async () => {
-    try {
-      const response = await usersAPI.list();
-      const usersData = response.data;
-      setUsers(Array.isArray(usersData) ? usersData : (usersData.results || []));
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-    }
-  };
-
-  // Fetch departments for filter
-  const fetchDepartments = async () => {
-    try {
-      const response = await departmentsAPI.list();
-      setDepartments(response.data || []);
-    } catch (error) {
-      console.error('Failed to fetch departments:', error);
-    }
-  };
-
-  // Handle action from preview modal - update only that ticket, not full reload
+  // Handle action from preview modal - refetch list to get updated data
   const handleTicketAction = async (action, ticketId) => {
-    try {
-      // Fetch updated ticket data
-      const response = await ticketsAPI.get(ticketId);
-      const updatedTicket = response.data;
-
-      // Update only that ticket in the list
-      setTickets(prevTickets =>
-        prevTickets.map(t => t.id === ticketId ? updatedTicket : t)
-      );
-
-      toast.success(`Ticket ${action} successful!`);
-    } catch (error) {
-      // If ticket was moved (e.g., rejected), remove it from list
-      setTickets(prevTickets => prevTickets.filter(t => t.id !== ticketId));
-    }
+    toast.success(`Ticket ${action} successful!`);
+    refetch(); // Refresh the list with React Query
   };
 
   // Permission helper for inline actions
@@ -193,9 +187,8 @@ const TicketList = () => {
         await ticketsAPI.requestRevision(ticketId, { reason: 'Revision requested' });
       }
 
-      // Refresh the ticket
-      const response = await ticketsAPI.get(ticketId);
-      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      // Refresh the list
+      refetch();
       toast.success(`Ticket ${action} successful!`);
     } catch (error) {
       toast.error(error.response?.data?.error || `Failed to ${action}`);
@@ -214,8 +207,7 @@ const TicketList = () => {
     setActionLoading(ticketId);
     try {
       await ticketsAPI.reject(ticketId, { reason: rejectReason });
-      // Remove from list since rejected tickets go to trash
-      setTickets(prev => prev.filter(t => t.id !== ticketId));
+      refetch(); // Refresh the list
       toast.success('Ticket rejected!');
       setRejectModal({ show: false, ticketId: null });
     } catch (error) {
@@ -242,8 +234,7 @@ const TicketList = () => {
         await ticketsAPI.addCollaborator(ticketId, odIds);
       }
 
-      const response = await ticketsAPI.get(ticketId);
-      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      refetch(); // Refresh the list
       toast.success('Ticket assigned!');
       setAssignModal({ show: false, ticketId: null });
     } catch (error) {
@@ -270,8 +261,7 @@ const TicketList = () => {
     setActionLoading(ticketId);
     try {
       await ticketsAPI.complete(ticketId, actualEnd);
-      const response = await ticketsAPI.get(ticketId);
-      setTickets(prev => prev.map(t => t.id === ticketId ? response.data : t));
+      refetch(); // Refresh the list
       toast.success('Ticket completed!');
       setScheduledCompleteModal({ show: false, ticket: null });
       setActualEnd('');
@@ -289,56 +279,6 @@ const TicketList = () => {
       setViewMode(savedView);
     }
   }, []);
-
-  const fetchTickets = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        page: currentPage,
-        page_size: pageSize
-      };
-      if (statusFilter) params.status = statusFilter;
-      if (priorityFilter) params.priority = priorityFilter;
-      if (searchQuery) params.search = searchQuery;
-      if (dateFrom) params.created_after = dateFrom;
-      if (dateTo) params.created_before = dateTo;
-      if (myTasksFilter) params.my_tasks = myTasksFilter;
-      if (overdueFilter) params.overdue = overdueFilter;
-      if (departmentFilter) params.target_department = departmentFilter;
-      if (userFilter) params.assigned_to = userFilter;
-
-      const response = await ticketsAPI.list(params);
-      const data = response.data;
-
-      // Handle paginated response
-      if (data.results) {
-        setTickets(data.results);
-        setPaginationInfo({
-          count: data.count || 0,
-          total_pages: data.total_pages || 1,
-          current_page: data.current_page || 1,
-          page_size: data.page_size || pageSize,
-          next: data.next,
-          previous: data.previous
-        });
-      } else {
-        // Fallback for non-paginated response
-        setTickets(Array.isArray(data) ? data : []);
-        setPaginationInfo({
-          count: Array.isArray(data) ? data.length : 0,
-          total_pages: 1,
-          current_page: 1,
-          page_size: pageSize,
-          next: null,
-          previous: null
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch tickets:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFilterChange = (key, value) => {
     if (value) {
@@ -596,12 +536,22 @@ const TicketList = () => {
         </div>
 
         {/* Results count and Page Size Selector */}
-        {!loading && (
+        {!isLoading && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="text-sm text-gray-500">
-              Showing {tickets.length} of {paginationInfo.count} ticket{paginationInfo.count !== 1 ? 's' : ''}
-              {hasActiveFilters && ' (filtered)'}
-              {paginationInfo.total_pages > 1 && ` • Page ${paginationInfo.current_page} of ${paginationInfo.total_pages}`}
+            <div className="text-sm text-gray-500 flex items-center gap-2">
+              <span>
+                Showing {tickets.length} of {paginationInfo.count} ticket{paginationInfo.count !== 1 ? 's' : ''}
+                {hasActiveFilters && ' (filtered)'}
+                {paginationInfo.total_pages > 1 && ` • Page ${paginationInfo.current_page} of ${paginationInfo.total_pages}`}
+              </span>
+              {isFetching && (
+                <span className="inline-flex items-center text-blue-600">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600">Show:</label>
@@ -621,8 +571,8 @@ const TicketList = () => {
           </div>
         )}
 
-        {/* Loading State */}
-        {loading ? (
+        {/* Loading State - Only show skeleton on initial load, not page switches */}
+        {isLoading ? (
           <div className="space-y-4">
             <div className="flex flex-col items-center justify-center py-8">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
@@ -685,7 +635,7 @@ const TicketList = () => {
           </div>
         ) : viewMode === 'cards' ? (
           /* Card View */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity duration-150 ${isFetching ? 'opacity-60' : ''}`}>
             {tickets.map((ticket) => (
               <TicketCard
                 key={ticket.id}
@@ -696,7 +646,7 @@ const TicketList = () => {
           </div>
         ) : (
           /* Table View */
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className={`bg-white shadow rounded-lg overflow-hidden transition-opacity duration-150 ${isFetching ? 'opacity-60' : ''}`}>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -812,12 +762,12 @@ const TicketList = () => {
                           }
 
                           return (
-                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                            <div className="flex items-center justify-center gap-2 flex-wrap">
                               {perms.canApprove && (
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'approve', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 active:bg-green-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Approve"
                                 >
                                   {isLoading ? '...' : '✓'}
@@ -827,7 +777,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'reject', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 active:bg-red-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Reject"
                                 >
                                   {isLoading ? '...' : '✗'}
@@ -837,7 +787,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'assign', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 active:bg-blue-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Assign"
                                 >
                                   {isLoading ? '...' : 'Assign'}
@@ -847,7 +797,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'start', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 active:bg-yellow-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Start Editing"
                                 >
                                   {isLoading ? '...' : 'Start'}
@@ -857,7 +807,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'complete', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 active:bg-green-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Mark Complete"
                                 >
                                   {isLoading ? '...' : 'Done'}
@@ -867,7 +817,7 @@ const TicketList = () => {
                                 <button
                                   onClick={(e) => handleInlineAction(e, 'revision', ticket)}
                                   disabled={isLoading}
-                                  className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-2 min-h-[36px] sm:min-h-[32px] text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 active:bg-orange-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Request Revision"
                                 >
                                   {isLoading ? '...' : 'Revise'}
@@ -886,7 +836,7 @@ const TicketList = () => {
         )}
 
         {/* Pagination Controls */}
-        {!loading && paginationInfo.total_pages > 1 && (
+        {!isLoading && paginationInfo.total_pages > 1 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white shadow rounded-lg px-4 py-3">
             <div className="text-sm text-gray-600">
               Page {paginationInfo.current_page} of {paginationInfo.total_pages}
@@ -896,7 +846,7 @@ const TicketList = () => {
               <button
                 onClick={() => handlePageChange(1)}
                 disabled={paginationInfo.current_page === 1}
-                className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 min-h-[40px] sm:min-h-[36px] text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="First Page"
               >
                 ««
@@ -905,7 +855,7 @@ const TicketList = () => {
               <button
                 onClick={() => handlePageChange(paginationInfo.current_page - 1)}
                 disabled={!paginationInfo.previous}
-                className="px-4 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 min-h-[40px] sm:min-h-[36px] text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
@@ -929,10 +879,10 @@ const TicketList = () => {
                       <button
                         key={i}
                         onClick={() => handlePageChange(i)}
-                        className={`px-3 py-1 text-sm font-medium rounded-md ${
+                        className={`px-3 py-2 min-h-[36px] text-sm font-medium rounded-lg ${
                           i === current
                             ? 'bg-blue-600 text-white'
-                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                         }`}
                       >
                         {i}
@@ -946,7 +896,7 @@ const TicketList = () => {
               <button
                 onClick={() => handlePageChange(paginationInfo.current_page + 1)}
                 disabled={!paginationInfo.next}
-                className="px-4 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 min-h-[40px] sm:min-h-[36px] text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -954,7 +904,7 @@ const TicketList = () => {
               <button
                 onClick={() => handlePageChange(paginationInfo.total_pages)}
                 disabled={paginationInfo.current_page === paginationInfo.total_pages}
-                className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 min-h-[40px] sm:min-h-[36px] text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Last Page"
               >
                 »»

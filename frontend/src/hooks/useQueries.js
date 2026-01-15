@@ -100,10 +100,27 @@ export const useTickets = (filters = {}) => {
     queryKey: queryKeys.ticketsList(filters),
     queryFn: async () => {
       const response = await ticketsAPI.list(filters);
-      return response.data.results || response.data;
+      return response.data;
     },
     staleTime: 30 * 1000, // 30 seconds - tickets change frequently
+    placeholderData: (previousData) => previousData, // Keep previous data while loading new page
   });
+};
+
+// Prefetch next/previous pages for smooth pagination
+export const usePrefetchTickets = () => {
+  const queryClient = useQueryClient();
+
+  return (filters) => {
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.ticketsList(filters),
+      queryFn: async () => {
+        const response = await ticketsAPI.list(filters);
+        return response.data;
+      },
+      staleTime: 30 * 1000,
+    });
+  };
 };
 
 // ==================

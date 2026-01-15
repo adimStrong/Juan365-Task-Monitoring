@@ -2511,9 +2511,24 @@ class AnalyticsView(APIView):
             # Sort by total assigned descending
             user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
 
-            # Product breakdown - get actual quantities from TicketProductItem
+            # Product breakdown - combine regular products and Ads/Telegram products
             ticket_ids = [t.id for t in tickets_list]
-            product_items_by_product = TicketProductItem.objects.filter(
+
+            # 1. Regular products (from ticket.ticket_product) - excludes Ads/Telegram
+            regular_product_stats = tickets.filter(
+                ticket_product__isnull=False
+            ).exclude(
+                request_type__in=['ads', 'telegram_channel']
+            ).values('ticket_product__name').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
+                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
+            ).filter(ticket_product__name__isnull=False)
+
+            # 2. Ads/Telegram products (from TicketProductItem) - actual quantities
+            ads_product_stats = TicketProductItem.objects.filter(
                 ticket_id__in=ticket_ids
             ).values('product__name').annotate(
                 count=Count('ticket', distinct=True),
@@ -2521,19 +2536,31 @@ class AnalyticsView(APIView):
                 in_progress=Count('ticket', distinct=True, filter=Q(ticket__status=Ticket.Status.IN_PROGRESS)),
                 total_quantity=Sum('quantity'),
                 completed_quantity=Sum('quantity', filter=Q(ticket__status=Ticket.Status.COMPLETED))
-            ).filter(product__name__isnull=False).order_by('-total_quantity')
+            ).filter(product__name__isnull=False)
 
-            product_stats = [
-                {
+            # Combine both into product_stats
+            product_stats = []
+            for s in regular_product_stats:
+                product_stats.append({
+                    'product': s['ticket_product__name'],
+                    'count': s['count'] or 0,
+                    'completed': s['completed'] or 0,
+                    'in_progress': s['in_progress'] or 0,
+                    'total_quantity': s['total_quantity'] or 0,
+                    'completed_quantity': s['completed_quantity'] or 0
+                })
+            for s in ads_product_stats:
+                product_stats.append({
                     'product': s['product__name'],
                     'count': s['count'] or 0,
                     'completed': s['completed'] or 0,
                     'in_progress': s['in_progress'] or 0,
                     'total_quantity': s['total_quantity'] or 0,
                     'completed_quantity': s['completed_quantity'] or 0
-                }
-                for s in product_items_by_product
-            ]
+                })
+
+            # Sort by total_quantity descending
+            product_stats.sort(key=lambda x: x['total_quantity'], reverse=True)
 
             # Department breakdown (using target_department FK, fallback to old text field)
             department_stats = tickets.filter(

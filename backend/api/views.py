@@ -2511,20 +2511,29 @@ class AnalyticsView(APIView):
             # Sort by total assigned descending
             user_stats.sort(key=lambda x: x['total_assigned'], reverse=True)
 
-            # Product breakdown (using ticket_product FK, fallback to old text field)
-            product_stats = tickets.filter(
-                Q(ticket_product__isnull=False) | ~Q(product='')
-            ).annotate(
-                product_name=Coalesce(F('ticket_product__name'), F('product'))
-            ).values('product_name').annotate(
-                count=Count('id'),
-                completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
-                in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
-                total_quantity=Coalesce(Sum('quantity'), 0),
-                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
-            ).filter(product_name__isnull=False).exclude(product_name='').order_by('-total_quantity')
-            # Rename for frontend compatibility
-            product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]
+            # Product breakdown - get actual quantities from TicketProductItem
+            ticket_ids = [t.id for t in tickets_list]
+            product_items_by_product = TicketProductItem.objects.filter(
+                ticket_id__in=ticket_ids
+            ).values('product__name').annotate(
+                count=Count('ticket', distinct=True),
+                completed=Count('ticket', distinct=True, filter=Q(ticket__status=Ticket.Status.COMPLETED)),
+                in_progress=Count('ticket', distinct=True, filter=Q(ticket__status=Ticket.Status.IN_PROGRESS)),
+                total_quantity=Sum('quantity'),
+                completed_quantity=Sum('quantity', filter=Q(ticket__status=Ticket.Status.COMPLETED))
+            ).filter(product__name__isnull=False).order_by('-total_quantity')
+
+            product_stats = [
+                {
+                    'product': s['product__name'],
+                    'count': s['count'] or 0,
+                    'completed': s['completed'] or 0,
+                    'in_progress': s['in_progress'] or 0,
+                    'total_quantity': s['total_quantity'] or 0,
+                    'completed_quantity': s['completed_quantity'] or 0
+                }
+                for s in product_items_by_product
+            ]
 
             # Department breakdown (using target_department FK, fallback to old text field)
             department_stats = tickets.filter(

@@ -35,9 +35,24 @@ class Command(BaseCommand):
             action='store_true',
             help='Send only text summary without screenshots',
         )
+        parser.add_argument(
+            '--test-browser',
+            action='store_true',
+            help='Test if browser can launch without capturing or sending anything',
+        )
 
     def handle(self, *args, **options):
         self.stdout.write('Starting daily report generation...')
+
+        # Test browser mode - just check if browser can launch
+        if options.get('test_browser', False):
+            self.stdout.write('Testing browser launch only...')
+            try:
+                asyncio.run(self.test_browser_launch())
+                self.stdout.write(self.style.SUCCESS('Browser test PASSED!'))
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Browser test FAILED: {e}'))
+            return
 
         dry_run = options.get('dry_run', False)
         skip_screenshots = options.get('skip_screenshots', False)
@@ -206,38 +221,140 @@ class Command(BaseCommand):
 • In Progress: {in_progress}
 • Overdue: {overdue}"""
 
+    async def test_browser_launch(self):
+        """Test if Playwright browser can launch successfully"""
+        import subprocess
+        import os
+        import shutil
+
+        self.stdout.write('=== Browser Launch Test ===')
+
+        # Check nix store
+        if os.path.exists('/nix/store'):
+            entries = os.listdir('/nix/store')
+            self.stdout.write(f'/nix/store has {len(entries)} entries')
+
+            # Find glib
+            glib_found = False
+            chromium_found = False
+            nix_lib_paths = []
+
+            for entry in entries:
+                entry_path = f'/nix/store/{entry}'
+
+                # Check for glib
+                glib_lib = f'{entry_path}/lib/libglib-2.0.so.0'
+                if os.path.exists(glib_lib):
+                    glib_found = True
+                    self.stdout.write(f'Found libglib: {glib_lib}')
+
+                # Check for chromium
+                chromium_bin = f'{entry_path}/bin/chromium'
+                if os.path.exists(chromium_bin):
+                    chromium_found = True
+                    self.stdout.write(f'Found chromium: {chromium_bin}')
+
+                # Collect lib paths
+                lib_path = f'{entry_path}/lib'
+                if os.path.isdir(lib_path):
+                    nix_lib_paths.append(lib_path)
+
+            self.stdout.write(f'glib found: {glib_found}, chromium found: {chromium_found}')
+            self.stdout.write(f'Total lib paths: {len(nix_lib_paths)}')
+
+            # Set LD_LIBRARY_PATH
+            if nix_lib_paths:
+                os.environ['LD_LIBRARY_PATH'] = ':'.join(nix_lib_paths)
+                self.stdout.write('LD_LIBRARY_PATH set')
+        else:
+            self.stdout.write('/nix/store does not exist')
+
+        # Check PATH for chromium
+        chromium_path = shutil.which('chromium') or shutil.which('chromium-browser')
+        self.stdout.write(f'Chromium in PATH: {chromium_path}')
+
+        # Install playwright
+        self.stdout.write('Running playwright install...')
+        result = subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True, env=os.environ.copy())
+        self.stdout.write(f'Install result: {result.returncode}')
+
+        # Try to launch browser
+        self.stdout.write('Attempting browser launch...')
+        from playwright.async_api import async_playwright
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+            )
+            self.stdout.write('Browser launched successfully!')
+            page = await browser.new_page()
+            await page.goto('about:blank')
+            self.stdout.write('Page created and navigated!')
+            await browser.close()
+            self.stdout.write('Browser closed successfully!')
+
     async def capture_screenshots(self):
         """Capture Analytics page screenshots with T+1 date filter using Playwright"""
         import subprocess
         import os
-        import glob
 
-        # Set up LD_LIBRARY_PATH for nix store libraries
-        nix_lib_paths = []
+        # Debug: Check what's available on the system
+        self.stdout.write('Checking system environment...')
+
+        # Check for chromium in common locations
+        chromium_locations = [
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+        ]
+
+        # Search PATH
+        import shutil
+        for cmd in ['chromium', 'chromium-browser', 'google-chrome']:
+            path = shutil.which(cmd)
+            if path:
+                chromium_locations.insert(0, path)
+                self.stdout.write(f'Found {cmd} in PATH: {path}')
+
+        # Search nix store
         if os.path.exists('/nix/store'):
-            # Find all lib directories in nix store
-            for entry in os.listdir('/nix/store'):
-                lib_path = f'/nix/store/{entry}/lib'
+            nix_entries = os.listdir('/nix/store')
+            self.stdout.write(f'Found {len(nix_entries)} entries in /nix/store')
+
+            # Find chromium and set up library paths
+            nix_lib_paths = []
+            for entry in nix_entries:
+                entry_path = f'/nix/store/{entry}'
+
+                # Look for chromium binary
+                for bin_name in ['bin/chromium', 'bin/chromium-browser', 'bin/google-chrome-stable']:
+                    chromium_bin = f'{entry_path}/{bin_name}'
+                    if os.path.exists(chromium_bin):
+                        chromium_locations.insert(0, chromium_bin)
+                        self.stdout.write(f'Found chromium in nix: {chromium_bin}')
+
+                # Collect library paths
+                lib_path = f'{entry_path}/lib'
                 if os.path.isdir(lib_path):
                     nix_lib_paths.append(lib_path)
-                # Also check for lib64
-                lib64_path = f'/nix/store/{entry}/lib64'
-                if os.path.isdir(lib64_path):
-                    nix_lib_paths.append(lib64_path)
 
-        if nix_lib_paths:
-            existing_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
-            new_ld_path = ':'.join(nix_lib_paths)
-            if existing_ld_path:
-                new_ld_path = f'{new_ld_path}:{existing_ld_path}'
-            os.environ['LD_LIBRARY_PATH'] = new_ld_path
-            self.stdout.write(f'Set LD_LIBRARY_PATH with {len(nix_lib_paths)} nix lib paths')
+            # Set LD_LIBRARY_PATH
+            if nix_lib_paths:
+                existing_ld = os.environ.get('LD_LIBRARY_PATH', '')
+                new_ld = ':'.join(nix_lib_paths)
+                os.environ['LD_LIBRARY_PATH'] = f'{new_ld}:{existing_ld}' if existing_ld else new_ld
+                self.stdout.write(f'Set LD_LIBRARY_PATH with {len(nix_lib_paths)} paths')
 
-        # Ensure Playwright browser is installed
-        self.stdout.write('Checking Playwright browser...')
-        result = subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True)
-        if result.returncode != 0:
-            self.stdout.write(f'Playwright install output: {result.stderr}')
+        # Install Playwright browser
+        self.stdout.write('Installing Playwright chromium...')
+        result = subprocess.run(
+            ['playwright', 'install', 'chromium'],
+            capture_output=True, text=True,
+            env=os.environ.copy()
+        )
+        self.stdout.write(f'Playwright install: {"OK" if result.returncode == 0 else result.stderr[:200]}')
 
         from playwright.async_api import async_playwright
 

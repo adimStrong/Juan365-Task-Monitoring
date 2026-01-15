@@ -3085,6 +3085,11 @@ class TriggerDailyReportView(APIView):
     """
     Trigger daily report via HTTP. Protected by token.
     Called by external cron service (e.g., UptimeRobot) at 8:00 AM Manila.
+
+    Query params:
+    - token: required, must match CRON_SECRET_TOKEN
+    - test_browser: optional, if 'true' will only test browser launch without sending report
+    - dry_run: optional, if 'true' will calculate metrics without sending to Telegram
     """
     permission_classes = [AllowAny]
 
@@ -3098,8 +3103,18 @@ class TriggerDailyReportView(APIView):
         from io import StringIO
         output = StringIO()
 
+        # Build command arguments
+        cmd_kwargs = {'stdout': output}
+
+        if request.query_params.get('test_browser') == 'true':
+            cmd_kwargs['test_browser'] = True
+        if request.query_params.get('dry_run') == 'true':
+            cmd_kwargs['dry_run'] = True
+        if request.query_params.get('skip_screenshots') == 'true':
+            cmd_kwargs['skip_screenshots'] = True
+
         try:
-            call_command('send_daily_report', stdout=output)
+            call_command('send_daily_report', **cmd_kwargs)
             return Response({"status": "ok", "output": output.getvalue()})
         except Exception as e:
             return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -209,6 +209,29 @@ class Command(BaseCommand):
     async def capture_screenshots(self):
         """Capture Analytics page screenshots with T+1 date filter using Playwright"""
         import subprocess
+        import os
+        import glob
+
+        # Set up LD_LIBRARY_PATH for nix store libraries
+        nix_lib_paths = []
+        if os.path.exists('/nix/store'):
+            # Find all lib directories in nix store
+            for entry in os.listdir('/nix/store'):
+                lib_path = f'/nix/store/{entry}/lib'
+                if os.path.isdir(lib_path):
+                    nix_lib_paths.append(lib_path)
+                # Also check for lib64
+                lib64_path = f'/nix/store/{entry}/lib64'
+                if os.path.isdir(lib64_path):
+                    nix_lib_paths.append(lib64_path)
+
+        if nix_lib_paths:
+            existing_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+            new_ld_path = ':'.join(nix_lib_paths)
+            if existing_ld_path:
+                new_ld_path = f'{new_ld_path}:{existing_ld_path}'
+            os.environ['LD_LIBRARY_PATH'] = new_ld_path
+            self.stdout.write(f'Set LD_LIBRARY_PATH with {len(nix_lib_paths)} nix lib paths')
 
         # Ensure Playwright browser is installed
         self.stdout.write('Checking Playwright browser...')
@@ -233,16 +256,22 @@ class Command(BaseCommand):
 
         async with async_playwright() as p:
             # Try system chromium paths
-            import os
+            import shutil
             possible_paths = [
                 '/usr/bin/chromium',
                 '/usr/bin/chromium-browser',
                 '/usr/bin/google-chrome',
-                '/nix/store/chromium/bin/chromium',
             ]
 
+            # Search in nix store for chromium
+            if os.path.exists('/nix/store'):
+                for entry in os.listdir('/nix/store'):
+                    chromium_bin = f'/nix/store/{entry}/bin/chromium'
+                    if os.path.exists(chromium_bin):
+                        possible_paths.insert(0, chromium_bin)
+                        break
+
             # Also search in PATH
-            import shutil
             path_chromium = shutil.which('chromium') or shutil.which('chromium-browser')
             if path_chromium:
                 possible_paths.insert(0, path_chromium)

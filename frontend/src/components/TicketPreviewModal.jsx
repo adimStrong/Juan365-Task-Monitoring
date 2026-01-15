@@ -364,8 +364,8 @@ const TicketPreviewModal = ({ ticketId, onClose, currentUser, isManager, users, 
                                 {att.file_name?.split('.').pop()?.toUpperCase()}
                               </span>
                             </div>
-                            {/* Hover overlay with filename */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Filename overlay - always visible on mobile */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <p className="text-xs text-white truncate" title={att.file_name}>
                                 {att.file_name}
                               </p>

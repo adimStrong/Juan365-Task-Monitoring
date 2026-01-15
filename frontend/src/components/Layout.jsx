@@ -1,7 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationsAPI } from '../services/api';
+import { ROUTES } from '../constants/routes';
 
 const Layout = ({ children }) => {
   const { user, logout, isManager } = useAuth();
@@ -9,30 +10,48 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const abortControllerRef = useRef(null);
+
+  // Memoized fetch function with AbortController for cleanup
+  const fetchUnreadCount = useCallback(async () => {
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const response = await notificationsAPI.getUnreadCount();
+      setUnreadCount(response.data.unread_count);
+    } catch (error) {
+      // Ignore abort errors
+      if (error.name !== 'AbortError') {
+        console.error('Failed to fetch unread count');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+
+    return () => {
+      clearInterval(interval);
+      // Cleanup pending request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchUnreadCount]);
 
   // Close sidebar on route change
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await notificationsAPI.getUnreadCount();
-      setUnreadCount(response.data.unread_count);
-    } catch (error) {
-      console.error('Failed to fetch unread count');
-    }
-  };
-
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate(ROUTES.LOGIN);
   };
 
   const isActive = (path) => location.pathname === path;
@@ -70,7 +89,7 @@ const Layout = ({ children }) => {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-2 text-gray-500 hover:text-gray-700"
+            className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg active:bg-gray-200 touch-manipulation"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -144,10 +163,10 @@ const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
-              {/* Mobile Hamburger Button */}
+              {/* Mobile Hamburger Button - min 44px touch target */}
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="sm:hidden p-2 mr-2 text-gray-500 hover:text-gray-700"
+                className="sm:hidden p-3 mr-1 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg active:bg-gray-200 touch-manipulation"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -252,16 +271,16 @@ const Layout = ({ children }) => {
                 )}
               </Link>
 
-              {/* Mobile Notifications Icon */}
+              {/* Mobile Notifications Icon - min 44px touch target */}
               <Link
-                to="/notifications"
-                className="relative p-2 text-gray-500 hover:text-gray-700 sm:hidden"
+                to={ROUTES.NOTIFICATIONS}
+                className="relative p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg active:bg-gray-200 touch-manipulation sm:hidden"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {unreadCount > 0 && (
-                  <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                  <span className="absolute top-1 right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
                     {unreadCount}
                   </span>
                 )}
@@ -306,7 +325,7 @@ const Layout = ({ children }) => {
             </div>
             <button
               onClick={handleLogout}
-              className="flex-shrink-0 px-3 py-1.5 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600"
+              className="flex-shrink-0 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 active:bg-red-700 touch-manipulation"
             >
               Logout
             </button>

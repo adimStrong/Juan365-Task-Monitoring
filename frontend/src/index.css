@@ -23,3 +23,26 @@ body {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out forwards;
 }
+
+/* Mobile touch optimization - prevent double-tap zoom delays */
+button,
+a,
+[role="button"],
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Ensure minimum touch target sizes on mobile */
+@media (max-width: 640px) {
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Improve tap feedback on mobile */
+button:active,
+a:active,
+[role="button"]:active {
+  opacity: 0.8;
+}

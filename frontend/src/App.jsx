@@ -2,6 +2,9 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { ROUTES } from './constants/routes';
+import ErrorBoundary from './components/ErrorBoundary';
+import RoleProtectedRoute from './components/RoleProtectedRoute';
 
 // Eager load auth pages (needed immediately)
 import Login from './pages/Login';
@@ -18,6 +21,7 @@ const Users = lazy(() => import('./pages/Users'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Trash = lazy(() => import('./pages/Trash'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Loading spinner for lazy loaded components
 const PageLoader = () => (
@@ -35,7 +39,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={ROUTES.LOGIN} replace />;
   }
 
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -50,7 +54,7 @@ const PublicRoute = ({ children }) => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTES.HOME} replace />;
   }
 
   return children;
@@ -59,8 +63,9 @@ const PublicRoute = ({ children }) => {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Public Routes */}
       <Route
-        path="/login"
+        path={ROUTES.LOGIN}
         element={
           <PublicRoute>
             <Login />
@@ -68,15 +73,17 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/register"
+        path={ROUTES.REGISTER}
         element={
           <PublicRoute>
             <Register />
           </PublicRoute>
         }
       />
+
+      {/* Protected Routes - All authenticated users */}
       <Route
-        path="/"
+        path={ROUTES.HOME}
         element={
           <ProtectedRoute>
             <Dashboard />
@@ -84,7 +91,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/tickets"
+        path={ROUTES.TICKETS}
         element={
           <ProtectedRoute>
             <TicketList />
@@ -92,7 +99,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/tickets/new"
+        path={ROUTES.TICKETS_NEW}
         element={
           <ProtectedRoute>
             <CreateTicket />
@@ -108,7 +115,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/notifications"
+        path={ROUTES.NOTIFICATIONS}
         element={
           <ProtectedRoute>
             <Notifications />
@@ -116,46 +123,65 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/activity"
+        path={ROUTES.ACTIVITY}
         element={
           <ProtectedRoute>
             <ActivityLog />
           </ProtectedRoute>
         }
       />
+
+      {/* Protected Routes - Manager/Admin only */}
       <Route
-        path="/users"
+        path={ROUTES.USERS}
         element={
           <ProtectedRoute>
-            <Users />
+            <RoleProtectedRoute requiredRole="manager">
+              <Users />
+            </RoleProtectedRoute>
           </ProtectedRoute>
         }
       />
       <Route
-        path="/admin"
+        path={ROUTES.ADMIN}
         element={
           <ProtectedRoute>
-            <Admin />
+            <RoleProtectedRoute requiredRole="manager">
+              <Admin />
+            </RoleProtectedRoute>
           </ProtectedRoute>
         }
       />
       <Route
-        path="/trash"
+        path={ROUTES.TRASH}
         element={
           <ProtectedRoute>
-            <Trash />
+            <RoleProtectedRoute requiredRole="manager">
+              <Trash />
+            </RoleProtectedRoute>
           </ProtectedRoute>
         }
       />
       <Route
-        path="/analytics"
+        path={ROUTES.ANALYTICS}
         element={
           <ProtectedRoute>
-            <Analytics />
+            <RoleProtectedRoute requiredRole="manager">
+              <Analytics />
+            </RoleProtectedRoute>
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+
+      {/* 404 Not Found */}
+      <Route
+        path="*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <NotFound />
+          </Suspense>
+        }
+      />
     </Routes>
   );
 }
@@ -163,11 +189,13 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

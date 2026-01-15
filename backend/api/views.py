@@ -2538,26 +2538,54 @@ class AnalyticsView(APIView):
                 completed_quantity=Sum('quantity', filter=Q(ticket__status=Ticket.Status.COMPLETED))
             ).filter(product__name__isnull=False)
 
-            # Combine both into product_stats
-            product_stats = []
+            # Group products by brand name
+            def get_brand(product_name):
+                name_upper = (product_name or '').upper()
+                if 'JUAN365' in name_upper:
+                    return 'Juan365'
+                elif 'JUANBINGO' in name_upper or 'JUAN BINGO' in name_upper:
+                    return 'Juan Bingo'
+                elif 'JUANSPORTS' in name_upper or 'JUAN SPORTS' in name_upper:
+                    return 'JuanSports'
+                elif 'DIGIADS' in name_upper or 'DIGI ADS' in name_upper:
+                    return 'DigiAds'
+                elif 'LIVESTREAM' in name_upper:
+                    return 'Juan365 Livestream'
+                elif 'STUDIOS' in name_upper:
+                    return 'Juan365 Studios'
+                else:
+                    return product_name  # Keep original if no brand match
+
+            # Combine and group by brand
+            brand_totals = {}
+
+            # Add regular products
             for s in regular_product_stats:
-                product_stats.append({
-                    'product': s['ticket_product__name'],
-                    'count': s['count'] or 0,
-                    'completed': s['completed'] or 0,
-                    'in_progress': s['in_progress'] or 0,
-                    'total_quantity': s['total_quantity'] or 0,
-                    'completed_quantity': s['completed_quantity'] or 0
-                })
+                brand = get_brand(s['ticket_product__name'])
+                if brand not in brand_totals:
+                    brand_totals[brand] = {'count': 0, 'completed': 0, 'in_progress': 0, 'total_quantity': 0, 'completed_quantity': 0}
+                brand_totals[brand]['count'] += s['count'] or 0
+                brand_totals[brand]['completed'] += s['completed'] or 0
+                brand_totals[brand]['in_progress'] += s['in_progress'] or 0
+                brand_totals[brand]['total_quantity'] += s['total_quantity'] or 0
+                brand_totals[brand]['completed_quantity'] += s['completed_quantity'] or 0
+
+            # Add Ads/Telegram products
             for s in ads_product_stats:
-                product_stats.append({
-                    'product': s['product__name'],
-                    'count': s['count'] or 0,
-                    'completed': s['completed'] or 0,
-                    'in_progress': s['in_progress'] or 0,
-                    'total_quantity': s['total_quantity'] or 0,
-                    'completed_quantity': s['completed_quantity'] or 0
-                })
+                brand = get_brand(s['product__name'])
+                if brand not in brand_totals:
+                    brand_totals[brand] = {'count': 0, 'completed': 0, 'in_progress': 0, 'total_quantity': 0, 'completed_quantity': 0}
+                brand_totals[brand]['count'] += s['count'] or 0
+                brand_totals[brand]['completed'] += s['completed'] or 0
+                brand_totals[brand]['in_progress'] += s['in_progress'] or 0
+                brand_totals[brand]['total_quantity'] += s['total_quantity'] or 0
+                brand_totals[brand]['completed_quantity'] += s['completed_quantity'] or 0
+
+            # Convert to list
+            product_stats = [
+                {'product': brand, **totals}
+                for brand, totals in brand_totals.items()
+            ]
 
             # Sort by total_quantity descending
             product_stats.sort(key=lambda x: x['total_quantity'], reverse=True)

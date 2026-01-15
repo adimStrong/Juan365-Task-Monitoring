@@ -22,4 +22,4 @@ cmds = [
 ]
 
 [start]
-cmd = "python manage.py migrate --noinput && gunicorn ticketing.wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "playwright install chromium && python manage.py migrate --noinput && gunicorn ticketing.wsgi:application --bind 0.0.0.0:$PORT"

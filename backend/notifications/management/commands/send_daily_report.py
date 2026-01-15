@@ -208,6 +208,14 @@ class Command(BaseCommand):
 
     async def capture_screenshots(self):
         """Capture Analytics page screenshots with T+1 date filter using Playwright"""
+        import subprocess
+
+        # Ensure Playwright browser is installed
+        self.stdout.write('Checking Playwright browser...')
+        result = subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True)
+        if result.returncode != 0:
+            self.stdout.write(f'Playwright install output: {result.stderr}')
+
         from playwright.async_api import async_playwright
 
         frontend_url = getattr(settings, 'FRONTEND_URL', '')

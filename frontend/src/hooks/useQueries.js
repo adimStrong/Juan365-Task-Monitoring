@@ -64,6 +64,35 @@ export const useDashboardStats = () => {
 };
 
 // ==================
+// MY TASKS (cached for 1 minute)
+// ==================
+export const useMyTasks = () => {
+  return useQuery({
+    queryKey: queryKeys.myTasks,
+    queryFn: async () => {
+      const response = await dashboardAPI.getMyTasks();
+      return response.data.results || response.data;
+    },
+    staleTime: 60 * 1000,
+  });
+};
+
+// ==================
+// PENDING APPROVALS (cached for 1 minute, managers only)
+// ==================
+export const usePendingApprovals = (isManager = false) => {
+  return useQuery({
+    queryKey: queryKeys.pendingApprovals,
+    queryFn: async () => {
+      const response = await dashboardAPI.getPendingApprovals();
+      return response.data;
+    },
+    enabled: isManager, // Only fetch for managers
+    staleTime: 60 * 1000,
+  });
+};
+
+// ==================
 // TICKETS LIST (cached for 30 seconds)
 // ==================
 export const useTickets = (filters = {}) => {

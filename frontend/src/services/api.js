@@ -228,6 +228,9 @@ export const dashboardAPI = {
 
   getOverdue: () =>
     api.get('/dashboard/overdue/'),
+
+  getPendingApprovals: () =>
+    api.get('/dashboard/pending-approvals/'),
 };
 
 // Analytics API

@@ -687,12 +687,12 @@ const Analytics = () => {
                       <div key={stat.product} className="border rounded-lg p-3">
                         <h4 className="font-medium text-gray-900 text-sm truncate">{stat.product}</h4>
                         <div className="mt-1 flex items-baseline space-x-2">
-                          <span className="text-xl font-bold text-gray-900">{stat.count}</span>
-                          <span className="text-xs text-gray-500">tickets</span>
-                          <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">{stat.total_quantity ?? 0} qty</span>
+                          <span className="text-xl font-bold text-gray-900">{stat.total_quantity ?? 0}</span>
+                          <span className="text-xs text-gray-500">creatives</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{stat.count} tickets</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs">
-                          <span className="text-green-600">{stat.completed} done</span>
+                          <span className="text-green-600">{stat.completed_quantity ?? 0} done</span>
                           <span className="text-yellow-600">{stat.in_progress} active</span>
                         </div>
                       </div>

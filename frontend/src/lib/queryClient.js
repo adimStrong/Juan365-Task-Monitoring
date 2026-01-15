@@ -29,6 +29,8 @@ export const queryKeys = {
   // Dashboard
   dashboard: ['dashboard'],
   dashboardStats: ['dashboard', 'stats'],
+  myTasks: ['dashboard', 'my-tasks'],
+  pendingApprovals: ['dashboard', 'pending-approvals'],
 
   // Users
   users: ['users'],

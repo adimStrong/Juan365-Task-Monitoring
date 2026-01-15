@@ -7,9 +7,11 @@ from .views import (
     TicketViewSet, AttachmentDeleteView,
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
+    PendingApprovalsByDeptView,
     ActivityLogListView, AnalyticsView,
     DepartmentViewSet, ProductViewSet, PublicDepartmentListView,
-    ForgotPasswordView, ResetPasswordView, HealthCheckView, TriggerOverdueRemindersView
+    ForgotPasswordView, ResetPasswordView, HealthCheckView, TriggerOverdueRemindersView,
+    TriggerDailyReportView
 )
 
 router = DefaultRouter()
@@ -43,6 +45,7 @@ urlpatterns = [
     path('dashboard/my-tasks/', MyTasksView.as_view(), name='my-tasks'),
     path('dashboard/team-overview/', TeamOverviewView.as_view(), name='team-overview'),
     path('dashboard/overdue/', OverdueTicketsView.as_view(), name='overdue-tickets'),
+    path('dashboard/pending-approvals/', PendingApprovalsByDeptView.as_view(), name='pending-approvals'),
 
     # Activity logs
     path('activities/', ActivityLogListView.as_view(), name='activity-list'),
@@ -53,6 +56,7 @@ urlpatterns = [
     # Health check (for uptime monitoring)
     path('health/', HealthCheckView.as_view(), name='health-check'),
     
-    # Cron endpoint for overdue reminders
+    # Cron endpoints
     path('cron/overdue-reminders/', TriggerOverdueRemindersView.as_view(), name='trigger-overdue'),
+    path('cron/daily-report/', TriggerDailyReportView.as_view(), name='trigger-daily-report'),
 ]

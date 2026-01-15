@@ -843,9 +843,10 @@ class TicketViewSet(viewsets.ModelViewSet):
                 status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
             )
 
-            # For managers: also include approval tickets
+            # For managers: also include tickets awaiting THEIR specific approval
             if user.is_manager:
                 approval_tickets = queryset.filter(
+                    pending_approver=user,
                     status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE]
                 )
                 my_queryset = (my_queryset | approval_tickets).distinct()
@@ -2075,10 +2076,13 @@ class MyTasksView(generics.ListAPIView):
             status__in=[Ticket.Status.COMPLETED, Ticket.Status.REJECTED]
         )
 
-        # For managers, also include tickets that need their approval
+        # For managers, also include tickets that need THEIR specific approval
         if user.is_manager:
-            # Tickets needing approval that the manager should review
+            # Only show tickets where THIS user is the pending_approver
+            # This ensures dept managers only see their dept's tickets
+            # and Creative manager only sees tickets awaiting creative approval
             approval_tickets = Ticket.objects.filter(
+                pending_approver=user,
                 status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE]
             )
             # Combine both querysets
@@ -2104,20 +2108,11 @@ class MyTasksView(generics.ListAPIView):
 
         # Add task_type field to each ticket
         for ticket_data in data:
-            status = ticket_data.get('status')
-            assigned_to = ticket_data.get('assigned_to')
-            assigned_to_id = assigned_to.get('id') if isinstance(assigned_to, dict) else None
+            pending_approver = ticket_data.get('pending_approver')
+            pending_approver_id = pending_approver.get('id') if isinstance(pending_approver, dict) else None
 
-            # Check collaborators
-            collaborator_ids = []
-            for c in ticket_data.get('collaborators', []):
-                c_user = c.get('user', {})
-                if isinstance(c_user, dict):
-                    collaborator_ids.append(c_user.get('id'))
-
-            is_assigned = (assigned_to_id == user.id) or (user.id in collaborator_ids)
-
-            if status in ['requested', 'pending_creative'] and user.is_manager and not is_assigned:
+            # If user is the pending_approver, this is an approval task
+            if pending_approver_id == user.id:
                 ticket_data['task_type'] = 'needs_approval'
             else:
                 ticket_data['task_type'] = 'assigned'
@@ -2159,6 +2154,46 @@ class OverdueTicketsView(generics.ListAPIView):
             )
 
         return queryset
+
+
+class PendingApprovalsByDeptView(APIView):
+    """
+    Get pending approvals grouped by department approver.
+    Shows which dept managers have tickets awaiting their approval.
+    Only accessible by managers/admins.
+    """
+    permission_classes = [IsManagerUser]
+
+    def get(self, request):
+        # Get all departments with their managers
+        departments = Department.objects.filter(
+            is_active=True,
+            manager__isnull=False
+        ).select_related('manager')
+
+        result = []
+        for dept in departments:
+            # Count tickets awaiting this manager's approval
+            pending_count = Ticket.objects.filter(
+                pending_approver=dept.manager,
+                status__in=[Ticket.Status.REQUESTED, Ticket.Status.PENDING_CREATIVE],
+                is_deleted=False
+            ).count()
+
+            if pending_count > 0:
+                result.append({
+                    'department_id': dept.id,
+                    'department_name': dept.name,
+                    'is_creative': dept.is_creative,
+                    'approver_id': dept.manager.id,
+                    'approver_name': dept.manager.get_full_name() or dept.manager.username,
+                    'pending_count': pending_count
+                })
+
+        # Sort by pending count descending
+        result.sort(key=lambda x: x['pending_count'], reverse=True)
+
+        return Response(result)
 
 
 # =====================
@@ -2487,7 +2522,7 @@ class AnalyticsView(APIView):
                 in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
                 total_quantity=Coalesce(Sum('quantity'), 0),
                 completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
-            ).filter(product_name__isnull=False).exclude(product_name='').order_by('-count')
+            ).filter(product_name__isnull=False).exclude(product_name='').order_by('-total_quantity')
             # Rename for frontend compatibility
             product_stats = [{'product': s['product_name'], **{k: v for k, v in s.items() if k != 'product_name'}} for s in product_stats]
 
@@ -2977,6 +3012,30 @@ class TriggerOverdueRemindersView(APIView):
         output = StringIO()
         try:
             call_command('send_overdue_reminders', stdout=output)
+            return Response({"status": "ok", "output": output.getvalue()})
+        except Exception as e:
+            return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TriggerDailyReportView(APIView):
+    """
+    Trigger daily report via HTTP. Protected by token.
+    Called by external cron service (e.g., UptimeRobot) at 8:00 AM Manila.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token', '')
+        expected_token = getattr(settings, 'CRON_SECRET_TOKEN', 'juan365-cron-secret-2024')
+        if token != expected_token:
+            return Response({"error": "Invalid token"}, status=status.HTTP_403_FORBIDDEN)
+
+        from django.core.management import call_command
+        from io import StringIO
+        output = StringIO()
+
+        try:
+            call_command('send_daily_report', stdout=output)
             return Response({"status": "ok", "output": output.getvalue()})
         except Exception as e:
             return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

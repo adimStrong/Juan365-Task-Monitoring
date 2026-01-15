@@ -1,13 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
-import { DashboardSkeleton } from '../components/Skeleton';
-import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  LineChart, Line, Legend, ResponsiveContainer
-} from 'recharts';
+import { useDashboardStats, useMyTasks, usePendingApprovals } from '../hooks/useQueries';
+
+// Lazy load charts to reduce initial bundle size (recharts is ~150KB)
+const DashboardCharts = lazy(() => import('../components/DashboardCharts'));
+
+// Chart loading skeleton
+const ChartsSkeleton = () => (
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="bg-white shadow rounded-lg p-4 sm:p-6">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
+        <div className="h-48 bg-gray-100 rounded animate-pulse"></div>
+      </div>
+    ))}
+  </div>
+);
 
 const StatCard = ({ title, value, color, icon, testId, to }) => {
   const content = (
@@ -36,34 +46,21 @@ const StatCard = ({ title, value, color, icon, testId, to }) => {
 
 const Dashboard = () => {
   const { user, isManager } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [myTasks, setMyTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
-  useEffect(() => {
-    fetchData();
+  // Use React Query hooks for caching and automatic refetching
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: myTasks = [], isLoading: tasksLoading } = useMyTasks();
+  const { data: pendingApprovals = [] } = usePendingApprovals(isManager);
 
+  const loading = statsLoading || tasksLoading;
+
+  useEffect(() => {
     // Handle resize for responsive charts
     const handleResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  const fetchData = async () => {
-    try {
-      const [statsRes, tasksRes] = await Promise.all([
-        dashboardAPI.getStats(),
-        dashboardAPI.getMyTasks(),
-      ]);
-      setStats(statsRes.data);
-      setMyTasks(tasksRes.data.results || tasksRes.data);
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getPriorityColor = (priority) => {
     const colors = {
@@ -110,12 +107,9 @@ const Dashboard = () => {
     );
   }
 
-  // Filter out zero values for pie chart
-  const statusChartData = stats?.status_chart?.filter(item => item.value > 0) || [];
-
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="dashboard-stats">
         {/* Welcome */}
         <div className="bg-white shadow rounded-lg p-6">
           <h1 className="text-2xl font-bold text-gray-900">
@@ -192,82 +186,10 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Status Pie Chart */}
-          <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Tickets by Status</h2>
-            {statusChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={isMobile ? 220 : 280}>
-                <PieChart>
-                  <Pie
-                    data={statusChartData}
-                    cx="50%"
-                    cy="40%"
-                    innerRadius={isMobile ? 25 : 35}
-                    outerRadius={isMobile ? 50 : 65}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name, value }) => `${value}`}
-                    labelLine={false}
-                  >
-                    {statusChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [value, name]} />
-                  <Legend
-                    layout="horizontal"
-                    verticalAlign="bottom"
-                    align="center"
-                    wrapperStyle={{
-                      paddingTop: '15px',
-                      fontSize: isMobile ? '10px' : '11px'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-36 sm:h-48 text-gray-500">
-                No tickets yet
-              </div>
-            )}
-          </div>
-
-          {/* Priority Bar Chart */}
-          <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Tickets by Priority</h2>
-            <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
-              <BarChart data={stats?.priority_chart || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: isMobile ? 10 : 12 }} />
-                <Tooltip />
-                <Bar dataKey="count" name="Tickets">
-                  {(stats?.priority_chart || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Weekly Trends Line Chart */}
-          <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Weekly Trends</h2>
-            <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
-              <LineChart data={stats?.weekly_chart || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" tick={{ fontSize: isMobile ? 10 : 12 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: isMobile ? 10 : 12 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
-                <Line type="monotone" dataKey="created" stroke="#3B82F6" name="Created" strokeWidth={2} />
-                <Line type="monotone" dataKey="completed" stroke="#10B981" name="Completed" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* Charts Row - Lazy Loaded */}
+        <Suspense fallback={<ChartsSkeleton />}>
+          <DashboardCharts stats={stats} isMobile={isMobile} />
+        </Suspense>
 
         {/* Quick Actions & My Tasks */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -360,6 +282,43 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+
+        {/* Pending Approvals by Department (Managers only) */}
+        {isManager && pendingApprovals.length > 0 && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium text-gray-900">Pending Approvals by Approver</h2>
+              <span className="text-sm text-gray-500">
+                {pendingApprovals.reduce((sum, item) => sum + item.pending_count, 0)} total
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pendingApprovals.map((item) => (
+                <div
+                  key={item.department_id}
+                  className={`p-4 border rounded-lg ${
+                    item.is_creative ? 'border-purple-300 bg-purple-50' : 'border-blue-300 bg-blue-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{item.approver_name}</p>
+                      <p className="text-sm text-gray-500">{item.department_name}</p>
+                    </div>
+                    <span className={`px-3 py-1 text-lg font-bold rounded-full ${
+                      item.is_creative ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
+                    }`}>
+                      {item.pending_count}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {item.is_creative ? 'Creative Approval' : 'Dept Approval'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

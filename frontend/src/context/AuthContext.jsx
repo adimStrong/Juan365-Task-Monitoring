@@ -1,7 +1,27 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, dashboardAPI, ticketsAPI } from '../services/api';
+import { queryClient, queryKeys } from '../lib/queryClient';
 
 const AuthContext = createContext(null);
+
+// Prefetch common data after authentication for faster navigation
+const prefetchCommonData = () => {
+  // Prefetch dashboard stats
+  queryClient.prefetchQuery({
+    queryKey: queryKeys.dashboardStats,
+    queryFn: () => dashboardAPI.getStats().then(res => res.data),
+  });
+  // Prefetch my tasks
+  queryClient.prefetchQuery({
+    queryKey: queryKeys.myTasks,
+    queryFn: () => dashboardAPI.getMyTasks().then(res => res.data.results || res.data),
+  });
+  // Prefetch ticket list (first page)
+  queryClient.prefetchQuery({
+    queryKey: queryKeys.ticketsList({}),
+    queryFn: () => ticketsAPI.list({}).then(res => res.data.results || res.data),
+  });
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -25,6 +45,8 @@ export const AuthProvider = ({ children }) => {
       try {
         const response = await authAPI.getMe();
         setUser(response.data);
+        // Prefetch common data for faster navigation
+        prefetchCommonData();
       } catch (error) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -42,6 +64,9 @@ export const AuthProvider = ({ children }) => {
 
     const userResponse = await authAPI.getMe();
     setUser(userResponse.data);
+
+    // Prefetch common data for faster navigation after login
+    prefetchCommonData();
 
     return userResponse.data;
   };

@@ -240,3 +240,8 @@ TELEGRAM_GROUP_CHAT_ID = os.environ.get('TELEGRAM_GROUP_CHAT_ID', '')
 TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', '')
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://juan365-ticketing-frontend.vercel.app')
+
+# Daily Report Settings (for screenshot capture)
+REPORT_USERNAME = os.environ.get('REPORT_USERNAME', '')
+REPORT_PASSWORD = os.environ.get('REPORT_PASSWORD', '')
+CRON_SECRET_TOKEN = os.environ.get('CRON_SECRET_TOKEN', '')

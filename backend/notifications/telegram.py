@@ -486,4 +486,115 @@ You will receive alerts for:
 • Idle task warnings
 '''
     return send_telegram_message(chat_id, message)
+
+
+def send_telegram_photo(chat_id: str, photo_bytes: bytes, caption: str = None) -> bool:
+    """
+    Send a photo to Telegram chat
+
+    Args:
+        chat_id: Telegram chat ID
+        photo_bytes: Image bytes (PNG/JPG)
+        caption: Optional caption for the photo
+
+    Returns:
+        True if sent successfully
+    """
+    if not chat_id:
+        logger.warning('No chat_id provided for Telegram photo')
+        return False
+
+    api_url = get_api_url()
+    if not api_url:
+        logger.warning('Telegram bot token not configured')
+        return False
+
+    try:
+        url = f'{api_url}/sendPhoto'
+        files = {'photo': ('report.png', photo_bytes, 'image/png')}
+        data = {'chat_id': chat_id}
+        if caption:
+            data['caption'] = caption
+            data['parse_mode'] = 'HTML'
+
+        response = requests.post(url, files=files, data=data, timeout=30)
+        response.raise_for_status()
+
+        result = response.json()
+        if result.get('ok'):
+            logger.info(f'Telegram photo sent to {chat_id}')
+            return True
+        else:
+            logger.error(f'Telegram API error: {result}')
+            return False
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f'Failed to send Telegram photo: {e}')
+        return False
+
+
+def send_telegram_media_group(chat_id: str, photos: list, caption: str = None) -> bool:
+    """
+    Send multiple photos as an album/media group to Telegram
+
+    Args:
+        chat_id: Telegram chat ID
+        photos: List of tuples (name, photo_bytes) - e.g., [('dashboard', bytes), ('analytics', bytes)]
+        caption: Optional caption for the first photo
+
+    Returns:
+        True if sent successfully
+    """
+    if not chat_id:
+        logger.warning('No chat_id provided for Telegram media group')
+        return False
+
+    if not photos:
+        logger.warning('No photos provided for media group')
+        return False
+
+    api_url = get_api_url()
+    if not api_url:
+        logger.warning('Telegram bot token not configured')
+        return False
+
+    try:
+        url = f'{api_url}/sendMediaGroup'
+        media = []
+        files = {}
+
+        for i, (name, photo_bytes) in enumerate(photos):
+            file_key = f'photo{i}'
+            files[file_key] = (f'{name}.png', photo_bytes, 'image/png')
+            media_item = {
+                'type': 'photo',
+                'media': f'attach://{file_key}',
+            }
+            # Only first photo gets the caption
+            if i == 0 and caption:
+                media_item['caption'] = caption
+                media_item['parse_mode'] = 'HTML'
+            media.append(media_item)
+
+        data = {
+            'chat_id': chat_id,
+            'media': json.dumps(media)
+        }
+
+        response = requests.post(url, files=files, data=data, timeout=60)
+        response.raise_for_status()
+
+        result = response.json()
+        if result.get('ok'):
+            logger.info(f'Telegram media group sent to {chat_id} ({len(photos)} photos)')
+            return True
+        else:
+            logger.error(f'Telegram API error: {result}')
+            return False
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f'Failed to send Telegram media group: {e}')
+        return False
+
+
 # Bot: Juan365_creatives_ticketing_bot

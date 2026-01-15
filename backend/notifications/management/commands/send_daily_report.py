@@ -350,20 +350,36 @@ class Command(BaseCommand):
 
             try:
                 # Login
-                self.stdout.write('Logging in...')
-                await page.goto(f'{frontend_url}/login', timeout=60000, wait_until='networkidle')
-                await asyncio.sleep(2)  # Wait for page to stabilize
+                self.stdout.write(f'Navigating to {frontend_url}/login...')
+                await page.goto(f'{frontend_url}/login', timeout=90000, wait_until='networkidle')
+                await asyncio.sleep(3)
+
+                # Check if we're on login page
+                current_url = page.url
+                self.stdout.write(f'Current URL: {current_url}')
 
                 # Fill login form
-                self.stdout.write('Filling login form...')
+                self.stdout.write(f'Filling login form with user: {username}')
                 await page.fill('input[name="username"]', username)
                 await page.fill('input[name="password"]', password)
+
+                # Click submit and wait for navigation
+                self.stdout.write('Submitting login...')
                 await page.click('button[type="submit"]')
 
-                # Wait for redirect to dashboard (longer timeout)
-                self.stdout.write('Waiting for login redirect...')
-                await page.wait_for_url('**/', timeout=60000)
+                # Wait for URL to change from /login (more flexible)
+                self.stdout.write('Waiting for login to complete...')
+                try:
+                    await page.wait_for_url(lambda url: '/login' not in url, timeout=90000)
+                except Exception as login_err:
+                    # Take debug screenshot
+                    self.stdout.write(f'Login wait error: {login_err}')
+                    current_url = page.url
+                    self.stdout.write(f'Current URL after login attempt: {current_url}')
+                    raise Exception(f'Login failed - stuck at {current_url}')
+
                 await asyncio.sleep(5)  # Wait for auth to settle
+                self.stdout.write(f'Login successful, now at: {page.url}')
 
                 # Go to Analytics page
                 self.stdout.write('Navigating to Analytics...')

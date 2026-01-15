@@ -234,14 +234,19 @@ class Command(BaseCommand):
             try:
                 # Login
                 self.stdout.write('Logging in...')
-                await page.goto(f'{frontend_url}/login', wait_until='networkidle')
+                await page.goto(f'{frontend_url}/login', timeout=60000, wait_until='networkidle')
+                await asyncio.sleep(2)  # Wait for page to stabilize
+
+                # Fill login form
+                self.stdout.write('Filling login form...')
                 await page.fill('input[name="username"]', username)
                 await page.fill('input[name="password"]', password)
                 await page.click('button[type="submit"]')
 
-                # Wait for redirect to dashboard
-                await page.wait_for_url('**/', timeout=30000)
-                await asyncio.sleep(10)  # Wait for auth to settle
+                # Wait for redirect to dashboard (longer timeout)
+                self.stdout.write('Waiting for login redirect...')
+                await page.wait_for_url('**/', timeout=60000)
+                await asyncio.sleep(5)  # Wait for auth to settle
 
                 # Go to Analytics page
                 self.stdout.write('Navigating to Analytics...')

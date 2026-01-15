@@ -82,15 +82,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('TELEGRAM_GROUP_CHAT_ID not configured'))
             return
 
-        # Capture screenshots
+        # Capture screenshots (REQUIRED - fail if screenshots don't work)
         screenshots = []
         if not skip_screenshots:
-            try:
-                screenshots = asyncio.run(self.capture_screenshots())
-                self.stdout.write(f'Captured {len(screenshots)} screenshots')
-            except Exception as e:
-                self.stdout.write(self.style.WARNING(f'Screenshot capture failed: {e}'))
-                self.stdout.write('Continuing with text-only report...')
+            screenshots = asyncio.run(self.capture_screenshots())
+            self.stdout.write(f'Captured {len(screenshots)} screenshots')
+            if not screenshots:
+                raise Exception('No screenshots captured - aborting report')
 
         # Send to Telegram
         self.send_report(group_chat_id, summary, screenshots)

@@ -232,16 +232,33 @@ class Command(BaseCommand):
         screenshots = []
 
         async with async_playwright() as p:
-            # Try system chromium first, fallback to playwright's
+            # Try system chromium paths
+            import os
+            possible_paths = [
+                '/usr/bin/chromium',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/google-chrome',
+                '/nix/store/chromium/bin/chromium',
+            ]
+
+            # Also search in PATH
             import shutil
-            chromium_path = shutil.which('chromium') or shutil.which('chromium-browser') or shutil.which('google-chrome')
+            path_chromium = shutil.which('chromium') or shutil.which('chromium-browser')
+            if path_chromium:
+                possible_paths.insert(0, path_chromium)
+
+            chromium_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    chromium_path = path
+                    break
 
             if chromium_path:
                 self.stdout.write(f'Using system chromium: {chromium_path}')
-                browser = await p.chromium.launch(headless=True, executable_path=chromium_path)
+                browser = await p.chromium.launch(headless=True, executable_path=chromium_path, args=['--no-sandbox', '--disable-dev-shm-usage'])
             else:
                 self.stdout.write('Using Playwright bundled chromium')
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
             context = await browser.new_context(
                 viewport={'width': 1280, 'height': 800},
                 device_scale_factor=2  # High DPI for better quality

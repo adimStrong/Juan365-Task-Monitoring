@@ -273,10 +273,21 @@ class Command(BaseCommand):
         chromium_path = shutil.which('chromium') or shutil.which('chromium-browser')
         self.stdout.write(f'Chromium in PATH: {chromium_path}')
 
-        # Install playwright
-        self.stdout.write('Running playwright install...')
-        result = subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True, env=os.environ.copy())
-        self.stdout.write(f'Install result: {result.returncode}')
+        # Install playwright browser
+        self.stdout.write('Running playwright install chromium...')
+        result = subprocess.run(['playwright', 'install', 'chromium'], capture_output=True, text=True)
+        self.stdout.write(f'Install browser result: {result.returncode}')
+
+        # Install system dependencies (requires root/apt access)
+        self.stdout.write('Running playwright install-deps chromium...')
+        result = subprocess.run(
+            ['playwright', 'install-deps', 'chromium'],
+            capture_output=True, text=True,
+            env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'}
+        )
+        self.stdout.write(f'Install deps result: {result.returncode}')
+        if result.returncode != 0:
+            self.stdout.write(f'install-deps stderr: {result.stderr[:500] if result.stderr else "none"}')
 
         # Try to launch browser
         self.stdout.write('Attempting browser launch...')

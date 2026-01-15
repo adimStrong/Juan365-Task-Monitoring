@@ -5,19 +5,42 @@
 nixPkgs = [
   "python311",
   "chromium",
+  "glib",
   "nss",
+  "nspr",
+  "atk",
+  "at-spi2-atk",
+  "cups",
+  "libdrm",
+  "dbus",
+  "expat",
+  "libxcb",
+  "libxkbcommon",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXext",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "mesa",
+  "pango",
+  "cairo",
+  "alsa-lib",
   "freetype",
   "harfbuzz",
   "ca-certificates",
   "fontconfig"
 ]
 
+[variables]
+LD_LIBRARY_PATH = "/nix/store"
+
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
 
 [phases.build]
 cmds = [
-  "playwright install chromium",
+  "playwright install --with-deps chromium",
   "python manage.py collectstatic --noinput"
 ]
 

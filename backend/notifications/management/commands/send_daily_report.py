@@ -224,7 +224,16 @@ class Command(BaseCommand):
         screenshots = []
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            # Try system chromium first, fallback to playwright's
+            import shutil
+            chromium_path = shutil.which('chromium') or shutil.which('chromium-browser') or shutil.which('google-chrome')
+
+            if chromium_path:
+                self.stdout.write(f'Using system chromium: {chromium_path}')
+                browser = await p.chromium.launch(headless=True, executable_path=chromium_path)
+            else:
+                self.stdout.write('Using Playwright bundled chromium')
+                browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
                 viewport={'width': 1280, 'height': 800},
                 device_scale_factor=2  # High DPI for better quality

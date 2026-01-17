@@ -14,6 +14,9 @@ const Analytics = () => {
   const [dateTo, setDateTo] = useState('');
   const [minDate, setMinDate] = useState('');
   const [maxDate, setMaxDate] = useState('');
+  // Leaderboard state
+  const [leaderboardCategory, setLeaderboardCategory] = useState('total'); // total, video, image, others
+  const [leaderboardTopN, setLeaderboardTopN] = useState(10);
 
   // Redirect non-managers
   useEffect(() => {
@@ -733,6 +736,145 @@ const Analytics = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Top N Leaderboard */}
+              {analytics.rankings && (
+                <div className="bg-white rounded-lg shadow-sm p-6 col-span-full">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900">Top Performers Leaderboard</h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Category Filter */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">Category:</label>
+                        <select
+                          value={leaderboardCategory}
+                          onChange={(e) => setLeaderboardCategory(e.target.value)}
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="total">All Output</option>
+                          <option value="video">Video</option>
+                          <option value="image">Image/Banner</option>
+                          <option value="others">Others</option>
+                        </select>
+                      </div>
+                      {/* Top N Filter */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">Show Top:</label>
+                        <select
+                          value={leaderboardTopN}
+                          onChange={(e) => setLeaderboardTopN(Number(e.target.value))}
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={15}>15</option>
+                          <option value={20}>20</option>
+                          <option value={999}>All</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Leaderboard Table */}
+                  {(() => {
+                    const rankingKey = `by_${leaderboardCategory}`;
+                    const rankingData = analytics.rankings[rankingKey] || [];
+                    const displayData = rankingData.slice(0, leaderboardTopN);
+                    const outputKey = leaderboardCategory === 'total' ? 'total_output' : `${leaderboardCategory}_output`;
+                    const categoryLabel = {
+                      total: 'Total Output',
+                      video: 'Video Output',
+                      image: 'Image/Banner Output',
+                      others: 'Others Output'
+                    }[leaderboardCategory];
+                    const categoryStyles = {
+                      total: { text: 'text-blue-600', bg: 'bg-blue-500' },
+                      video: { text: 'text-purple-600', bg: 'bg-purple-500' },
+                      image: { text: 'text-pink-600', bg: 'bg-pink-500' },
+                      others: { text: 'text-amber-600', bg: 'bg-amber-500' }
+                    }[leaderboardCategory];
+
+                    if (displayData.length === 0) {
+                      return (
+                        <p className="text-gray-500 text-center py-8">No data available for this category</p>
+                      );
+                    }
+
+                    const maxOutput = displayData[0]?.[outputKey] || 1;
+
+                    return (
+                      <div className="space-y-3">
+                        {displayData.map((user, index) => {
+                          const output = user[outputKey] || 0;
+                          const percentage = (output / maxOutput) * 100;
+                          const isTop3 = index < 3;
+                          const medalColors = ['bg-yellow-400', 'bg-gray-300', 'bg-amber-600'];
+                          const medalEmojis = ['🥇', '🥈', '🥉'];
+
+                          return (
+                            <div
+                              key={user.user_id}
+                              className={`flex items-center gap-4 p-3 rounded-lg ${
+                                isTop3 ? 'bg-gradient-to-r from-gray-50 to-white border border-gray-200' : 'bg-gray-50'
+                              }`}
+                            >
+                              {/* Rank */}
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                                isTop3 ? `${medalColors[index]} text-white` : 'bg-gray-200 text-gray-600'
+                              }`}>
+                                {isTop3 ? medalEmojis[index] : user.rank}
+                              </div>
+
+                              {/* User Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div>
+                                    <span className={`font-medium ${isTop3 ? 'text-gray-900' : 'text-gray-700'}`}>
+                                      {user.full_name}
+                                    </span>
+                                    {user.department && (
+                                      <span className="text-xs text-gray-400 ml-2">({user.department})</span>
+                                    )}
+                                  </div>
+                                  <span className={`font-bold text-lg ${categoryStyles.text}`}>
+                                    {output.toLocaleString()}
+                                  </span>
+                                </div>
+                                {/* Progress Bar */}
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full ${categoryStyles.bg} transition-all duration-300`}
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                {/* Additional Stats */}
+                                <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                                  <span>Completed: {user.completed}</span>
+                                  <span>Rate: {user.completion_rate}%</span>
+                                  {leaderboardCategory === 'total' && (
+                                    <>
+                                      <span className="text-purple-500">Video: {user.video_output || 0}</span>
+                                      <span className="text-pink-500">Image: {user.image_output || 0}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Summary */}
+                        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-sm text-gray-600">
+                          <span>Showing {displayData.length} of {rankingData.length} agents</span>
+                          <span className="font-medium">
+                            Team Total: {rankingData.reduce((sum, u) => sum + (u[outputKey] || 0), 0).toLocaleString()} {categoryLabel.toLowerCase()}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

@@ -2488,6 +2488,9 @@ class AnalyticsView(APIView):
                     sum(user_image_processing) / user_image_qty
                 ) if user_image_qty > 0 and user_image_processing else None
 
+                # Calculate 'others' output (total - video - image)
+                user_others_qty = max(0, total_user_output - user_video_qty - user_image_qty)
+
                 user_stats.append({
                     'user_id': user.id,
                     'username': user.username,
@@ -2503,6 +2506,9 @@ class AnalyticsView(APIView):
                     'avg_approval_to_complete_hours': avg_approval_to_complete_hours,
                     'completion_rate': round(len(completed_list) / len(user_tickets_list) * 100, 1) if len(user_tickets_list) > 0 else 0,
                     'total_output': total_user_output,
+                    'video_output': user_video_qty,
+                    'image_output': user_image_qty,
+                    'others_output': user_others_qty,
                     'avg_acknowledge_seconds': avg_ack_seconds,
                     'avg_video_creation_seconds': user_avg_video_seconds,
                     'avg_image_creation_seconds': user_avg_image_seconds,
@@ -2996,6 +3002,44 @@ class AnalyticsView(APIView):
                 'completed': sum(u['completed'] for u in user_stats),
                 'total_output': sum(u['total_output'] for u in user_stats),
                 'in_progress': sum(u['in_progress'] for u in user_stats),
+                'video_output': sum(u.get('video_output', 0) for u in user_stats),
+                'image_output': sum(u.get('image_output', 0) for u in user_stats),
+                'others_output': sum(u.get('others_output', 0) for u in user_stats),
+            }
+
+            # =====================
+            # RANKINGS (Top N by category)
+            # =====================
+            # Create ranked lists for each category
+            rankings = {
+                'by_total': sorted(
+                    [{'rank': i+1, **u} for i, u in enumerate(
+                        sorted([u for u in user_stats if u['total_output'] > 0],
+                               key=lambda x: x['total_output'], reverse=True)
+                    )],
+                    key=lambda x: x['rank']
+                ),
+                'by_video': sorted(
+                    [{'rank': i+1, **u} for i, u in enumerate(
+                        sorted([u for u in user_stats if u.get('video_output', 0) > 0],
+                               key=lambda x: x.get('video_output', 0), reverse=True)
+                    )],
+                    key=lambda x: x['rank']
+                ),
+                'by_image': sorted(
+                    [{'rank': i+1, **u} for i, u in enumerate(
+                        sorted([u for u in user_stats if u.get('image_output', 0) > 0],
+                               key=lambda x: x.get('image_output', 0), reverse=True)
+                    )],
+                    key=lambda x: x['rank']
+                ),
+                'by_others': sorted(
+                    [{'rank': i+1, **u} for i, u in enumerate(
+                        sorted([u for u in user_stats if u.get('others_output', 0) > 0],
+                               key=lambda x: x.get('others_output', 0), reverse=True)
+                    )],
+                    key=lambda x: x['rank']
+                ),
             }
 
             return Response({
@@ -3040,6 +3084,7 @@ class AnalyticsView(APIView):
                 'by_criteria': criteria_stats,
                 'ads_product_output': ads_product_stats,
                 'telegram_product_output': telegram_product_stats,
+                'rankings': rankings,
             })
 
         except Exception as e:

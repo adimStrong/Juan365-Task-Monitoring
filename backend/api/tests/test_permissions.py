@@ -18,15 +18,19 @@ class TestAdminPermissions:
         assert response.status_code == status.HTTP_200_OK
 
     def test_admin_can_approve_tickets(self, admin_client, ticket_requested):
-        """Admin can approve tickets"""
+        """Admin (in Creative dept) can do final approval on pending_creative tickets"""
+        # Set ticket to pending_creative status first
+        ticket_requested.status = 'pending_creative'
+        ticket_requested.save()
+
         url = reverse('ticket-approve', kwargs={'pk': ticket_requested.id})
         response = admin_client.post(url)
         assert response.status_code == status.HTTP_200_OK
 
-    def test_admin_can_assign_tickets(self, admin_client, ticket_approved, member_user):
-        """Admin can assign tickets"""
+    def test_admin_can_assign_tickets(self, admin_client, ticket_approved, creative_user):
+        """Admin can assign tickets to Creative department members"""
         url = reverse('ticket-assign', kwargs={'pk': ticket_approved.id})
-        data = {'assigned_to': member_user.id}
+        data = {'assigned_to': creative_user.id}
         response = admin_client.post(url, data, format='json')
         assert response.status_code == status.HTTP_200_OK
 
@@ -48,15 +52,16 @@ class TestManagerPermissions:
         assert response.status_code == status.HTTP_200_OK
 
     def test_manager_can_approve_tickets(self, manager_client, ticket_requested):
-        """Manager can approve tickets"""
+        """Manager can do first approval (REQUESTED → PENDING_CREATIVE)"""
         url = reverse('ticket-approve', kwargs={'pk': ticket_requested.id})
         response = manager_client.post(url)
+        # First approval should succeed
         assert response.status_code == status.HTTP_200_OK
 
-    def test_manager_can_assign_tickets(self, manager_client, ticket_approved, member_user):
-        """Manager can assign tickets"""
+    def test_manager_can_assign_tickets(self, manager_client, ticket_approved, creative_user):
+        """Manager can assign tickets to Creative department members"""
         url = reverse('ticket-assign', kwargs={'pk': ticket_approved.id})
-        data = {'assigned_to': member_user.id}
+        data = {'assigned_to': creative_user.id}
         response = manager_client.post(url, data, format='json')
         assert response.status_code == status.HTTP_200_OK
 

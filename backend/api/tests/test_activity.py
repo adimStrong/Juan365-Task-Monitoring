@@ -62,19 +62,19 @@ class TestActivityLog:
 
     def test_activity_filter_by_action(self, manager_client, ticket_requested, ticket_approved):
         """Filter activities by action type"""
-        # Create some activities
+        # Create some activities (first approval creates 'dept_approved' action for two-step workflow)
         url = reverse('ticket-approve', kwargs={'pk': ticket_requested.id})
         manager_client.post(url)
 
-        # Filter by action
+        # Filter by the actual action used in two-step workflow
         url = reverse('activity-list')
-        response = manager_client.get(url, {'action': 'approved'})
+        response = manager_client.get(url, {'action': 'dept_approved'})
 
         assert response.status_code == status.HTTP_200_OK
 
         activities = response.data if isinstance(response.data, list) else response.data.get('results', [])
         for activity in activities:
-            assert activity['action'] == 'approved'
+            assert activity['action'] == 'dept_approved'
 
     def test_activities_ordered_by_date(self, member_client, activity_log):
         """Activities are ordered by date (newest first)"""

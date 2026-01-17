@@ -37,3 +37,6 @@ playwright>=1.40
 # Cloud Storage (Cloudinary)
 cloudinary>=1.36
 django-cloudinary-storage>=0.3
+
+# Testing
+pytest-mock>=3.12.0

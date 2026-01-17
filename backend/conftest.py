@@ -5,9 +5,35 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
-from api.models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog
+from api.models import Ticket, TicketComment, TicketAttachment, TicketCollaborator, Notification, ActivityLog, Department
 
 User = get_user_model()
+
+
+# ============================================================
+# DEPARTMENT FIXTURES
+# ============================================================
+
+@pytest.fixture
+def department(db):
+    """Create a regular (non-creative) department"""
+    return Department.objects.create(
+        name='Engineering',
+        description='Engineering department',
+        is_creative=False,
+        is_active=True
+    )
+
+
+@pytest.fixture
+def creative_department(db):
+    """Create the Creative department"""
+    return Department.objects.create(
+        name='Creative',
+        description='Creative department',
+        is_creative=True,
+        is_active=True
+    )
 
 
 # ============================================================
@@ -21,8 +47,8 @@ def api_client():
 
 
 @pytest.fixture
-def admin_user(db):
-    """Create and return an admin user"""
+def admin_user(db, creative_department):
+    """Create and return an admin user in Creative department"""
     user = User.objects.create_user(
         username='admin_test',
         email='admin@test.com',
@@ -32,14 +58,15 @@ def admin_user(db):
         role='admin',
         is_approved=True,
         is_staff=True,
-        is_superuser=True
+        is_superuser=True,
+        user_department=creative_department
     )
     return user
 
 
 @pytest.fixture
-def manager_user(db):
-    """Create and return a manager user"""
+def manager_user(db, department):
+    """Create and return a manager user in regular department"""
     user = User.objects.create_user(
         username='manager_test',
         email='manager@test.com',
@@ -47,14 +74,18 @@ def manager_user(db):
         first_name='Manager',
         last_name='User',
         role='manager',
-        is_approved=True
+        is_approved=True,
+        user_department=department
     )
+    # Set this user as the department manager
+    department.manager = user
+    department.save()
     return user
 
 
 @pytest.fixture
-def member_user(db):
-    """Create and return a regular member user"""
+def member_user(db, department):
+    """Create and return a regular member user in regular department"""
     user = User.objects.create_user(
         username='member_test',
         email='member@test.com',
@@ -62,13 +93,49 @@ def member_user(db):
         first_name='Member',
         last_name='User',
         role='member',
-        is_approved=True
+        is_approved=True,
+        user_department=department
     )
     return user
 
 
 @pytest.fixture
-def unapproved_user(db):
+def creative_user(db, creative_department):
+    """Create and return a user in Creative department (for ticket assignment)"""
+    user = User.objects.create_user(
+        username='creative_test',
+        email='creative@test.com',
+        password='creativepass123',
+        first_name='Creative',
+        last_name='User',
+        role='member',
+        is_approved=True,
+        user_department=creative_department
+    )
+    return user
+
+
+@pytest.fixture
+def creative_manager(db, creative_department):
+    """Create and return a manager in Creative department (for final approval)"""
+    user = User.objects.create_user(
+        username='creative_manager_test',
+        email='creative_manager@test.com',
+        password='creativemanagerpass123',
+        first_name='Creative',
+        last_name='Manager',
+        role='manager',
+        is_approved=True,
+        user_department=creative_department
+    )
+    # Set as creative department manager
+    creative_department.manager = user
+    creative_department.save()
+    return user
+
+
+@pytest.fixture
+def unapproved_user(db, department):
     """Create and return an unapproved user"""
     user = User.objects.create_user(
         username='unapproved_test',
@@ -77,13 +144,14 @@ def unapproved_user(db):
         first_name='Unapproved',
         last_name='User',
         role='member',
-        is_approved=False
+        is_approved=False,
+        user_department=department
     )
     return user
 
 
 @pytest.fixture
-def inactive_user(db):
+def inactive_user(db, department):
     """Create and return an inactive user"""
     user = User.objects.create_user(
         username='inactive_test',
@@ -93,7 +161,8 @@ def inactive_user(db):
         last_name='User',
         role='member',
         is_approved=True,
-        is_active=False
+        is_active=False,
+        user_department=department
     )
     return user
 
@@ -135,6 +204,24 @@ def member_client(api_client, member_user):
     tokens = get_tokens_for_user(member_user)
     api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access"]}')
     api_client.user = member_user
+    return api_client
+
+
+@pytest.fixture
+def creative_client(api_client, creative_user):
+    """Return an API client authenticated as creative user"""
+    tokens = get_tokens_for_user(creative_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access"]}')
+    api_client.user = creative_user
+    return api_client
+
+
+@pytest.fixture
+def creative_manager_client(api_client, creative_manager):
+    """Return an API client authenticated as creative manager"""
+    tokens = get_tokens_for_user(creative_manager)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access"]}')
+    api_client.user = creative_manager
     return api_client
 
 
@@ -342,7 +429,7 @@ def activity_log(db, member_user, ticket_requested):
 # ============================================================
 
 @pytest.fixture
-def valid_registration_data():
+def valid_registration_data(department):
     """Return valid user registration data"""
     return {
         'username': 'newuser',
@@ -350,7 +437,8 @@ def valid_registration_data():
         'password': 'NewPass123!',
         'password_confirm': 'NewPass123!',
         'first_name': 'New',
-        'last_name': 'User'
+        'last_name': 'User',
+        'user_department': department.id
     }
 
 
@@ -362,3 +450,30 @@ def valid_ticket_data():
         'description': 'This is a new test ticket description',
         'priority': 'medium'
     }
+
+
+# ============================================================
+# NOTIFICATION MOCKING (Auto-applied to all tests)
+# ============================================================
+
+@pytest.fixture(autouse=True)
+def mock_notifications(mocker):
+    """
+    Auto-mock all notification functions to prevent real API calls during tests.
+
+    This fixture runs automatically for every test (autouse=True) and mocks:
+    - notify_user: Called when ticket status changes
+    - send_telegram_message: Direct Telegram API calls
+    - send_group_notification: Group chat notifications
+    - notify_managers: Manager broadcast notifications
+
+    All mocks return success values so tests pass without hitting external APIs.
+    """
+    # Mock at the import location in views.py
+    mocker.patch('api.views.notify_user', return_value={'individual': True, 'group': True})
+
+    # Mock the underlying telegram functions
+    mocker.patch('notifications.telegram.send_telegram_message', return_value=True)
+    mocker.patch('notifications.telegram.send_group_notification', return_value=True)
+    mocker.patch('notifications.telegram.notify_managers', return_value=[])
+    mocker.patch('notifications.telegram.notify_user', return_value={'individual': True, 'group': True})

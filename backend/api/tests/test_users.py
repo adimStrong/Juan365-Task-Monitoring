@@ -140,7 +140,7 @@ class TestUserRoleManagement:
 class TestUserCreation:
     """TC-USER-007: Admin User Creation Tests"""
 
-    def test_admin_create_user(self, admin_client):
+    def test_admin_create_user(self, admin_client, department):
         """TC-USER-007: Admin can create a new user (auto-approved)"""
         url = reverse('user-management-list')
         data = {
@@ -150,7 +150,8 @@ class TestUserCreation:
             'password_confirm': 'NewCreated123!',  # Required field
             'first_name': 'New',
             'last_name': 'Created',
-            'role': 'member'
+            'role': 'member',
+            'user_department': department.id
         }
         response = admin_client.post(url, data, format='json')
 

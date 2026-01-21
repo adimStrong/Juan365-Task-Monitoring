@@ -1729,9 +1729,18 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.ticket_product_id = snapshot.get('ticket_product_id')
         ticket.complexity = snapshot.get('complexity', ticket.complexity)
 
-        if snapshot.get('deadline'):
-            ticket.deadline = parse_datetime(snapshot['deadline'])
+        # Recalculate deadline to clear overdue status on rollback
+        # Instead of restoring the old (possibly expired) deadline from snapshot,
+        # calculate a fresh deadline based on current priority
+        scheduled_request_types = ['videoshoot', 'photoshoot', 'live_production']
+        if ticket.request_type not in scheduled_request_types:
+            ticket.deadline = calculate_deadline_from_priority(
+                ticket.priority,
+                file_format=ticket.file_format,
+                criteria=ticket.criteria
+            )
         else:
+            # For scheduled tasks, clear deadline (will be set on next assignment)
             ticket.deadline = None
 
         if snapshot.get('estimated_hours'):

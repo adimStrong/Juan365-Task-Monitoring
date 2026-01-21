@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ticketsAPI, usersAPI } from '../services/api';
+import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useTicket, useUsers } from '../hooks/useQueries';
 import Layout from '../components/Layout';
 import { SkeletonTicketDetail } from '../components/Skeleton';
 
@@ -12,10 +13,30 @@ const TicketDetail = () => {
   const { user, isManager } = useAuth();
   const toast = useToast();
 
+  // React Query hooks - cached data shows instantly on revisit
+  const { data: ticketData, isLoading: ticketLoading, refetch: refetchTicket } = useTicket(id);
+  const { data: usersData = [] } = useUsers();
+
+  // Local state for ticket (allows optimistic updates while keeping React Query cache benefits)
   const [ticket, setTicket] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // Sync local ticket state with React Query data
+  useEffect(() => {
+    if (ticketData) {
+      setTicket(ticketData);
+    }
+  }, [ticketData]);
+
+  // Navigate away if ticket fetch fails
+  useEffect(() => {
+    if (!ticketLoading && !ticketData && id) {
+      navigate('/tickets');
+    }
+  }, [ticketLoading, ticketData, id, navigate]);
+
+  // Use React Query data for users
+  const users = usersData;
   const [actionLoading, setActionLoading] = useState(false);
   const [comment, setComment] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -43,28 +64,6 @@ const TicketDetail = () => {
   const isScheduledTask = ticket?.request_type && ['videoshoot', 'photoshoot', 'live_production'].includes(ticket.request_type);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionComments, setRevisionComments] = useState('');
-
-  useEffect(() => {
-    fetchData();
-  }, [id]);
-
-  const fetchData = async () => {
-    try {
-      const [ticketRes, usersRes] = await Promise.all([
-        ticketsAPI.get(id),
-        usersAPI.list(),
-      ]);
-      setTicket(ticketRes.data);
-      // Handle both array and paginated responses
-      const usersData = usersRes.data;
-      setUsers(Array.isArray(usersData) ? usersData : (usersData.results || []));
-    } catch (error) {
-      console.error('Failed to fetch ticket:', error);
-      navigate('/tickets');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAction = async (action, data = {}) => {
     setActionLoading(true);
@@ -354,7 +353,7 @@ const TicketDetail = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  if (loading) {
+  if (ticketLoading) {
     return (
       <Layout>
         <SkeletonTicketDetail />

@@ -154,86 +154,272 @@ export const useTicketComments = (ticketId) => {
 };
 
 // ==================
-// MUTATIONS
+// MUTATIONS WITH OPTIMISTIC UPDATES
 // ==================
 
-// Approve ticket
+// Helper to update ticket in list cache
+const updateTicketInLists = (queryClient, ticketId, updater) => {
+  // Update all ticket list queries
+  queryClient.setQueriesData(
+    { queryKey: queryKeys.tickets },
+    (old) => {
+      if (!old) return old;
+      // Handle paginated response (results array)
+      if (old.results) {
+        return {
+          ...old,
+          results: old.results.map((ticket) =>
+            ticket.id === ticketId ? updater(ticket) : ticket
+          ),
+        };
+      }
+      // Handle array response
+      if (Array.isArray(old)) {
+        return old.map((ticket) =>
+          ticket.id === ticketId ? updater(ticket) : ticket
+        );
+      }
+      return old;
+    }
+  );
+};
+
+// Helper to update ticket detail cache
+const updateTicketDetail = (queryClient, ticketId, updater) => {
+  queryClient.setQueryData(queryKeys.ticketDetail(ticketId), (old) => {
+    if (!old) return old;
+    return updater(old);
+  });
+};
+
+// Approve ticket (with optimistic update)
 export const useApproveTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (ticketId) => ticketsAPI.approve(ticketId),
-    onSuccess: (_, ticketId) => {
+    onMutate: async (ticketId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+
+      // Snapshot previous values
+      const previousDetail = queryClient.getQueryData(queryKeys.ticketDetail(ticketId));
+
+      // Optimistically update
+      const updater = (ticket) => ({
+        ...ticket,
+        status: 'approved',
+        status_display: 'Approved',
+      });
+      updateTicketInLists(queryClient, ticketId, updater);
+      updateTicketDetail(queryClient, ticketId, updater);
+
+      return { previousDetail, ticketId };
+    },
+    onError: (err, ticketId, context) => {
+      // Rollback on error
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.ticketDetail(ticketId), context.previousDetail);
+      }
+      // Invalidate to refetch correct data
       queryClient.invalidateQueries({ queryKey: queryKeys.tickets });
+    },
+    onSettled: (_, __, ticketId) => {
+      // Always refetch to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myTasks });
     },
   });
 };
 
-// Reject ticket
+// Reject ticket (with optimistic update)
 export const useRejectTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ ticketId, reason }) => ticketsAPI.reject(ticketId, { reason }),
-    onSuccess: () => {
+    onMutate: async ({ ticketId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+
+      const previousDetail = queryClient.getQueryData(queryKeys.ticketDetail(ticketId));
+
+      const updater = (ticket) => ({
+        ...ticket,
+        status: 'rejected',
+        status_display: 'Rejected',
+      });
+      updateTicketInLists(queryClient, ticketId, updater);
+      updateTicketDetail(queryClient, ticketId, updater);
+
+      return { previousDetail, ticketId };
+    },
+    onError: (err, { ticketId }, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.ticketDetail(ticketId), context.previousDetail);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.tickets });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+    onSettled: (_, __, { ticketId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
     },
   });
 };
 
-// Assign ticket
+// Assign ticket (with optimistic update)
 export const useAssignTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ ticketId, userId }) => ticketsAPI.assign(ticketId, userId),
-    onSuccess: (_, { ticketId }) => {
+    onMutate: async ({ ticketId, userId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+
+      const previousDetail = queryClient.getQueryData(queryKeys.ticketDetail(ticketId));
+
+      // Try to get assigned user info from users cache
+      const users = queryClient.getQueryData(queryKeys.usersList);
+      const assignedUser = users?.find((u) => u.id === userId);
+
+      const updater = (ticket) => ({
+        ...ticket,
+        status: 'assigned',
+        status_display: 'Assigned',
+        assigned_to: userId,
+        assigned_to_name: assignedUser?.full_name || assignedUser?.username || 'Assigning...',
+      });
+      updateTicketInLists(queryClient, ticketId, updater);
+      updateTicketDetail(queryClient, ticketId, updater);
+
+      return { previousDetail, ticketId };
+    },
+    onError: (err, { ticketId }, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.ticketDetail(ticketId), context.previousDetail);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.tickets });
+    },
+    onSettled: (_, __, { ticketId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myTasks });
     },
   });
 };
 
-// Start ticket
+// Start ticket (with optimistic update)
 export const useStartTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (ticketId) => ticketsAPI.start(ticketId),
-    onSuccess: (_, ticketId) => {
+    onMutate: async (ticketId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+
+      const previousDetail = queryClient.getQueryData(queryKeys.ticketDetail(ticketId));
+
+      const updater = (ticket) => ({
+        ...ticket,
+        status: 'in_progress',
+        status_display: 'In Progress',
+        started_at: new Date().toISOString(),
+      });
+      updateTicketInLists(queryClient, ticketId, updater);
+      updateTicketDetail(queryClient, ticketId, updater);
+
+      return { previousDetail, ticketId };
+    },
+    onError: (err, ticketId, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.ticketDetail(ticketId), context.previousDetail);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.tickets });
+    },
+    onSettled: (_, __, ticketId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myTasks });
     },
   });
 };
 
-// Complete ticket
+// Complete ticket (with optimistic update)
 export const useCompleteTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (ticketId) => ticketsAPI.complete(ticketId),
-    onSuccess: (_, ticketId) => {
+    onMutate: async (ticketId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
+
+      const previousDetail = queryClient.getQueryData(queryKeys.ticketDetail(ticketId));
+
+      const updater = (ticket) => ({
+        ...ticket,
+        status: 'completed',
+        status_display: 'Completed',
+        completed_at: new Date().toISOString(),
+      });
+      updateTicketInLists(queryClient, ticketId, updater);
+      updateTicketDetail(queryClient, ticketId, updater);
+
+      return { previousDetail, ticketId };
+    },
+    onError: (err, ticketId, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.ticketDetail(ticketId), context.previousDetail);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.tickets });
+    },
+    onSettled: (_, __, ticketId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketDetail(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myTasks });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
     },
   });
 };
 
-// Add comment
+// Add comment (with optimistic update)
 export const useAddComment = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ ticketId, comment, parentId }) =>
       ticketsAPI.addComment(ticketId, comment, parentId),
-    onSuccess: (_, { ticketId }) => {
+    onMutate: async ({ ticketId, comment, parentId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.ticketComments(ticketId) });
+
+      const previousComments = queryClient.getQueryData(queryKeys.ticketComments(ticketId));
+
+      // Create optimistic comment
+      const optimisticComment = {
+        id: `temp-${Date.now()}`,
+        content: comment,
+        parent_id: parentId || null,
+        created_at: new Date().toISOString(),
+        user: { username: 'You' }, // Will be replaced by server response
+        is_optimistic: true, // Flag to identify optimistic updates
+      };
+
+      queryClient.setQueryData(queryKeys.ticketComments(ticketId), (old) => {
+        if (!old) return [optimisticComment];
+        if (Array.isArray(old)) return [...old, optimisticComment];
+        if (old.results) return { ...old, results: [...old.results, optimisticComment] };
+        return old;
+      });
+
+      return { previousComments, ticketId };
+    },
+    onError: (err, { ticketId }, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(queryKeys.ticketComments(ticketId), context.previousComments);
+      }
+    },
+    onSettled: (_, __, { ticketId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketComments(ticketId) });
     },
   });
@@ -243,18 +429,38 @@ export const useAddComment = () => {
 // ANALYTICS (cached for 5 minutes - expensive query)
 // Netflix-style: Show stale data immediately, refresh in background
 // ==================
-export const useAnalytics = (dateFrom, dateTo) => {
+export const useAnalytics = (dateFrom, dateTo, enabled = true) => {
   return useQuery({
     queryKey: queryKeys.analytics({ dateFrom, dateTo }),
     queryFn: async () => {
+      const params = {};
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
       const { analyticsAPI } = await import('../services/api');
-      const response = await analyticsAPI.get({ date_from: dateFrom, date_to: dateTo });
+      const response = await analyticsAPI.getAnalytics(params);
       return response.data;
     },
+    enabled, // Allow conditional fetching
     staleTime: 5 * 60 * 1000, // 5 minutes - analytics don't change frequently
     gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
-    // Show stale data while revalidating (Netflix pattern)
-    refetchOnMount: 'always', // Always check for fresh data
+    placeholderData: (previousData) => previousData, // Show previous data while loading
     refetchOnWindowFocus: false, // Don't refetch on tab switch
+  });
+};
+
+// Hook to get date range for analytics (initial load)
+export const useAnalyticsDateRange = () => {
+  return useQuery({
+    queryKey: ['analytics', 'date-range'],
+    queryFn: async () => {
+      const { analyticsAPI } = await import('../services/api');
+      const response = await analyticsAPI.getAnalytics({});
+      return {
+        minDate: response.data.date_range?.min_date || '',
+        maxDate: response.data.date_range?.max_date || '',
+      };
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 60 * 60 * 1000, // 1 hour
   });
 };

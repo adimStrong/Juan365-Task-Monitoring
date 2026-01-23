@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +52,9 @@ const TicketDetail = () => {
   const [expandedReplies, setExpandedReplies] = useState({});
   const [history, setHistory] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  // Comment pagination state
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentsPerPage, setCommentsPerPage] = useState(5);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [rollbackLoading, setRollbackLoading] = useState(false);
   // Scheduled task fields
@@ -348,6 +351,21 @@ const TicketDetail = () => {
     return texts[status] || status?.replace('_', ' ');
   };
 
+  // Paginated comments
+  const paginatedComments = useMemo(() => {
+    const comments = ticket?.comments || [];
+    const total = comments.length;
+    const totalPages = Math.ceil(total / commentsPerPage);
+    const start = (commentPage - 1) * commentsPerPage;
+    const data = comments.slice(start, start + commentsPerPage);
+    return { data, total, totalPages };
+  }, [ticket?.comments, commentPage, commentsPerPage]);
+
+  // Reset comment page when perPage changes or ticket changes
+  useEffect(() => {
+    setCommentPage(1);
+  }, [commentsPerPage, id]);
+
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString();
@@ -525,13 +543,31 @@ const TicketDetail = () => {
 
             {/* Comments */}
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Comments ({ticket.comments?.length || 0})
-              </h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Comments ({ticket.comments?.length || 0})
+                </h3>
+                {/* Per-page filter */}
+                {ticket.comments?.length > 5 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Show:</label>
+                    <select
+                      value={commentsPerPage}
+                      onChange={(e) => setCommentsPerPage(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={999}>All</option>
+                    </select>
+                  </div>
+                )}
+              </div>
 
-              {ticket.comments?.length > 0 ? (
+              {paginatedComments.data.length > 0 ? (
                 <div className="space-y-4 mb-6">
-                  {ticket.comments.map((c) => (
+                  {paginatedComments.data.map((c) => (
                     <div key={c.id} className="border-b pb-4 last:border-b-0">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-gray-900">
@@ -612,6 +648,48 @@ const TicketDetail = () => {
                 </div>
               ) : (
                 <p className="text-gray-500 mb-6">No comments yet.</p>
+              )}
+
+              {/* Comment Pagination Controls */}
+              {paginatedComments.totalPages > 1 && (
+                <div className="mb-6 pb-4 border-b flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <span className="text-sm text-gray-600">
+                    Showing {((commentPage - 1) * commentsPerPage) + 1} - {Math.min(commentPage * commentsPerPage, paginatedComments.total)} of {paginatedComments.total}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCommentPage(1)}
+                      disabled={commentPage === 1}
+                      className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setCommentPage(p => Math.max(1, p - 1))}
+                      disabled={commentPage === 1}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1 text-sm">
+                      {commentPage} / {paginatedComments.totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCommentPage(p => Math.min(paginatedComments.totalPages, p + 1))}
+                      disabled={commentPage === paginatedComments.totalPages}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setCommentPage(paginatedComments.totalPages)}
+                      disabled={commentPage === paginatedComments.totalPages}
+                      className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* Add Comment */}

@@ -4,16 +4,16 @@
   "version": "1.0.2",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "playwright test",
-    "test:e2e": "playwright test --project=chromium",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug",
-    "test:report": "playwright show-report"
+    "dev": "bun run --bun vite",
+    "build": "bun run --bun vite build",
+    "lint": "bun run eslint .",
+    "preview": "bun run --bun vite preview",
+    "test": "bun run playwright test",
+    "test:e2e": "bun run playwright test --project=chromium",
+    "test:e2e:ui": "bun run playwright test --ui",
+    "test:e2e:headed": "bun run playwright test --headed",
+    "test:e2e:debug": "bun run playwright test --debug",
+    "test:report": "bun run playwright show-report"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",

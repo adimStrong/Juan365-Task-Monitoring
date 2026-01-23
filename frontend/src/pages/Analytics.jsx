@@ -1,22 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
-import { analyticsAPI } from '../services/api';
+import { useAnalytics, useAnalyticsDateRange } from '../hooks/useQueries';
 
 const Analytics = () => {
   const navigate = useNavigate();
   const { user, isManager } = useAuth();
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+
+  // Date filter state
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [minDate, setMinDate] = useState('');
-  const [maxDate, setMaxDate] = useState('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState('');
+  const [appliedDateTo, setAppliedDateTo] = useState('');
+
   // Leaderboard state
-  const [leaderboardCategory, setLeaderboardCategory] = useState('total'); // total, video, image, others
+  const [leaderboardCategory, setLeaderboardCategory] = useState('total');
   const [leaderboardTopN, setLeaderboardTopN] = useState(10);
+
+  // Pagination state for user performance table
+  const [performancePage, setPerformancePage] = useState(1);
+  const [performancePerPage, setPerformancePerPage] = useState(10);
+
+  // Fetch date range first (cached for 10 minutes)
+  const { data: dateRange, isLoading: dateRangeLoading } = useAnalyticsDateRange();
+
+  // Fetch analytics data with React Query (cached for 5 minutes)
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+    isFetching
+  } = useAnalytics(appliedDateFrom, appliedDateTo, !!appliedDateFrom && !!appliedDateTo);
+
+  const minDate = dateRange?.minDate || '';
+  const maxDate = dateRange?.maxDate || '';
+  const loading = dateRangeLoading || (analyticsLoading && !analytics);
+  const error = analyticsError ? 'Failed to load analytics data' : null;
+
+  // Initialize dates when date range is loaded
+  useEffect(() => {
+    if (maxDate && !appliedDateFrom && !appliedDateTo) {
+      setDateFrom(maxDate);
+      setDateTo(maxDate);
+      setAppliedDateFrom(maxDate);
+      setAppliedDateTo(maxDate);
+    }
+  }, [maxDate, appliedDateFrom, appliedDateTo]);
 
   // Redirect non-managers
   useEffect(() => {
@@ -25,65 +55,35 @@ const Analytics = () => {
     }
   }, [isManager, navigate]);
 
+  // Paginated user performance data
+  const paginatedPerformance = useMemo(() => {
+    if (!analytics?.user_performance) return { data: [], total: 0, totalPages: 0 };
+
+    const filtered = analytics.user_performance.filter(u => u.total_assigned > 0);
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / performancePerPage);
+    const start = (performancePage - 1) * performancePerPage;
+    const data = filtered.slice(start, start + performancePerPage);
+
+    return { data, total, totalPages };
+  }, [analytics?.user_performance, performancePage, performancePerPage]);
+
+  // Reset to page 1 when per-page changes
   useEffect(() => {
-    if (isManager) {
-      fetchAnalytics(true); // Initial load - set default dates
-    }
-  }, [isManager]);
-
-  const fetchAnalytics = async (isInitialLoad = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // First fetch to get date range (without filters on initial load)
-      const params = {};
-      if (!isInitialLoad) {
-        if (dateFrom) params.date_from = dateFrom;
-        if (dateTo) params.date_to = dateTo;
-      }
-
-      const response = await analyticsAPI.getAnalytics(params);
-
-      // Set min/max date constraints from API response
-      if (response.data.date_range) {
-        const newMinDate = response.data.date_range.min_date || '';
-        const newMaxDate = response.data.date_range.max_date || '';
-        setMinDate(newMinDate);
-        setMaxDate(newMaxDate);
-
-        // On initial load, default both date pickers to the latest date and refetch
-        if (isInitialLoad && newMaxDate) {
-          setDateFrom(newMaxDate);
-          setDateTo(newMaxDate);
-          // Fetch again with the latest date filter
-          const filteredResponse = await analyticsAPI.getAnalytics({
-            date_from: newMaxDate,
-            date_to: newMaxDate
-          });
-          setAnalytics(filteredResponse.data);
-          setLoading(false);
-          return;
-        }
-      }
-
-      setAnalytics(response.data);
-    } catch (err) {
-      console.error('Failed to fetch analytics:', err);
-      setError('Failed to load analytics data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setPerformancePage(1);
+  }, [performancePerPage]);
 
   const handleFilter = (e) => {
     e.preventDefault();
-    fetchAnalytics();
+    setAppliedDateFrom(dateFrom);
+    setAppliedDateTo(dateTo);
   };
 
   const clearFilters = () => {
-    setDateFrom('');
-    setDateTo('');
-    fetchAnalytics();
+    setDateFrom(maxDate);
+    setDateTo(maxDate);
+    setAppliedDateFrom(maxDate);
+    setAppliedDateTo(maxDate);
   };
 
   const formatHours = (hours) => {
@@ -165,12 +165,18 @@ const Analytics = () => {
             </div>
             <button
               type="submit"
-              disabled={!minDate}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!minDate || isFetching}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
+              {isFetching && (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              )}
               Apply Filter
             </button>
-            {(dateFrom || dateTo) && (
+            {(dateFrom !== maxDate || dateTo !== maxDate) && (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -179,10 +185,21 @@ const Analytics = () => {
                 Clear
               </button>
             )}
+            {/* Background refresh indicator */}
+            {isFetching && analytics && (
+              <span className="text-sm text-blue-600 flex items-center gap-1">
+                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Updating...
+              </span>
+            )}
           </form>
           {minDate && maxDate && (
             <p className="mt-2 text-xs text-gray-500">
               Data available from <span className="font-medium">{minDate}</span> to <span className="font-medium">{maxDate}</span>
+              {analytics && <span className="ml-2 text-green-600">(Cached - instant load on revisit)</span>}
             </p>
           )}
         </div>
@@ -458,9 +475,29 @@ const Analytics = () => {
 
             {/* User Performance Table */}
             <div className="bg-white rounded-lg shadow-sm">
-              <div className="px-6 py-4 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">Team Performance</h3>
-                <p className="text-sm text-gray-500">Designer productivity metrics</p>
+              <div className="px-6 py-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Team Performance</h3>
+                  <p className="text-sm text-gray-500">Designer productivity metrics</p>
+                </div>
+                {/* Per-page filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Show:</label>
+                  <select
+                    value={performancePerPage}
+                    onChange={(e) => setPerformancePerPage(Number(e.target.value))}
+                    className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={999}>All</option>
+                  </select>
+                  <span className="text-sm text-gray-500">
+                    ({paginatedPerformance.total} total)
+                  </span>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -481,7 +518,7 @@ const Analytics = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {/* Summary Row */}
+                    {/* Summary Row - always visible */}
                     {analytics.user_totals && (
                       <tr className="bg-gray-100 font-semibold">
                         <td className="px-2 py-1.5 whitespace-nowrap">
@@ -534,7 +571,7 @@ const Analytics = () => {
                         </td>
                       </tr>
                     )}
-                    {analytics.user_performance.filter(u => u.total_assigned > 0).map((user) => (
+                    {paginatedPerformance.data.map((user) => (
                       <tr key={user.user_id} className="hover:bg-gray-50">
                         <td className="px-2 py-1.5 whitespace-nowrap">
                           <div className="flex items-center">
@@ -543,7 +580,7 @@ const Analytics = () => {
                             </div>
                             <div className="ml-3">
                               <div className="text-sm font-medium text-gray-900">{user.full_name || user.username}</div>
-                              
+
                             </div>
                           </div>
                         </td>
@@ -595,7 +632,7 @@ const Analytics = () => {
                         </td>
                       </tr>
                     ))}
-                    {analytics.user_performance.filter(u => u.total_assigned > 0).length === 0 && (
+                    {paginatedPerformance.data.length === 0 && (
                       <tr>
                         <td colSpan="12" className="px-6 py-8 text-center text-gray-500">
                           No user performance data available
@@ -605,6 +642,47 @@ const Analytics = () => {
                   </tbody>
                 </table>
               </div>
+              {/* Pagination Controls */}
+              {paginatedPerformance.totalPages > 1 && (
+                <div className="px-6 py-3 border-t bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <span className="text-sm text-gray-600">
+                    Showing {((performancePage - 1) * performancePerPage) + 1} - {Math.min(performancePage * performancePerPage, paginatedPerformance.total)} of {paginatedPerformance.total}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPerformancePage(1)}
+                      disabled={performancePage === 1}
+                      className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setPerformancePage(p => Math.max(1, p - 1))}
+                      disabled={performancePage === 1}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1 text-sm">
+                      Page {performancePage} of {paginatedPerformance.totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPerformancePage(p => Math.min(paginatedPerformance.totalPages, p + 1))}
+                      disabled={performancePage === paginatedPerformance.totalPages}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setPerformancePage(paginatedPerformance.totalPages)}
+                      disabled={performancePage === paginatedPerformance.totalPages}
+                      className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Breakdown Charts */}

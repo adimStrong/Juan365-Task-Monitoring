@@ -2554,20 +2554,22 @@ class AnalyticsView(APIView):
             ).filter(product__name__isnull=False)
 
             # Group products by brand name
+            # NOTE: Check specific brands FIRST before generic Juan365
             def get_brand(product_name):
                 name_upper = (product_name or '').upper()
-                if 'JUAN365' in name_upper:
-                    return 'Juan365'
+                # Check specific sub-brands FIRST (before generic Juan365)
+                if 'LIVESTREAM' in name_upper or 'LIVE STREAM' in name_upper:
+                    return 'Juan365 Live Stream'
+                elif 'STUDIOS' in name_upper or 'STUDIO' in name_upper:
+                    return 'Juan Studio'
                 elif 'JUANBINGO' in name_upper or 'JUAN BINGO' in name_upper:
                     return 'Juan Bingo'
                 elif 'JUANSPORTS' in name_upper or 'JUAN SPORTS' in name_upper:
                     return 'JuanSports'
-                elif 'DIGIADS' in name_upper or 'DIGI ADS' in name_upper:
+                elif '759' in name_upper or 'GAMING' in name_upper:
+                    return '759 Gaming'
+                elif 'JUAN365' in name_upper or 'DIGIADS' in name_upper or 'DIGI ADS' in name_upper:
                     return 'Juan365'
-                elif 'LIVESTREAM' in name_upper:
-                    return 'Juan365 Livestream'
-                elif 'STUDIOS' in name_upper:
-                    return 'Juan365 Studios'
                 else:
                     return product_name  # Keep original if no brand match
 

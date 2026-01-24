@@ -772,6 +772,24 @@ const Analytics = () => {
                           <span className="text-xs text-gray-500">creatives</span>
                           <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{stat.count} tickets</span>
                         </div>
+                        {/* Criteria breakdown: Video / Image / Other */}
+                        <div className="mt-2 flex flex-wrap gap-1 text-xs">
+                          {(stat.video_qty > 0) && (
+                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                              {stat.video_qty} vid
+                            </span>
+                          )}
+                          {(stat.image_qty > 0) && (
+                            <span className="bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded">
+                              {stat.image_qty} img
+                            </span>
+                          )}
+                          {(stat.other_qty > 0) && (
+                            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              {stat.other_qty} other
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-1 flex items-center justify-between text-xs">
                           <span className="text-green-600">{stat.completed_quantity ?? 0} done</span>
                           <span className="text-yellow-600">{stat.in_progress} active</span>

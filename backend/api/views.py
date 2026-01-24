@@ -2539,7 +2539,10 @@ class AnalyticsView(APIView):
                 completed=Count('id', filter=Q(status=Ticket.Status.COMPLETED)),
                 in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
                 total_quantity=Coalesce(Sum('quantity'), 0),
-                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0)
+                completed_quantity=Coalesce(Sum('quantity', filter=Q(status=Ticket.Status.COMPLETED)), 0),
+                # Quantity by criteria (image/video/other)
+                video_qty=Coalesce(Sum('quantity', filter=Q(criteria='video')), 0),
+                image_qty=Coalesce(Sum('quantity', filter=Q(criteria='image')), 0),
             ).filter(ticket_product__name__isnull=False)
 
             # 2. Ads/Telegram products (from TicketProductItem) - actual quantities
@@ -2550,7 +2553,10 @@ class AnalyticsView(APIView):
                 completed=Count('ticket', distinct=True, filter=Q(ticket__status=Ticket.Status.COMPLETED)),
                 in_progress=Count('ticket', distinct=True, filter=Q(ticket__status=Ticket.Status.IN_PROGRESS)),
                 total_quantity=Sum('quantity'),
-                completed_quantity=Sum('quantity', filter=Q(ticket__status=Ticket.Status.COMPLETED))
+                completed_quantity=Sum('quantity', filter=Q(ticket__status=Ticket.Status.COMPLETED)),
+                # Quantity by criteria (image/video/other)
+                video_qty=Coalesce(Sum('quantity', filter=Q(criteria='video')), 0),
+                image_qty=Coalesce(Sum('quantity', filter=Q(criteria='image')), 0),
             ).filter(product__name__isnull=False)
 
             # Group products by brand name
@@ -2576,27 +2582,42 @@ class AnalyticsView(APIView):
             # Combine and group by brand
             brand_totals = {}
 
+            def init_brand():
+                return {
+                    'count': 0, 'completed': 0, 'in_progress': 0,
+                    'total_quantity': 0, 'completed_quantity': 0,
+                    'video_qty': 0, 'image_qty': 0, 'other_qty': 0
+                }
+
             # Add regular products
             for s in regular_product_stats:
                 brand = get_brand(s['ticket_product__name'])
                 if brand not in brand_totals:
-                    brand_totals[brand] = {'count': 0, 'completed': 0, 'in_progress': 0, 'total_quantity': 0, 'completed_quantity': 0}
+                    brand_totals[brand] = init_brand()
                 brand_totals[brand]['count'] += s['count'] or 0
                 brand_totals[brand]['completed'] += s['completed'] or 0
                 brand_totals[brand]['in_progress'] += s['in_progress'] or 0
                 brand_totals[brand]['total_quantity'] += s['total_quantity'] or 0
                 brand_totals[brand]['completed_quantity'] += s['completed_quantity'] or 0
+                brand_totals[brand]['video_qty'] += s['video_qty'] or 0
+                brand_totals[brand]['image_qty'] += s['image_qty'] or 0
 
             # Add Ads/Telegram products
             for s in ads_product_stats:
                 brand = get_brand(s['product__name'])
                 if brand not in brand_totals:
-                    brand_totals[brand] = {'count': 0, 'completed': 0, 'in_progress': 0, 'total_quantity': 0, 'completed_quantity': 0}
+                    brand_totals[brand] = init_brand()
                 brand_totals[brand]['count'] += s['count'] or 0
                 brand_totals[brand]['completed'] += s['completed'] or 0
                 brand_totals[brand]['in_progress'] += s['in_progress'] or 0
                 brand_totals[brand]['total_quantity'] += s['total_quantity'] or 0
                 brand_totals[brand]['completed_quantity'] += s['completed_quantity'] or 0
+                brand_totals[brand]['video_qty'] += s['video_qty'] or 0
+                brand_totals[brand]['image_qty'] += s['image_qty'] or 0
+
+            # Calculate "other" quantity (total - video - image)
+            for brand, totals in brand_totals.items():
+                totals['other_qty'] = max(0, totals['total_quantity'] - totals['video_qty'] - totals['image_qty'])
 
             # Convert to list
             product_stats = [

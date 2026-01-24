@@ -38,15 +38,15 @@ const Analytics = () => {
   const loading = dateRangeLoading || (analyticsLoading && !analytics);
   const error = analyticsError ? 'Failed to load analytics data' : null;
 
-  // Initialize dates when date range is loaded
+  // Initialize dates when date range is loaded - default to full range (all data)
   useEffect(() => {
-    if (maxDate && !appliedDateFrom && !appliedDateTo) {
-      setDateFrom(maxDate);
+    if (minDate && maxDate && !appliedDateFrom && !appliedDateTo) {
+      setDateFrom(minDate);
       setDateTo(maxDate);
-      setAppliedDateFrom(maxDate);
+      setAppliedDateFrom(minDate);
       setAppliedDateTo(maxDate);
     }
-  }, [maxDate, appliedDateFrom, appliedDateTo]);
+  }, [minDate, maxDate, appliedDateFrom, appliedDateTo]);
 
   // Redirect non-managers
   useEffect(() => {

@@ -97,6 +97,8 @@ class Command(BaseCommand):
     def calculate_metrics(self, yesterday, month_start):
         """Calculate ticket metrics for yesterday and month-to-date"""
         from api.models import Ticket
+        from django.db.models import Sum, Q
+        from django.db.models.functions import Coalesce
 
         # Yesterday's stats
         yesterday_created = Ticket.objects.filter(
@@ -108,6 +110,16 @@ class Command(BaseCommand):
             completed_at__date=yesterday,
             is_deleted=False
         ).count()
+
+        # Yesterday's quantity produced (from completed tickets)
+        yesterday_qty = Ticket.objects.filter(
+            completed_at__date=yesterday,
+            is_deleted=False
+        ).aggregate(
+            total=Coalesce(Sum('quantity'), 0),
+            video=Coalesce(Sum('quantity', filter=Q(criteria='video')), 0),
+            image=Coalesce(Sum('quantity', filter=Q(criteria='image')), 0),
+        )
 
         # Month-to-date stats
         days_in_period = (yesterday - month_start).days + 1
@@ -124,9 +136,21 @@ class Command(BaseCommand):
             is_deleted=False
         ).count()
 
+        # Month quantity produced
+        month_qty = Ticket.objects.filter(
+            completed_at__date__gte=month_start,
+            completed_at__date__lte=yesterday,
+            is_deleted=False
+        ).aggregate(
+            total=Coalesce(Sum('quantity'), 0),
+            video=Coalesce(Sum('quantity', filter=Q(criteria='video')), 0),
+            image=Coalesce(Sum('quantity', filter=Q(criteria='image')), 0),
+        )
+
         # Averages
         avg_created = round(month_created / days_in_period, 1) if days_in_period > 0 else 0
         avg_completed = round(month_completed / days_in_period, 1) if days_in_period > 0 else 0
+        avg_qty = round(month_qty['total'] / days_in_period, 1) if days_in_period > 0 else 0
 
         # Current status counts
         status_counts = {}
@@ -146,10 +170,17 @@ class Command(BaseCommand):
         return {
             'yesterday_created': yesterday_created,
             'yesterday_completed': yesterday_completed,
+            'yesterday_qty': yesterday_qty['total'],
+            'yesterday_video': yesterday_qty['video'],
+            'yesterday_image': yesterday_qty['image'],
             'month_avg_created': avg_created,
             'month_avg_completed': avg_completed,
+            'month_avg_qty': avg_qty,
             'month_total_created': month_created,
             'month_total_completed': month_completed,
+            'month_total_qty': month_qty['total'],
+            'month_total_video': month_qty['video'],
+            'month_total_image': month_qty['image'],
             'days_in_period': days_in_period,
             'status_counts': status_counts,
             'overdue_count': overdue_count,
@@ -162,14 +193,21 @@ class Command(BaseCommand):
         # Yesterday's activity
         y_created = metrics['yesterday_created']
         y_completed = metrics['yesterday_completed']
+        y_qty = metrics['yesterday_qty']
+        y_video = metrics['yesterday_video']
+        y_image = metrics['yesterday_image']
 
         # Month averages
         avg_created = metrics['month_avg_created']
         avg_completed = metrics['month_avg_completed']
+        avg_qty = metrics['month_avg_qty']
 
         # Month totals
         m_created = metrics['month_total_created']
         m_completed = metrics['month_total_completed']
+        m_qty = metrics['month_total_qty']
+        m_video = metrics['month_total_video']
+        m_image = metrics['month_total_image']
         days = metrics['days_in_period']
 
         # Calculate percentage change vs month average
@@ -200,24 +238,23 @@ class Command(BaseCommand):
         return f"""📊 <b>Creative Team Daily Report</b>
 📅 {yesterday.strftime('%B %d, %Y')} (T+1)
 
-<b>Yesterday's Activity:</b>
-• Created: {y_created} tickets
-• Completed: {y_completed} tickets
+<b>Yesterday's Output:</b>
+• Tickets: {y_created} created, {y_completed} completed
+• Creatives: {y_qty} produced ({y_video} video, {y_image} image)
 
 <b>vs Month Average:</b>
-• Created: {y_created} vs {avg_created}/day ({pct_change(y_created, avg_created)} {trend(y_created, avg_created)})
-• Completed: {y_completed} vs {avg_completed}/day ({pct_change(y_completed, avg_completed)} {trend(y_completed, avg_completed)})
+• Tickets: {y_completed} vs {avg_completed}/day ({pct_change(y_completed, avg_completed)} {trend(y_completed, avg_completed)})
+• Creatives: {y_qty} vs {avg_qty}/day ({pct_change(y_qty, avg_qty)} {trend(y_qty, avg_qty)})
 
 <b>Month-to-Date ({days} days):</b>
-• Total Created: {m_created}
-• Total Completed: {m_completed}
-• Completion Rate: {completion_rate:.0f}%
+• Tickets: {m_created} created, {m_completed} completed ({completion_rate:.0f}%)
+• Creatives: {m_qty} total ({m_video} video, {m_image} image)
 
 <b>Current Queue:</b>
 • Pending Approval: {pending_approval}
 • In Queue: {in_queue}
 • In Progress: {in_progress}
-• Overdue: {overdue}"""
+• ⚠️ Overdue: {overdue}"""
 
     async def test_browser_launch(self):
         """Test if Playwright browser can launch successfully"""

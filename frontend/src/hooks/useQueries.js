@@ -464,3 +464,22 @@ export const useAnalyticsDateRange = () => {
     gcTime: 60 * 60 * 1000, // 1 hour
   });
 };
+
+// ==================
+// MONTHLY REPORT (cached for 10 minutes)
+// ==================
+export const useMonthlyReport = (year, month, enabled = true) => {
+  return useQuery({
+    queryKey: ['monthly-report', year, month],
+    queryFn: async () => {
+      const { monthlyReportAPI } = await import('../services/api');
+      const response = await monthlyReportAPI.getReport(year, month);
+      return response.data;
+    },
+    enabled: enabled && !!year && !!month,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: false,
+  });
+};

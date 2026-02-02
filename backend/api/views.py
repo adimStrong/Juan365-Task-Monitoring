@@ -3195,3 +3195,576 @@ class TriggerDailyReportView(APIView):
             return Response({"status": "ok", "output": output.getvalue()})
         except Exception as e:
             return Response({"status": "error", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# =====================
+# MONTHLY REPORT
+# =====================
+
+class MonthlyReportView(APIView):
+    """
+    Monthly KPI report endpoint for management review.
+
+    GET /api/reports/monthly/?year=2026&month=1
+
+    Returns comprehensive monthly metrics including:
+    - Executive summary with RAG status
+    - Team leaderboard
+    - Breakdowns by product, department, request type
+    - Quality metrics (revision distribution, overdue tickets)
+    - Month-over-month comparison
+    """
+    permission_classes = [IsManagerUser]
+
+    def get(self, request):
+        from django.db.models import Avg, Count, F, Sum, Q, Min, Max
+        from django.db.models.functions import Coalesce
+        from .models import TicketProductItem, TicketAnalytics
+        from datetime import datetime, timedelta
+        from calendar import monthrange
+        import calendar
+
+        try:
+            # Get year and month from query params
+            year = int(request.query_params.get('year', datetime.now().year))
+            month = int(request.query_params.get('month', datetime.now().month))
+
+            # Validate year and month
+            if not (2020 <= year <= 2100):
+                return Response({'error': 'Year must be between 2020 and 2100'}, status=status.HTTP_400_BAD_REQUEST)
+            if not (1 <= month <= 12):
+                return Response({'error': 'Month must be between 1 and 12'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Calculate date range for the month
+            _, last_day = monthrange(year, month)
+            date_from = f"{year}-{month:02d}-01"
+            date_to = f"{year}-{month:02d}-{last_day:02d}"
+            month_name = calendar.month_name[month]
+
+            # Calculate previous month for MoM comparison
+            if month == 1:
+                prev_year, prev_month = year - 1, 12
+            else:
+                prev_year, prev_month = year, month - 1
+            _, prev_last_day = monthrange(prev_year, prev_month)
+            prev_date_from = f"{prev_year}-{prev_month:02d}-01"
+            prev_date_to = f"{prev_year}-{prev_month:02d}-{prev_last_day:02d}"
+            prev_month_name = calendar.month_name[prev_month]
+
+            # =====================
+            # CURRENT MONTH DATA
+            # =====================
+            tickets = Ticket.objects.select_related(
+                'analytics', 'assigned_to', 'target_department', 'ticket_product'
+            ).filter(
+                is_deleted=False,
+                created_at__date__gte=date_from,
+                created_at__date__lte=date_to
+            )
+            tickets_list = list(tickets)
+
+            # Basic counts
+            total_tickets = len(tickets_list)
+            assigned_tickets = sum(1 for t in tickets_list if t.assigned_to_id is not None)
+            completed_tickets = sum(1 for t in tickets_list if t.status == Ticket.Status.COMPLETED)
+            in_progress_tickets = sum(1 for t in tickets_list if t.status == Ticket.Status.IN_PROGRESS)
+
+            # Completion rate
+            completion_rate = round(completed_tickets / assigned_tickets * 100, 1) if assigned_tickets > 0 else 0
+
+            # =====================
+            # ON-TIME RATE
+            # =====================
+            completed_list = [t for t in tickets_list if t.status == Ticket.Status.COMPLETED]
+            on_time_tickets = sum(
+                1 for t in completed_list
+                if t.deadline and t.completed_at and t.completed_at <= t.deadline
+            )
+            tickets_with_deadline = sum(1 for t in completed_list if t.deadline)
+            on_time_rate = round(on_time_tickets / tickets_with_deadline * 100, 1) if tickets_with_deadline > 0 else None
+
+            # =====================
+            # OVERDUE METRICS
+            # =====================
+            now = timezone.now()
+            active_tickets = [t for t in tickets_list if t.status not in [Ticket.Status.COMPLETED, Ticket.Status.REJECTED]]
+            overdue_tickets = [
+                t for t in active_tickets
+                if t.deadline and now > t.deadline
+            ]
+            overdue_count = len(overdue_tickets)
+            overdue_rate = round(overdue_count / len(active_tickets) * 100, 1) if active_tickets else 0
+
+            # Overdue by priority
+            overdue_by_priority = {}
+            for priority in ['urgent', 'high', 'medium', 'low']:
+                count = sum(1 for t in overdue_tickets if t.priority == priority)
+                overdue_by_priority[priority] = count
+
+            # =====================
+            # REVISION STATISTICS
+            # =====================
+            revision_counts = [t.revision_count or 0 for t in completed_list]
+            total_revisions = sum(revision_counts)
+            avg_revisions = round(total_revisions / len(completed_list), 2) if completed_list else 0
+
+            # Revision distribution
+            revision_distribution = {
+                '0': sum(1 for r in revision_counts if r == 0),
+                '1': sum(1 for r in revision_counts if r == 1),
+                '2': sum(1 for r in revision_counts if r == 2),
+                '3': sum(1 for r in revision_counts if r == 3),
+                '4+': sum(1 for r in revision_counts if r >= 4),
+            }
+
+            # High-revision tickets (>3 revisions)
+            high_revision_tickets = [
+                {
+                    'id': t.id,
+                    'title': t.title,
+                    'revision_count': t.revision_count,
+                    'assigned_to': t.assigned_to.username if t.assigned_to else None,
+                    'product': t.ticket_product.name if t.ticket_product else t.product,
+                }
+                for t in completed_list if (t.revision_count or 0) > 3
+            ]
+
+            # =====================
+            # QUANTITY OUTPUT
+            # =====================
+            # Regular tickets (non-ads/telegram)
+            regular_quantity = sum(
+                t.quantity or 0 for t in completed_list
+                if t.request_type not in ['ads', 'telegram_channel']
+            )
+            # Product items for Ads/Telegram
+            completed_ids = [t.id for t in completed_list]
+            product_items_quantity = TicketProductItem.objects.filter(
+                ticket_id__in=completed_ids
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            total_output = regular_quantity + product_items_quantity
+
+            # Video/Image breakdown
+            product_items_list = list(TicketProductItem.objects.filter(
+                ticket_id__in=completed_ids
+            ).select_related('product', 'ticket'))
+
+            video_quantity = sum(t.quantity or 0 for t in completed_list if t.criteria == 'video')
+            video_quantity += sum(
+                p.quantity or 0 for p in product_items_list
+                if p.product and 'VID' in (p.product.name or '').upper()
+            )
+            # Telegram video
+            telegram_items = [p for p in product_items_list if p.ticket.request_type == 'telegram_channel']
+            video_quantity += sum(
+                item.quantity or 0 for item in telegram_items
+                if (item.criteria == 'video') or (not item.criteria and item.ticket.criteria == 'video')
+            )
+
+            image_quantity = sum(t.quantity or 0 for t in completed_list if t.criteria == 'image')
+            image_quantity += sum(
+                p.quantity or 0 for p in product_items_list
+                if p.product and 'STATIC' in (p.product.name or '').upper()
+            )
+            image_quantity += sum(
+                item.quantity or 0 for item in telegram_items
+                if (item.criteria == 'image') or (not item.criteria and item.ticket.criteria == 'image')
+            )
+
+            # =====================
+            # RAG STATUS CALCULATION
+            # =====================
+            def get_rag_status(value, thresholds, higher_is_better=True):
+                """Calculate RAG status based on thresholds"""
+                if value is None:
+                    return {'status': 'grey', 'label': 'N/A'}
+                if higher_is_better:
+                    if value >= thresholds['green']:
+                        return {'status': 'green', 'label': 'On Track'}
+                    elif value >= thresholds['amber']:
+                        return {'status': 'amber', 'label': 'At Risk'}
+                    else:
+                        return {'status': 'red', 'label': 'Off Track'}
+                else:
+                    if value <= thresholds['green']:
+                        return {'status': 'green', 'label': 'On Track'}
+                    elif value <= thresholds['amber']:
+                        return {'status': 'amber', 'label': 'At Risk'}
+                    else:
+                        return {'status': 'red', 'label': 'Off Track'}
+
+            kpi_summary = {
+                'completion_rate': {
+                    'value': completion_rate,
+                    'target': 80,
+                    'unit': '%',
+                    'rag': get_rag_status(completion_rate, {'green': 80, 'amber': 70}),
+                },
+                'on_time_rate': {
+                    'value': on_time_rate,
+                    'target': 80,
+                    'unit': '%',
+                    'rag': get_rag_status(on_time_rate, {'green': 80, 'amber': 70}) if on_time_rate is not None else {'status': 'grey', 'label': 'N/A'},
+                },
+                'avg_revisions': {
+                    'value': avg_revisions,
+                    'target': 3,
+                    'unit': '',
+                    'rag': get_rag_status(avg_revisions, {'green': 3, 'amber': 4}, higher_is_better=False),
+                },
+                'total_output': {
+                    'value': total_output,
+                    'target': None,  # Context-dependent
+                    'unit': 'creatives',
+                    'rag': {'status': 'blue', 'label': 'Info'},
+                },
+                'overdue_rate': {
+                    'value': overdue_rate,
+                    'target': 5,
+                    'unit': '%',
+                    'rag': get_rag_status(overdue_rate, {'green': 5, 'amber': 10}, higher_is_better=False),
+                },
+            }
+
+            # =====================
+            # TEAM LEADERBOARD
+            # =====================
+            from api.models import TicketCollaborator
+
+            # Build user -> tickets mapping
+            tickets_by_user = {}
+            for t in tickets_list:
+                if t.assigned_to_id:
+                    if t.assigned_to_id not in tickets_by_user:
+                        tickets_by_user[t.assigned_to_id] = set()
+                    tickets_by_user[t.assigned_to_id].add(t.id)
+
+            # Add collaborators
+            ticket_ids = [t.id for t in tickets_list]
+            collaborators = TicketCollaborator.objects.filter(
+                ticket_id__in=ticket_ids
+            ).values('user_id', 'ticket_id')
+            for collab in collaborators:
+                user_id = collab['user_id']
+                if user_id not in tickets_by_user:
+                    tickets_by_user[user_id] = set()
+                tickets_by_user[user_id].add(collab['ticket_id'])
+
+            tickets_dict = {t.id: t for t in tickets_list}
+            users_with_tickets = User.objects.select_related('user_department').filter(
+                id__in=tickets_by_user.keys()
+            )
+
+            leaderboard = []
+            for user in users_with_tickets:
+                user_ticket_ids = tickets_by_user.get(user.id, set())
+                user_tickets = [tickets_dict[tid] for tid in user_ticket_ids if tid in tickets_dict]
+                user_completed = [t for t in user_tickets if t.status == Ticket.Status.COMPLETED]
+
+                # Calculate output
+                user_regular_qty = sum(
+                    t.quantity or 0 for t in user_completed
+                    if t.request_type not in ['ads', 'telegram_channel']
+                )
+                user_completed_ids = [t.id for t in user_completed]
+                user_product_qty = TicketProductItem.objects.filter(
+                    ticket_id__in=user_completed_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                user_output = user_regular_qty + user_product_qty
+
+                # On-time rate for user
+                user_on_time = sum(
+                    1 for t in user_completed
+                    if t.deadline and t.completed_at and t.completed_at <= t.deadline
+                )
+                user_with_deadline = sum(1 for t in user_completed if t.deadline)
+                user_on_time_rate = round(user_on_time / user_with_deadline * 100, 1) if user_with_deadline > 0 else None
+
+                # Avg revisions for user
+                user_revisions = [t.revision_count or 0 for t in user_completed]
+                user_avg_revisions = round(sum(user_revisions) / len(user_revisions), 2) if user_revisions else 0
+
+                leaderboard.append({
+                    'user_id': user.id,
+                    'username': user.username,
+                    'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
+                    'department': user.user_department.name if user.user_department else '',
+                    'tickets_assigned': len(user_tickets),
+                    'tickets_completed': len(user_completed),
+                    'total_output': user_output,
+                    'completion_rate': round(len(user_completed) / len(user_tickets) * 100, 1) if user_tickets else 0,
+                    'on_time_rate': user_on_time_rate,
+                    'avg_revisions': user_avg_revisions,
+                })
+
+            # Sort by total_output descending
+            leaderboard.sort(key=lambda x: x['total_output'], reverse=True)
+            # Add rank
+            for i, item in enumerate(leaderboard):
+                item['rank'] = i + 1
+
+            # =====================
+            # BREAKDOWNS
+            # =====================
+            # By Product
+            def get_brand(product_name):
+                name_upper = (product_name or '').upper()
+                if 'LIVESTREAM' in name_upper or 'LIVE STREAM' in name_upper:
+                    return 'Juan365 Live Stream'
+                elif 'STUDIOS' in name_upper or 'STUDIO' in name_upper:
+                    return 'Juan Studio'
+                elif 'JUANBINGO' in name_upper or 'JUAN BINGO' in name_upper:
+                    return 'Juan Bingo'
+                elif 'JUANSPORTS' in name_upper or 'JUAN SPORTS' in name_upper:
+                    return 'JuanSports'
+                elif '759' in name_upper or 'GAMING' in name_upper:
+                    return '759 Gaming'
+                elif 'JUAN365' in name_upper or 'DIGIADS' in name_upper or 'DIGI ADS' in name_upper:
+                    return 'Juan365'
+                else:
+                    return product_name
+
+            product_breakdown = {}
+            for t in tickets_list:
+                brand = get_brand(t.ticket_product.name if t.ticket_product else t.product)
+                if brand:
+                    if brand not in product_breakdown:
+                        product_breakdown[brand] = {'count': 0, 'completed': 0, 'output': 0}
+                    product_breakdown[brand]['count'] += 1
+                    if t.status == Ticket.Status.COMPLETED:
+                        product_breakdown[brand]['completed'] += 1
+                        if t.request_type not in ['ads', 'telegram_channel']:
+                            product_breakdown[brand]['output'] += t.quantity or 0
+
+            # Add product items output
+            for p in product_items_list:
+                brand = get_brand(p.product.name if p.product else '')
+                if brand and brand in product_breakdown:
+                    product_breakdown[brand]['output'] += p.quantity or 0
+
+            by_product = [
+                {'product': k, **v}
+                for k, v in sorted(product_breakdown.items(), key=lambda x: x[1]['output'], reverse=True)
+            ]
+
+            # By Department
+            dept_breakdown = {}
+            for t in tickets_list:
+                dept = t.target_department.name if t.target_department else t.department
+                if dept:
+                    if dept not in dept_breakdown:
+                        dept_breakdown[dept] = {'count': 0, 'completed': 0}
+                    dept_breakdown[dept]['count'] += 1
+                    if t.status == Ticket.Status.COMPLETED:
+                        dept_breakdown[dept]['completed'] += 1
+
+            by_department = [
+                {'department': k, **v}
+                for k, v in sorted(dept_breakdown.items(), key=lambda x: x[1]['count'], reverse=True)
+            ]
+
+            # By Request Type
+            request_type_display = {
+                'socmed_posting': 'Socmed Posting',
+                'website_banner': 'Website Banner',
+                'photoshoot': 'Photoshoot',
+                'videoshoot': 'Videoshoot',
+                'live_production': 'Live Production',
+                'ads': 'Ads',
+                'telegram_channel': 'Telegram Channel',
+            }
+            type_breakdown = {}
+            for t in tickets_list:
+                rt = t.request_type
+                if rt:
+                    if rt not in type_breakdown:
+                        type_breakdown[rt] = {'count': 0, 'completed': 0, 'total_revisions': 0}
+                    type_breakdown[rt]['count'] += 1
+                    if t.status == Ticket.Status.COMPLETED:
+                        type_breakdown[rt]['completed'] += 1
+                        type_breakdown[rt]['total_revisions'] += t.revision_count or 0
+
+            by_request_type = [
+                {
+                    'request_type': k,
+                    'display_name': request_type_display.get(k, k),
+                    'count': v['count'],
+                    'completed': v['completed'],
+                    'avg_revisions': round(v['total_revisions'] / v['completed'], 2) if v['completed'] > 0 else 0,
+                }
+                for k, v in sorted(type_breakdown.items(), key=lambda x: x[1]['count'], reverse=True)
+            ]
+
+            # By Priority
+            by_priority = []
+            for priority in ['urgent', 'high', 'medium', 'low']:
+                priority_list = [t for t in tickets_list if t.priority == priority]
+                priority_completed = [t for t in priority_list if t.status == Ticket.Status.COMPLETED]
+                processing_times = [
+                    (t.completed_at - t.started_at).total_seconds()
+                    for t in priority_completed
+                    if t.started_at and t.completed_at
+                ]
+                by_priority.append({
+                    'priority': priority,
+                    'display_name': priority.title(),
+                    'total': len(priority_list),
+                    'completed': len(priority_completed),
+                    'avg_processing_seconds': round(sum(processing_times) / len(processing_times)) if processing_times else None,
+                })
+
+            # =====================
+            # MONTH-OVER-MONTH COMPARISON
+            # =====================
+            prev_tickets = Ticket.objects.filter(
+                is_deleted=False,
+                created_at__date__gte=prev_date_from,
+                created_at__date__lte=prev_date_to
+            )
+            prev_tickets_list = list(prev_tickets)
+            prev_total = len(prev_tickets_list)
+            prev_assigned = sum(1 for t in prev_tickets_list if t.assigned_to_id is not None)
+            prev_completed = sum(1 for t in prev_tickets_list if t.status == Ticket.Status.COMPLETED)
+            prev_completion_rate = round(prev_completed / prev_assigned * 100, 1) if prev_assigned > 0 else 0
+
+            # Previous month output
+            prev_completed_list = [t for t in prev_tickets_list if t.status == Ticket.Status.COMPLETED]
+            prev_regular_qty = sum(
+                t.quantity or 0 for t in prev_completed_list
+                if t.request_type not in ['ads', 'telegram_channel']
+            )
+            prev_completed_ids = [t.id for t in prev_completed_list]
+            prev_product_qty = TicketProductItem.objects.filter(
+                ticket_id__in=prev_completed_ids
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            prev_output = prev_regular_qty + prev_product_qty
+
+            def calc_change(current, previous):
+                if previous == 0:
+                    return None
+                return round((current - previous) / previous * 100, 1)
+
+            mom_comparison = {
+                'previous_month': f"{prev_month_name} {prev_year}",
+                'current_month': f"{month_name} {year}",
+                'metrics': {
+                    'total_tickets': {
+                        'current': total_tickets,
+                        'previous': prev_total,
+                        'change': calc_change(total_tickets, prev_total),
+                    },
+                    'completed_tickets': {
+                        'current': completed_tickets,
+                        'previous': prev_completed,
+                        'change': calc_change(completed_tickets, prev_completed),
+                    },
+                    'completion_rate': {
+                        'current': completion_rate,
+                        'previous': prev_completion_rate,
+                        'change': round(completion_rate - prev_completion_rate, 1) if prev_completion_rate else None,
+                    },
+                    'total_output': {
+                        'current': total_output,
+                        'previous': prev_output,
+                        'change': calc_change(total_output, prev_output),
+                    },
+                },
+            }
+
+            # =====================
+            # AUTO-GENERATED INSIGHTS
+            # =====================
+            insights = {
+                'wins': [],
+                'improvements': [],
+                'action_items': [],
+            }
+
+            # Wins
+            if completion_rate >= 80:
+                insights['wins'].append(f"Completion rate of {completion_rate}% exceeds 80% target")
+            if on_time_rate and on_time_rate >= 80:
+                insights['wins'].append(f"On-time delivery at {on_time_rate}% meets target")
+            if avg_revisions < 2:
+                insights['wins'].append(f"Low revision rate ({avg_revisions} avg) indicates high first-time quality")
+            if mom_comparison['metrics']['total_output']['change'] and mom_comparison['metrics']['total_output']['change'] > 10:
+                insights['wins'].append(f"Output increased by {mom_comparison['metrics']['total_output']['change']}% vs previous month")
+
+            # Areas for improvement
+            if completion_rate < 70:
+                insights['improvements'].append(f"Completion rate ({completion_rate}%) below target - review workload distribution")
+            if on_time_rate and on_time_rate < 70:
+                insights['improvements'].append(f"On-time rate ({on_time_rate}%) needs attention - review deadline setting")
+            if avg_revisions > 3:
+                insights['improvements'].append(f"High revision rate ({avg_revisions} avg) - improve brief clarity")
+            if overdue_rate > 10:
+                insights['improvements'].append(f"Overdue rate ({overdue_rate}%) exceeds threshold - prioritize clearing backlog")
+
+            # Action items
+            if high_revision_tickets:
+                insights['action_items'].append(f"Review {len(high_revision_tickets)} high-revision tickets for process improvement")
+            if overdue_count > 0:
+                urgent_overdue = overdue_by_priority.get('urgent', 0) + overdue_by_priority.get('high', 0)
+                if urgent_overdue > 0:
+                    insights['action_items'].append(f"Clear {urgent_overdue} urgent/high priority overdue tickets")
+
+            return Response({
+                'report_period': {
+                    'year': year,
+                    'month': month,
+                    'month_name': month_name,
+                    'date_from': date_from,
+                    'date_to': date_to,
+                },
+                'executive_summary': {
+                    'total_tickets': total_tickets,
+                    'assigned_tickets': assigned_tickets,
+                    'completed_tickets': completed_tickets,
+                    'in_progress_tickets': in_progress_tickets,
+                    'total_output': total_output,
+                    'video_quantity': video_quantity,
+                    'image_quantity': image_quantity,
+                    'kpi_summary': kpi_summary,
+                },
+                'quality_metrics': {
+                    'on_time_rate': on_time_rate,
+                    'on_time_count': on_time_tickets,
+                    'tickets_with_deadline': tickets_with_deadline,
+                    'avg_revisions': avg_revisions,
+                    'revision_distribution': revision_distribution,
+                    'high_revision_tickets': high_revision_tickets,
+                },
+                'overdue_metrics': {
+                    'overdue_count': overdue_count,
+                    'overdue_rate': overdue_rate,
+                    'overdue_by_priority': overdue_by_priority,
+                    'overdue_tickets': [
+                        {
+                            'id': t.id,
+                            'title': t.title,
+                            'priority': t.priority,
+                            'deadline': t.deadline.isoformat() if t.deadline else None,
+                            'assigned_to': t.assigned_to.username if t.assigned_to else None,
+                        }
+                        for t in overdue_tickets[:10]  # Limit to 10
+                    ],
+                },
+                'team_leaderboard': leaderboard,
+                'breakdowns': {
+                    'by_product': by_product,
+                    'by_department': by_department,
+                    'by_request_type': by_request_type,
+                    'by_priority': by_priority,
+                },
+                'mom_comparison': mom_comparison,
+                'insights': insights,
+            })
+
+        except Exception as e:
+            logger.error(f"Monthly report error: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return Response(
+                {'error': f'Failed to generate monthly report: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

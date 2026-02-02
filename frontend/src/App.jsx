@@ -21,6 +21,7 @@ const Users = lazy(() => import('./pages/Users'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Trash = lazy(() => import('./pages/Trash'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const MonthlyReport = lazy(() => import('./pages/MonthlyReport'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Loading spinner for lazy loaded components
@@ -169,6 +170,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <RoleProtectedRoute requiredRole="manager">
               <Analytics />
+            </RoleProtectedRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={ROUTES.MONTHLY_REPORT}
+        element={
+          <ProtectedRoute>
+            <RoleProtectedRoute requiredRole="manager">
+              <MonthlyReport />
             </RoleProtectedRoute>
           </ProtectedRoute>
         }

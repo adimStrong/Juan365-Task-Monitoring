@@ -19,6 +19,7 @@ export const ROUTES = {
   // Protected routes - Managers only
   USERS: '/users',
   ANALYTICS: '/analytics',
+  MONTHLY_REPORT: '/monthly',
   TRASH: '/trash',
   ADMIN: '/admin',
 };
@@ -27,6 +28,7 @@ export const ROUTES = {
 export const MANAGER_ONLY_ROUTES = [
   ROUTES.USERS,
   ROUTES.ANALYTICS,
+  ROUTES.MONTHLY_REPORT,
   ROUTES.TRASH,
   ROUTES.ADMIN,
 ];
@@ -44,6 +46,7 @@ export const getNavLinks = (isManager) => [
   { to: ROUTES.NOTIFICATIONS, label: 'Notifications', show: true },
   { to: ROUTES.USERS, label: 'Users', show: isManager },
   { to: ROUTES.ANALYTICS, label: 'Analytics', show: isManager },
+  { to: ROUTES.MONTHLY_REPORT, label: 'Monthly Report', show: isManager },
   { to: ROUTES.TRASH, label: 'Trash', show: isManager },
   { to: ROUTES.ADMIN, label: 'Admin', show: isManager },
 ];

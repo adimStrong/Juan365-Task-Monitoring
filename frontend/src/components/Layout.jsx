@@ -62,6 +62,7 @@ const Layout = ({ children }) => {
     { to: '/activity', label: 'Activity', show: true },
     { to: '/users', label: 'Users', show: isManager },
     { to: '/analytics', label: 'Analytics', show: isManager },
+    { to: '/monthly', label: 'Monthly Report', show: isManager },
     { to: '/trash', label: 'Trash', show: isManager },
     { to: '/admin', label: 'Admin', show: isManager },
   ];
@@ -230,6 +231,16 @@ const Layout = ({ children }) => {
                       }`}
                     >
                       Analytics
+                    </Link>
+                    <Link
+                      to="/monthly"
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                        isActive('/monthly')
+                          ? 'border-blue-500 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}
+                    >
+                      Monthly
                     </Link>
                     <Link
                       to="/trash"

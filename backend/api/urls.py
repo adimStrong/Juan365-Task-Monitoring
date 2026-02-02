@@ -8,7 +8,7 @@ from .views import (
     NotificationViewSet, UserManagementViewSet,
     DashboardView, MyTasksView, TeamOverviewView, OverdueTicketsView,
     PendingApprovalsByDeptView,
-    ActivityLogListView, AnalyticsView,
+    ActivityLogListView, AnalyticsView, MonthlyReportView,
     DepartmentViewSet, ProductViewSet, PublicDepartmentListView,
     ForgotPasswordView, ResetPasswordView, HealthCheckView, TriggerOverdueRemindersView,
     TriggerDailyReportView
@@ -52,6 +52,9 @@ urlpatterns = [
 
     # Analytics
     path('analytics/', AnalyticsView.as_view(), name='analytics'),
+
+    # Reports
+    path('reports/monthly/', MonthlyReportView.as_view(), name='monthly-report'),
 
     # Health check (for uptime monitoring)
     path('health/', HealthCheckView.as_view(), name='health-check'),

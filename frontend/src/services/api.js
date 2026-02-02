@@ -239,6 +239,12 @@ export const analyticsAPI = {
     api.get('/analytics/', { params }),
 };
 
+// Monthly Report API
+export const monthlyReportAPI = {
+  getReport: (year, month) =>
+    api.get('/reports/monthly/', { params: { year, month } }),
+};
+
 // Notifications API
 export const notificationsAPI = {
   list: () =>

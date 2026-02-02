@@ -160,10 +160,11 @@ class Command(BaseCommand):
                 is_deleted=False
             ).count()
 
-        # Overdue count
+        # Overdue count - only tickets created this month
         overdue_count = Ticket.objects.filter(
             deadline__lt=timezone.now(),
             status__in=['approved', 'in_progress'],
+            created_at__date__gte=month_start,
             is_deleted=False
         ).count()
 

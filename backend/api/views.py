@@ -3286,11 +3286,13 @@ class MonthlyReportView(APIView):
             # =====================
             # OVERDUE METRICS
             # =====================
-            now = timezone.now()
+            # Use end of report month instead of now() for historical accuracy
+            # This way January report shows overdue as of Jan 31, not as of today
+            month_end = timezone.make_aware(datetime(year, month, last_day, 23, 59, 59))
             active_tickets = [t for t in tickets_list if t.status not in [Ticket.Status.COMPLETED, Ticket.Status.REJECTED]]
             overdue_tickets = [
                 t for t in active_tickets
-                if t.deadline and now > t.deadline
+                if t.deadline and month_end > t.deadline
             ]
             overdue_count = len(overdue_tickets)
             overdue_rate = round(overdue_count / len(active_tickets) * 100, 1) if active_tickets else 0

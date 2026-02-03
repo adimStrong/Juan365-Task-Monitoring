@@ -56,6 +56,22 @@ const MonthlyReport = () => {
     { value: 12, label: 'December' },
   ];
 
+  // Format numbers with commas or abbreviations (1k, 1M)
+  const formatNumber = (num, abbreviate = false) => {
+    if (num === null || num === undefined) return 'N/A';
+    if (typeof num !== 'number') return num;
+
+    if (abbreviate) {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+      }
+    }
+    return num.toLocaleString();
+  };
+
   // RAG status colors
   const getRagColor = (status) => {
     switch (status) {
@@ -151,10 +167,10 @@ const MonthlyReport = () => {
     text += `*${report.report_period.month_name} ${report.report_period.year}*\n\n`;
 
     text += `*EXECUTIVE SUMMARY*\n`;
-    text += `Total Tickets: *${report.executive_summary.total_tickets}*\n`;
-    text += `Completed: *${report.executive_summary.completed_tickets}*\n`;
-    text += `Total Output: *${report.executive_summary.total_output}* creatives\n`;
-    text += `  Video: ${report.executive_summary.video_quantity} | Image: ${report.executive_summary.image_quantity}\n\n`;
+    text += `Total Tickets: *${formatNumber(report.executive_summary.total_tickets)}*\n`;
+    text += `Completed: *${formatNumber(report.executive_summary.completed_tickets)}*\n`;
+    text += `Total Output: *${formatNumber(report.executive_summary.total_output)}* creatives\n`;
+    text += `  Video: ${formatNumber(report.executive_summary.video_quantity)} | Image: ${formatNumber(report.executive_summary.image_quantity)}\n\n`;
 
     text += `*KEY METRICS*\n`;
     const ragEmojis = { green: '\u2705', amber: '\u26A0\uFE0F', red: '\u274C', blue: '\u2139\uFE0F', grey: '\u2B55' };
@@ -168,7 +184,7 @@ const MonthlyReport = () => {
     text += `*TOP 5 PERFORMERS*\n`;
     const medals = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49', '4.', '5.'];
     sortedLeaderboard.slice(0, 5).forEach((member, i) => {
-      text += `${medals[i]} ${member.full_name}: *${member.total_output}* output\n`;
+      text += `${medals[i]} ${member.full_name}: *${formatNumber(member.total_output)}* output\n`;
     });
     text += '\n';
 
@@ -294,7 +310,7 @@ const MonthlyReport = () => {
                     {getRagIcon(data.rag.status)}
                   </div>
                   <p className="text-3xl font-bold">
-                    {data.value !== null ? `${data.value}${data.unit}` : 'N/A'}
+                    {data.value !== null ? `${typeof data.value === 'number' ? formatNumber(data.value) : data.value}${data.unit}` : 'N/A'}
                   </p>
                   <div className="flex items-center justify-between mt-2 text-xs">
                     <span className="opacity-75">Target: {data.target !== null ? `${data.target}${data.unit}` : '-'}</span>
@@ -308,19 +324,19 @@ const MonthlyReport = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <p className="text-sm text-gray-500">Total Tickets</p>
-                <p className="text-2xl font-bold text-gray-900">{report.executive_summary.total_tickets}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(report.executive_summary.total_tickets)}</p>
               </div>
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <p className="text-sm text-gray-500">Completed</p>
-                <p className="text-2xl font-bold text-green-600">{report.executive_summary.completed_tickets}</p>
+                <p className="text-2xl font-bold text-green-600">{formatNumber(report.executive_summary.completed_tickets)}</p>
               </div>
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <p className="text-sm text-gray-500">Video Output</p>
-                <p className="text-2xl font-bold text-blue-600">{report.executive_summary.video_quantity}</p>
+                <p className="text-2xl font-bold text-blue-600">{formatNumber(report.executive_summary.video_quantity)}</p>
               </div>
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <p className="text-sm text-gray-500">Image Output</p>
-                <p className="text-2xl font-bold text-pink-600">{report.executive_summary.image_quantity}</p>
+                <p className="text-2xl font-bold text-pink-600">{formatNumber(report.executive_summary.image_quantity)}</p>
               </div>
             </div>
 
@@ -464,10 +480,10 @@ const MonthlyReport = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-900">
-                            {member.tickets_completed}
+                            {formatNumber(member.tickets_completed)}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-semibold text-blue-600">
-                            {member.total_output}
+                            {formatNumber(member.total_output)}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             <span className={`text-sm font-medium ${
@@ -521,8 +537,8 @@ const MonthlyReport = () => {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">{item.product}</span>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-gray-500">{item.count} tickets</span>
-                            <span className="font-semibold text-blue-600">{item.output} output</span>
+                            <span className="text-gray-500">{formatNumber(item.count)} tickets</span>
+                            <span className="font-semibold text-blue-600">{formatNumber(item.output)} output</span>
                           </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
@@ -551,8 +567,8 @@ const MonthlyReport = () => {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">{item.department}</span>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-gray-500">{item.count} tickets</span>
-                            <span className="text-green-600">{item.completed} completed</span>
+                            <span className="text-gray-500">{formatNumber(item.count)} tickets</span>
+                            <span className="text-green-600">{formatNumber(item.completed)} completed</span>
                           </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
@@ -581,7 +597,7 @@ const MonthlyReport = () => {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">{item.display_name}</span>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-gray-500">{item.count} tickets</span>
+                            <span className="text-gray-500">{formatNumber(item.count)} tickets</span>
                             <span className="text-purple-600">Avg rev: {item.avg_revisions}</span>
                           </div>
                         </div>
@@ -643,7 +659,7 @@ const MonthlyReport = () => {
                   return (
                     <div key={key} className="border rounded-lg p-4">
                       <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                      <p className="text-2xl font-bold text-gray-900">{data.current}</p>
+                      <p className="text-2xl font-bold text-gray-900">{formatNumber(data.current)}</p>
                       <div className="flex items-center gap-1 mt-1">
                         {!isNeutral && (
                           <svg
@@ -667,7 +683,7 @@ const MonthlyReport = () => {
                           {data.change !== null ? `${isPositive ? '+' : ''}${data.change}%` : '-'}
                         </span>
                         <span className="text-xs text-gray-400">
-                          (was {data.previous})
+                          (was {formatNumber(data.previous)})
                         </span>
                       </div>
                     </div>

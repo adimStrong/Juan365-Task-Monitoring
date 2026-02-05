@@ -1,0 +1,39 @@
+name: Daily Report
+
+on:
+  schedule:
+    # 8:00 AM Manila time = 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  send-daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Daily Report
+        run: |
+          echo "Triggering daily report at $(date -u)"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.BACKEND_URL }}/api/cron/daily-report/?token=${{ secrets.CRON_SECRET_TOKEN }}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Daily report failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Daily report sent successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Daily report failed. Check Railway logs for details."

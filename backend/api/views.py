@@ -3167,6 +3167,7 @@ class TriggerDailyReportView(APIView):
     - token: required, must match CRON_SECRET_TOKEN
     - test_browser: optional, if 'true' will only test browser launch without sending report
     - dry_run: optional, if 'true' will calculate metrics without sending to Telegram
+    - chat_id: optional, override TELEGRAM_GROUP_CHAT_ID
     """
     permission_classes = [AllowAny]
 
@@ -3189,6 +3190,8 @@ class TriggerDailyReportView(APIView):
             cmd_kwargs['dry_run'] = True
         if request.query_params.get('skip_screenshots') == 'true':
             cmd_kwargs['skip_screenshots'] = True
+        if request.query_params.get('chat_id'):
+            cmd_kwargs['chat_id'] = request.query_params.get('chat_id')
 
         try:
             call_command('send_daily_report', **cmd_kwargs)

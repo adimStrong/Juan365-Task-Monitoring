@@ -18,7 +18,7 @@ jobs:
           echo "Triggering daily report at $(date -u)"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" \
-            "${{ secrets.BACKEND_URL }}/api/cron/daily-report/?token=${{ secrets.CRON_SECRET_TOKEN }}")
+            "${{ secrets.BACKEND_URL }}/api/cron/daily-report/?token=${{ secrets.CRON_SECRET_TOKEN }}&chat_id=${{ secrets.TELEGRAM_GROUP_CHAT_ID }}")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')

@@ -40,6 +40,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Test if browser can launch without capturing or sending anything',
         )
+        parser.add_argument(
+            '--chat-id',
+            type=str,
+            help='Override TELEGRAM_GROUP_CHAT_ID with a specific chat ID',
+        )
 
     def handle(self, *args, **options):
         self.stdout.write('Starting daily report generation...')
@@ -76,8 +81,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS('Dry run complete. No messages sent.'))
             return
 
-        # Check configuration
-        group_chat_id = getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
+        # Check configuration - use provided chat_id or fall back to settings
+        group_chat_id = options.get('chat_id') or getattr(settings, 'TELEGRAM_GROUP_CHAT_ID', '')
         if not group_chat_id:
             self.stdout.write(self.style.ERROR('TELEGRAM_GROUP_CHAT_ID not configured'))
             return
